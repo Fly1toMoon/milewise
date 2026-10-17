@@ -117,7 +117,7 @@ IMAGE_TAG ?= $(shell git rev-parse --short HEAD 2>/dev/null || date +dev-%Y%m%d%
 TFOUT      = $(TF) -chdir=$(APP_DIR) output -raw
 CLOUD_DB   = DB_CLUSTER_ARN=$$($(TFOUT) cluster_arn) DB_SECRET_ARN=$$($(TFOUT) db_secret_arn)
 
-.PHONY: image deploy app-init app-plan app-apply put-openai-key upload-raw restore smoke up down
+.PHONY: image deploy app-init app-plan app-apply put-openai-key upload-raw reingest-cloud restore smoke up down
 # Lambda rejects OCI indexes with attestation manifests, so attestations are disabled.
 image:  ## Build the arm64 image and push it to ECR as $(IMAGE_TAG)
 	@repo=$$($(TF) -chdir=$(BOOTSTRAP_DIR) output -raw ecr_repository_url) && \
@@ -154,6 +154,13 @@ put-openai-key:  ## Copy the OpenAI key from .env into Secrets Manager (not via 
 upload-raw:  ## Upload raw rules pages; S3 events trigger the ingest Lambda
 	aws s3 sync raw/ s3://$$($(TF) -chdir=$(BOOTSTRAP_DIR) output -raw raw_docs_bucket)/ \
 	  --exclude "*" --include "nh/*.html" --include "jl/*.html"
+
+reingest-cloud:  ## Re-trigger ingestion of every raw page in S3 (after a chunker change)
+	@bucket=$$($(TF) -chdir=$(BOOTSTRAP_DIR) output -raw raw_docs_bucket) && \
+	for prefix in nh/ jl/; do \
+	  aws s3 cp s3://$$bucket/$$prefix s3://$$bucket/$$prefix --recursive --only-show-errors \
+	    --exclude "*" --include "*.html" --metadata-directive REPLACE --metadata retrigger=$$(date +%s) || exit 1; \
+	done && echo "re-triggered all raw pages in s3://$$bucket"
 
 restore:  ## Rebuild cloud data: migrations, charts, then re-ingest raw pages
 	$(CLOUD_DB) uv run milewise migrate

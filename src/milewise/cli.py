@@ -127,10 +127,7 @@ def ingest_local(db: object) -> None:
             failures += 1
             print(f"FAILED                {src['id']}: {type(e).__name__}: {e}")
             continue
-        print(
-            f"{res.status:<21} {src['id']}: {res.chunks_written} chunks"
-            f" ({res.chunks_skipped_boilerplate} boilerplate skipped)"
-        )
+        print(f"{res.status:<21} {src['id']}: {res.chunks_written} chunks")
     if failures:
         raise SystemExit(f"{failures} page(s) failed to ingest")
 
