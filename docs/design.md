@@ -1002,3 +1002,12 @@ ADR 列表（M1 起逐步补齐，放在 `docs/adr/`）：
   - 说了"羽田""浦东"或航班号（JL031），就缩小到对应的那一行；
   - 回答时把基本里程表述为"最低值，PLUS 可能更高（最多 X）"，不当作确定价格（system prompt 规则 6a / 6b）。
 - **测试与评测**：golden 测试的期望值来自**独立于解析器**的原始 HTML 读取（9 个测试全部一次通过）；评测扩充到 25 题，全部通过。题目中"東京→ロンドンのビジネス"的问题现在会给出 ANA 和 JAL 的对比。
+
+### 9.12 CI / 带评测闸门的发布（2026-10-17）
+
+- **`scripts/release.sh`**：`candidate`（推送镜像 → 更新两个函数 → 发布版本 → candidate alias）/ `candidate-url` / `eval-env` / `promote`。资源**全部通过 AWS API 解析**（ECR 地址由账户 ID 推出，URL 和 DB 的 ARN 由 Lambda / RDS API 查得），所以 CI 的 deploy 角色不需要访问 Terraform state。
+- **远程评测**：`milewise eval --target <URL>` 通过 SSE 调用已部署的端点。`done` 事件里加上了 evidence id → URL 的对应、工具名和 token 数，所以远程也能校验引用。
+- **IAM**：给 deploy 角色加上读取 OpenAI key 的权限（评测裁判使用；这样 GitHub 上不需要再存一份 key）；每日请求上限改为 300（每次发布评测约 25–50 次请求）。
+- **本地端到端验证**：`make release` → candidate v8 → **对 candidate URL 评测 25/25** → promote → live v8。
+- **工作流**：`ci.yml`（PR：ruff / mypy / pytest + pgvector service / 迁移 + 加载 / Terraform fmt + validate）、`deploy.yml`（main：ubuntu-24.04-arm 原生构建 arm64 镜像 → candidate → 评测 → promote；app 栈不存在时跳过）。用 GitHub 官方 schema 校验通过；GitHub 上的首次实际运行要等 push。
+- **未做**：PR 上的 `terraform plan`。只读的 plan 角色不能读取 secret 的值，`aws_secretsmanager_secret_version` 的 refresh 会失败，需要改为 `-refresh=false` 或调整资源结构。

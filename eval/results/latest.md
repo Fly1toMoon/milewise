@@ -1,6 +1,6 @@
-# Eval run 4b8cc5db (2026-10-17T14:02Z)
+# Eval run 9eb6c64e (2026-10-17T14:09Z)
 
-model `gpt-6-luna`, judge `gpt-6-luna`, git `11038df-dirty`, 25 cases (25 not yet human-verified)
+model `deployed`, judge `gpt-6-luna`, git `702ad19-dirty`, 25 cases (25 not yet human-verified)
 
 | metric | value | threshold |
 |---|---|---|
@@ -10,8 +10,8 @@ model `gpt-6-luna`, judge `gpt-6-luna`, git `11038df-dirty`, 25 cases (25 not ye
 | citation accuracy | 100% | 80% |
 | post-check failures | 0% | |
 | overall | 100% | |
-| latency avg / p95 | 6893 / 9754 ms | |
-| cost avg / total | $0.00062 / $0.0155 | |
+| latency avg / p95 | 9040 / 12104 ms | |
+| cost avg / total | $0.00059 / $0.0148 | |
 
 **PASSED**
 
