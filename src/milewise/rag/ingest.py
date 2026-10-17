@@ -111,7 +111,8 @@ def _ingest(
     with db.transaction():
         if current:
             db.execute(
-                "UPDATE rag.documents SET is_current = false, superseded_at = now() WHERE doc_id = :d",
+                "UPDATE rag.documents SET is_current = false, superseded_at = now()"
+                " WHERE doc_id = CAST(:d AS uuid)",
                 {"d": current[0]["doc_id"]},
             )
         doc = db.query(

@@ -143,3 +143,33 @@ def test_every_migration_splits_cleanly() -> None:
         stmts = split_statements(path.read_text(encoding="utf-8"))
         assert stmts, path
         assert all(s.split()[0].upper() in {"CREATE", "ALTER", "INSERT"} for s in stmts), path
+
+
+def test_uuid_round_trips_like_psycopg(stubbed: tuple[DataApiDb, Stubber]) -> None:
+    """Regression (cloud ingest, 2026-10-17): uuid came back as str and was compared to a
+    uuid column as text. Read uuid columns as UUID and send UUID params with a type hint."""
+    import uuid
+
+    db, stub = stubbed
+    doc = uuid.UUID("0b7f8a52-3c2e-4d0e-9c1a-5d6f7e8a9b0c")
+    stub.add_response(
+        "execute_statement",
+        {
+            "columnMetadata": [{"name": "doc_id", "label": "doc_id", "typeName": "uuid"}],
+            "records": [[{"stringValue": str(doc)}]],
+        },
+    )
+    stub.add_response(
+        "execute_statement",
+        {},
+        {
+            **BASE,
+            "sql": "UPDATE t SET x = 1 WHERE doc_id = :d",
+            "parameters": [{"name": "d", "value": {"stringValue": str(doc)}, "typeHint": "UUID"}],
+        },
+    )
+    with stub:
+        got = db.query("SELECT doc_id FROM t")[0]["doc_id"]
+        assert got == doc
+        db.execute("UPDATE t SET x = 1 WHERE doc_id = :d", {"d": got})
+    stub.assert_no_pending_responses()
