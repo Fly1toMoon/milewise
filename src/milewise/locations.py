@@ -67,3 +67,55 @@ def resolve_city(query: str) -> list[City]:
     """Return every city the query could mean: [] unknown, 1 resolved, >1 ambiguous."""
     codes = _index().get(normalize(query), frozenset())
     return [c for c in load_cities() if c.city_code in codes]
+
+
+# Airport-level names, for routes priced per airport (JAL: 羽田 vs 成田 to Taipei, 虹橋 vs
+# 浦東 for Shanghai). City-level aliases in cities.csv stay as they are.
+AIRPORT_ALIASES = {
+    "羽田": "HND",
+    "haneda": "HND",
+    "成田": "NRT",
+    "narita": "NRT",
+    "関西": "KIX",
+    "关西": "KIX",
+    "kansai": "KIX",
+    "伊丹": "ITM",
+    "itami": "ITM",
+    "中部": "NGO",
+    "セントレア": "NGO",
+    "chubu": "NGO",
+    "centrair": "NGO",
+    "那覇": "OKA",
+    "那霸": "OKA",
+    "naha": "OKA",
+    "虹橋": "SHA",
+    "虹桥": "SHA",
+    "hongqiao": "SHA",
+    "浦東": "PVG",
+    "浦东": "PVG",
+    "pudong": "PVG",
+    "松山": "TSA",
+    "songshan": "TSA",
+    "桃園": "TPE",
+    "桃园": "TPE",
+    "taoyuan": "TPE",
+    "仁川": "ICN",
+    "incheon": "ICN",
+    "金浦": "GMP",
+    "gimpo": "GMP",
+    "スワンナプーム": "BKK",
+    "suvarnabhumi": "BKK",
+    "ドンムアン": "DMK",
+    "don mueang": "DMK",
+}
+
+
+def airport_hint(query: str) -> str | None:
+    """The specific airport a query names (IATA code or airport name), if any."""
+    q = normalize(query)
+    if q in AIRPORT_ALIASES:
+        return AIRPORT_ALIASES[q]
+    code = q.upper()
+    if len(code) == 3 and any(code in c.airports for c in load_cities()):
+        return code
+    return None

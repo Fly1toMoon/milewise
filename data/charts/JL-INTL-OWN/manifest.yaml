@@ -1,0 +1,37 @@
+chart_family: JL-INTL-OWN
+airline: JL
+award_type: own_intl
+pricing_basis: route
+source_url: https://www.jal.co.jp/jp/ja/jalmile/use/jal/inter/routemiles.html
+fetched_at: '2026-10-17T00:59:17+00:00'
+source_sha256: a83a08876aafca23deedfc74c6ca7df50d1ef2c76d30f835defd3531e2eae752
+parser_version: jal-intl-1
+charts:
+- chart_id: JL-INTL-OWN-OW-BASE@2026-04-16
+  trip_type: OW
+  booking_from: '2026-04-16'
+  price_kind: floor
+  block: base
+- chart_id: JL-INTL-OWN-OW-F@2026-04-16
+  trip_type: OW
+  booking_from: '2026-04-16'
+  price_kind: fixed
+  block: first
+- chart_id: JL-INTL-OWN-OW-PLUSMAX@2026-04-16
+  trip_type: OW
+  booking_from: '2026-04-16'
+  price_kind: ceiling
+  block: plus_max
+notes:
+- One-way, Japan origin/destination only (日本発着（片道）). Round trip = sum of both legs.
+- 'BASE (Y/PY/C) are 基本マイル数: the minimum; with 特典航空券PLUS the price is higher, up to
+  PLUSMAX.'
+- First class has no PLUS; it is priced by its own L/R/H season calendar (season_group
+  F).
+- booking_from is the page's 更新日; the page states no effective date.
+- no PLUS maximum published for 中東 ドーハ PY
+counts:
+  base: 114
+  first: 63
+  plus_max: 107
+  season_ranges: 16

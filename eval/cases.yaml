@@ -20,6 +20,7 @@ defaults:
   ana_application: &ana_application https://www.ana.co.jp/ja/jp/guide/amc/award/international/application/
   ana_partner: &ana_partner https://www.ana.co.jp/ja/jp/guide/amc/award/tk/usage/
   ana_revision: &ana_revision https://www.ana.co.jp/ja/jp/guide/amc/award/tk/zone/info/250415/
+  jal_chart: &jal_chart https://www.jal.co.jp/jp/ja/jalmile/use/jal/inter/routemiles.html
   jal_refund: &jal_refund https://www.jal.co.jp/jp/ja/jalmile/use/jal/inter/cancel.html
   jal_notes: &jal_notes https://www.jal.co.jp/jp/ja/jalmile/use/ticket.html
 
@@ -110,6 +111,45 @@ cases:
       not_offered: true    # チャート上「設定なし」: must say it is not offered, give no F figure
     gold_urls: [*ana_chart]
     source_note: "往復・片道チャート 日本（Zone 1）発着 韓国・ロシア1（Zone 2）、F: 設定なし"
+    verified_at: null
+    verified_by: null
+
+  - id: miles-09
+    category: miles
+    lang: ja
+    question: "JALで東京→ロンドンのビジネスクラス片道は何マイル？"
+    expected:
+      miles: [57000]
+      reference: "基本マイル数 57,000（最少）。特典航空券PLUSにより空席状況でそれ以上になり得る（最大 441,000）。"
+      must_mention: ["57,000 は最少（基本マイル数）であり、PLUS で増える可能性がある"]
+      must_not_say: ["57,000マイルで必ず予約できる"]
+    gold_urls: [*jal_chart]
+    source_note: "日本発着（片道）基本マイル数 ヨーロッパ ロンドン C 57,000；PLUS利用時 ロンドン C 441,000"
+    verified_at: null
+    verified_by: null
+
+  - id: miles-10
+    category: miles
+    lang: zh
+    question: "JAL从东京到台北经济舱单程要多少里程？"
+    expected:
+      miles: [11000, 9000]
+      reference: "羽田出发 11,000、成田出发 9,000（基本里程，最低值）。"
+      must_mention: ["羽田和成田出发所需里程不同（或询问出发机场）"]
+      must_not_say: []
+    gold_urls: [*jal_chart]
+    source_note: "基本マイル数 東アジア 台北－東京（羽田）便 Y 11,000 / 台北－東京（成田）、大阪（関西）、名古屋（中部）便 Y 9,000"
+    verified_at: null
+    verified_by: null
+
+  - id: miles-11
+    category: miles
+    lang: en
+    question: "JAL first class award, Tokyo to London round trip, leaving 1 August 2026 and returning 1 October 2026: how many miles?"
+    expected:
+      miles: [265000]
+    gold_urls: [*jal_chart]
+    source_note: "ファーストクラス ロンドン H 140,000（8/1 は H: 7/9～8/25）+ R 125,000（10/1 は R: 8/26～12/12）= 265,000（往復は片道の合算）"
     verified_at: null
     verified_by: null
 
