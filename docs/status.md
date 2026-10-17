@@ -1,6 +1,6 @@
 # 进度与待办
 
-最后更新：2026-10-17（CI 完成，等待 push 后在 GitHub 上首次运行）。详细记录见 [design.md §9](design.md)。
+最后更新：2026-10-17（GitHub 上的 deploy 首次跑通）。详细记录见 [design.md §9](design.md)。
 
 ## 现状
 
@@ -12,7 +12,7 @@
 | Agent / 后置校验 | ✅ | 数字、引用、URL 都只允许来自工具结果 |
 | 评测 | 🟡 | 25 题全部通过（含 JAL 价格 3 题、JAL 规则 2 题）；**标准答案还没有人工核对** |
 | 云端（Lambda / Aurora / 导入流水线） | ✅ | 线上可用。`make release` = candidate → 对 candidate URL 跑评测 → 通过才切到 live |
-| CI（GitHub Actions） | 🟡 | `ci.yml`（PR：lint / 类型 / 测试 + pgvector / Terraform validate）、`deploy.yml`（main：带评测闸门的发布）已写好并通过 schema 校验；同样的流程已在本地端到端跑通。**在 GitHub 上首次运行要等 push** |
+| CI（GitHub Actions） | ✅ | `ci.yml`（PR：lint / 类型 / 测试 + pgvector / Terraform validate）、`deploy.yml`（main：带评测闸门的发布）。PR #1 合并后首次 deploy：评测 25/25 通过，live → v9（`de6bc95`），评测费用 $0.016 |
 
 ## 待办（按优先级）
 
@@ -28,7 +28,7 @@
 - [ ] 核对评测标准答案（`eval/cases.yaml` 的 `verified_at`）
 - [ ] 确认 AWS 发来的 SNS 订阅邮件（否则告警邮件发不到）
 - [ ] 给云端单独建一个 OpenAI key（`OPENAI_LAMBDA_API_KEY` → `make put-openai-key`）
-- [ ] push 到 GitHub（`feat/v1-weekend`，还没有 push），并设置 CI 用的 repo 变量（见 docs/prerequisites.md 末尾）
+- [x] push 到 GitHub 并设置 CI 用的 repo 变量
 
 ## 已知局限
 
