@@ -17,6 +17,8 @@ from milewise.db import Db
 
 
 def _csv(path: Path) -> list[dict[str, str]]:
+    if not path.exists():  # route-based families (JAL) have no zone files
+        return []
     with path.open(encoding="utf-8") as f:
         return list(csv.DictReader(f))
 
@@ -51,7 +53,7 @@ def load_family(db: Db, family_dir: Path) -> dict[str, int]:
                     "award_type": m["award_type"],
                     "trip_type": c["trip_type"],
                     "pricing_basis": m["pricing_basis"],
-                    "price_kind": m["price_kind"],
+                    "price_kind": c.get("price_kind", m.get("price_kind")),
                     "booking_from": c["booking_from"],
                     "booking_to": c.get("booking_to"),
                     "source_url": m["source_url"],
@@ -76,11 +78,24 @@ def load_family(db: Db, family_dir: Path) -> dict[str, int]:
             " CAST(:date_from AS date), CAST(:date_to AS date))",
             seasons,
         )
+        # Zone-based (ANA) and route-based (JAL) rows share one table; arrays travel as
+        # "|"-joined text because the Data API has no array parameters.
+        cols = (
+            "origin_zone",
+            "dest_zone",
+            "origin_match",
+            "dest_match",
+            "flight_numbers",
+            "route_label",
+        )
         db.execute_many(
-            "INSERT INTO fare.award_rates (chart_id, origin_zone, dest_zone, cabin, season, miles,"
-            " source_ref) VALUES (:chart_id, :origin_zone, :dest_zone, :cabin, :season,"
-            " CAST(:miles AS int), :source_ref)",
-            [r for r in rates if r["chart_id"] in chart_ids],
+            "INSERT INTO fare.award_rates (chart_id, origin_zone, dest_zone, origin_match, dest_match,"
+            " flight_numbers, route_label, cabin, season, miles, source_ref) VALUES (:chart_id,"
+            " NULLIF(:origin_zone, ''), NULLIF(:dest_zone, ''),"
+            " string_to_array(NULLIF(:origin_match, ''), '|'), string_to_array(NULLIF(:dest_match, ''), '|'),"
+            " string_to_array(NULLIF(:flight_numbers, ''), '|'), NULLIF(:route_label, ''),"
+            " :cabin, :season, CAST(:miles AS int), :source_ref)",
+            [{**{c: "" for c in cols}, **r} for r in rates if r["chart_id"] in chart_ids],
         )
     return {
         "charts": len(chart_ids),

@@ -10,8 +10,10 @@ import hashlib
 import json
 import statistics
 import subprocess
+import threading
 import time
 import uuid
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
@@ -20,7 +22,7 @@ from typing import Any
 
 import yaml
 
-from milewise.agent import SYSTEM_PROMPT, ask
+from milewise.agent import SYSTEM_PROMPT, AskResult, ask
 from milewise.config import Settings, cost_usd, get_settings
 from milewise.db import Db, connect
 from milewise.evals.grade import Grade, grade
@@ -56,9 +58,12 @@ def case_sha(case: dict[str, Any]) -> str:
     return hashlib.sha256(json.dumps(case, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
 
-def _attempt(case: dict[str, Any], db: Db, s: Settings, model: str, judge_model: str) -> CaseResult:
+Asker = Callable[[str], AskResult]
+
+
+def _attempt(case: dict[str, Any], asker: Asker, s: Settings, judge_model: str) -> CaseResult:
     try:
-        res = ask(case["question"], db, s, model=model)
+        res = asker(case["question"])
         g = grade(case, res, s, judge_model)
     except Exception as e:  # one broken case must not abort the whole run
         return CaseResult(
@@ -98,15 +103,14 @@ def _attempt(case: dict[str, Any], db: Db, s: Settings, model: str, judge_model:
 
 
 def run_case(
-    case: dict[str, Any], s: Settings, model: str, judge_model: str, retries: int
+    case: dict[str, Any], s: Settings, asker: Asker, judge_model: str, retries: int
 ) -> CaseResult:
-    db = connect()  # psycopg connections are not shared across threads
-    first = _attempt(case, db, s, model, judge_model)
+    first = _attempt(case, asker, s, judge_model)
     if first.passed or retries < 1:
         return first
     # Sampling cannot be pinned (R8): a single failure is re-run once; passing on the
     # retry counts as a pass but is reported as unstable.
-    second = _attempt(case, db, s, model, judge_model)
+    second = _attempt(case, asker, s, judge_model)
     second.unstable = second.passed
     second.cost_usd += first.cost_usd
     return second
@@ -316,16 +320,38 @@ def run_eval(
     retries: int = 1,
     trigger: str = "local",
     target: str = "local",
+    token: str | None = None,
     save_db: bool = True,
 ) -> dict[str, Any]:
+    """target "local" runs the agent in-process; an https URL evaluates a deployed endpoint."""
     s = get_settings()
     model = model or s.openai_model
     judge_model = judge_model or s.openai_model
     cases = [c for c in load_cases() if not only or c["id"] in only]
+
+    asker: Asker
+    if target == "local":
+        local = threading.local()
+
+        def asker(question: str) -> AskResult:
+            if not hasattr(local, "db"):  # psycopg connections are not shared across threads
+                local.db = connect()
+            return ask(question, local.db, s, model=model)
+    else:
+        from milewise.evals.remote import ask_remote
+
+        token = token or s.app_token
+        if not token:
+            raise SystemExit("remote eval needs an app token (APP_TOKEN or --token-secret-arn)")
+        model = "deployed"
+
+        def asker(question: str) -> AskResult:
+            return ask_remote(target, str(token), question)
+
     started = datetime.now(UTC).isoformat()
     t0 = time.perf_counter()
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        results = list(pool.map(lambda c: run_case(c, s, model, judge_model, retries), cases))
+        results = list(pool.map(lambda c: run_case(c, s, asker, judge_model, retries), cases))
     summary = summarize(results)
     run = {
         "run_id": str(uuid.uuid4()),

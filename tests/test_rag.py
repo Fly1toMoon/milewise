@@ -112,3 +112,49 @@ def test_page_without_h1_falls_back_to_title() -> None:
     secs = extract_sections(page)
     assert [s.path for s in secs] == [("JAL国際線特典航空券PLUSとは", "ポイント1")]
     assert "メニュー" not in secs[0].text
+
+
+def _page(title: str, notice_heading: str, own: str) -> str:
+    return (
+        f"<h1>{title}</h1>"
+        f"<h2>{notice_heading}</h2><p>システム調整のため停止しておりました取消手数料のカード決済を再開しました。</p>"
+        f"<h2>固有</h2><p>{own}</p>"
+    )
+
+
+def test_notice_repeated_across_pages_is_stored_whole_but_retrieved_once(db: Db) -> None:
+    from milewise.rag.search import recall_by_vector
+
+    a = {"id": "dedup-a", "airline": "JL", "url": "https://example.test/a", "lang": "ja"}
+    b = {"id": "dedup-b", "airline": "JL", "url": "https://example.test/b", "lang": "ja"}
+    for src, page in (
+        (a, _page("ページA", "ご注意", "Aだけの規則です。")),
+        (b, _page("ページB", "お知らせ", "Bだけの規則です。")),
+    ):
+        status = ingest_page(
+            db,
+            page,
+            source=src,
+            raw_key=f"raw/jl/{src['id']}.html",
+            raw_etag="e",
+            fetched_at="2026-10-17T00:00:00+09:00",
+            embedding_model="fake",
+            embed_fn=fake_embed,
+        ).status
+        assert status == "succeeded"
+
+    stored = db.query(
+        "SELECT count(*) AS n FROM rag.chunks c JOIN rag.documents d USING (doc_id)"
+        " WHERE d.is_current AND d.source_url LIKE 'https://example.test/_' AND c.text LIKE '%カード決済%'"
+    )[0]["n"]
+    assert stored == 2  # both pages keep their own copy: no ingestion-order dependence
+
+    [query_vec] = fake_embed(
+        [
+            "ページA > ご注意\nシステム調整のため停止しておりました取消手数料のカード決済を再開しました。"
+        ]
+    )
+    rows = recall_by_vector(db, query_vec, "JL", k=20)
+    notices = [r for r in rows if "カード決済" in r["text"]]
+    assert len(notices) == 1  # ...but retrieval returns the notice once
+    assert {r["text"].split("\n")[0] for r in rows} >= {"ページA > 固有", "ページB > 固有"}

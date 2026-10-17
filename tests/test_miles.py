@@ -133,6 +133,9 @@ def test_booking_before_chart_version(db: Db) -> None:
     assert res.status == "not_found"
 
 
-def test_jal_not_loaded_yet(db: Db) -> None:
-    res = get_required_miles(db, "JL", "東京", "ロンドン", "C", booking_date=BOOKING)
-    assert res.status == "unsupported"
+def test_partner_awards_not_loaded_yet(db: Db) -> None:
+    for airline in ("NH", "JL"):
+        res = get_required_miles(
+            db, airline, "東京", "ロンドン", "C", award_type="partner", booking_date=BOOKING
+        )
+        assert res.status == "unsupported"

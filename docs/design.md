@@ -968,4 +968,46 @@ ADR 列表（M1 起逐步补齐，放在 `docs/adr/`）：
 | 评测 | 文档从 5 → 36 页（125 → 289 个 chunk），检索时的竞争变激烈 | 题集扩展到 22 题（加了 2 道 JAL 规则题），**全部通过**，没有退化 |
 
 - `CHUNKER_VERSION` 从 2 升到 4：现有页面都按新逻辑自动重新导入。
-- **待做**：把云端同步到这个状态（部署新镜像 → 上传原始页面），需要重新 `aws login`；JAL 国际线价目表的结构化。
+- **待做**：JAL 国际线价目表的结构化。
+
+### 9.10 云端同步（2026-10-17）
+
+- 部署 `69e9670`（api 第 3 版）→ 上传 38 页 → ingest Lambda 处理：成功 31、内容未变 2、价目表页跳过 2、**失败 3**。
+- **失败原因：`operator does not exist: uuid = text`**。Data API 把 uuid 列作为字符串返回，再作为参数传回时就成了 `uuid = text` 的比较。只有在"内容有变化、需要把旧版本标记为 superseded"时才会走到这段代码（本地的 psycopg 返回 UUID 对象，所以测试没有发现）。
+  - 对策（`d1c6b54`）：在 SQL 里加 `CAST(:d AS uuid)`；**同时把 DataApiDb 改成和 psycopg 一样**（读取时把 uuid 列转成 UUID，UUID 参数带 `typeHint: UUID`），并补了回归测试。
+  - 失败的 3 页通过原地复制 S3 对象重新触发 → 成功。DLQ 为 0。
+- **云端与本地对比**：文档都是 36 篇。chunk 数为云端 293、本地 289，有 3 个 JAL 页面不一致。
+  - 原因：**样板文本去重依赖导入顺序**，并且多个 Lambda 并行导入时会发生竞争（两边都没看到对方，于是都写入了）。这不影响正确性，但会产生少量重复 chunk。
+  - **已修复（`13bebfb`）**：去掉导入时的去重（它依赖顺序、存在竞争，并且"所有者"页面更新后其他页面会丢失这段文本），改为每页完整保存，检索时用 HNSW 取 3k 个候选，再按 `body_sha256` 做 DISTINCT ON。CHUNKER_VERSION 升到 5（版本号纳入 content hash）后重新导入，**云端与本地完全一致**：36 篇、305 个 chunk、260 种正文。
+- **Smoke**：冷启动时首字节 6.3 秒、总计 18.3 秒；预热后首字节 0.1 秒、总计 9.1 秒。JAL 规则问题在云端回答正确："发券后不能改；需要退票后重新预订，取消手续费 3,100 日元 [D1]"，并给出 JAL 官网链接，后置校验通过。
+- 运维上的小插曲：
+  - OrbStack 的 Docker 引擎有几分钟没有响应（后来自动恢复）；
+  - zsh 下 `export A=… B="$(terraform …)"` 中的命令替换会先于赋值执行，导致读不到 `AWS_PROFILE`（改成分两行写）；
+  - `aws login` 的会话到期需要重新登录。
+
+### 9.11 JAL 国际线价目表（2026-10-17，`a2278b6`）
+
+- **页面结构**：一个页面里有 4 组共 25 张表。基本里程（Y/PY/C、单程、8 个地区）、头等舱季节日历、头等舱（L/R/H）、PLUS 最大值。全部是"日本发着（单程）"。
+- **与 ANA 的区别**：
+  - 按**路线**计价（目的地城市；部分路线还按出发机场、航班号区分：台北的羽田 / 成田、上海的虹桥 / 浦东、曼谷的 JL031/JL034）；
+  - Y/PY/C 没有季节，只有"基本里程"这一**下限**，PLUS 的**上限**另外公布；
+  - 往返 = 两段单程之和（官网原文："片道の必要マイル数を合算"）。
+- **数据模型**：拆成三个 chart（`BASE` = floor、`F` = fixed、`PLUSMAX` = ceiling），用 migration 006 增加 `price_kind = 'ceiling'` 和 `route_label`。路线行存 `origin_match` / `dest_match` / `flight_numbers` 数组，查询时用 `&&`（数组重叠）匹配。
+- **解析时的发现**：
+  - **未知标签直接报错**的设计马上发挥了作用：PLUS 表把"上海""台北—东京（羽田·成田）"合并成一行，和基本里程表的划分不同。所以交叉校验改为**按路线覆盖范围**比较（PLUS 最大值 ≥ 基本里程）。
+  - **地区判定的 bug**：表格前面的文字不足 60 个字时，`find()` 返回的 -1 也满足条件，导致多哈被判为"东亚"。改为用最后一次出现的地区名。
+  - **官网本身的数据缺口**：多哈的 PY 没有公布 PLUS 最大值。这不当作解析错误，而是记录为 note（写进 manifest）。
+- **计算工具**：
+  - 用户说"东京"时，**列出所有变体**（到台北：羽田 11,000 / 成田 9,000），不随便选一个；
+  - 说了"羽田""浦东"或航班号（JL031），就缩小到对应的那一行；
+  - 回答时把基本里程表述为"最低值，PLUS 可能更高（最多 X）"，不当作确定价格（system prompt 规则 6a / 6b）。
+- **测试与评测**：golden 测试的期望值来自**独立于解析器**的原始 HTML 读取（9 个测试全部一次通过）；评测扩充到 25 题，全部通过。题目中"東京→ロンドンのビジネス"的问题现在会给出 ANA 和 JAL 的对比。
+
+### 9.12 CI / 带评测闸门的发布（2026-10-17）
+
+- **`scripts/release.sh`**：`candidate`（推送镜像 → 更新两个函数 → 发布版本 → candidate alias）/ `candidate-url` / `eval-env` / `promote`。资源**全部通过 AWS API 解析**（ECR 地址由账户 ID 推出，URL 和 DB 的 ARN 由 Lambda / RDS API 查得），所以 CI 的 deploy 角色不需要访问 Terraform state。
+- **远程评测**：`milewise eval --target <URL>` 通过 SSE 调用已部署的端点。`done` 事件里加上了 evidence id → URL 的对应、工具名和 token 数，所以远程也能校验引用。
+- **IAM**：给 deploy 角色加上读取 OpenAI key 的权限（评测裁判使用；这样 GitHub 上不需要再存一份 key）；每日请求上限改为 300（每次发布评测约 25–50 次请求）。
+- **本地端到端验证**：`make release` → candidate v8 → **对 candidate URL 评测 25/25** → promote → live v8。
+- **工作流**：`ci.yml`（PR：ruff / mypy / pytest + pgvector service / 迁移 + 加载 / Terraform fmt + validate）、`deploy.yml`（main：ubuntu-24.04-arm 原生构建 arm64 镜像 → candidate → 评测 → promote；app 栈不存在时跳过）。用 GitHub 官方 schema 校验通过；GitHub 上的首次实际运行要等 push。
+- **未做**：PR 上的 `terraform plan`。只读的 plan 角色不能读取 secret 的值，`aws_secretsmanager_secret_version` 的 refresh 会失败，需要改为 `-refresh=false` 或调整资源结构。

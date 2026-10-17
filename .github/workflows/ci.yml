@@ -1,0 +1,66 @@
+# Checks for every pull request and every non-main push: lint, types, unit tests against
+# a real Postgres + pgvector, and Terraform fmt/validate for all stacks. No AWS access.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches-ignore: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: milewise
+          POSTGRES_PASSWORD: milewise
+          POSTGRES_DB: milewise
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U milewise -d milewise"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      TEST_DATABASE_ADMIN_URL: postgresql://milewise:milewise@localhost:5432/milewise
+      DATABASE_URL: postgresql://milewise:milewise@localhost:5432/milewise
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - name: Lint
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+      - name: Types
+        run: uv run mypy
+      - name: Tests
+        run: uv run pytest -q
+      - name: Charts load and migrate cleanly from scratch
+        run: |
+          uv run milewise migrate
+          uv run milewise load-charts
+
+  terraform:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.16.6
+      - run: terraform fmt -check -recursive infra
+      - name: Validate every stack
+        run: |
+          for d in infra/bootstrap infra/app infra/spikes/aurora-data-api; do
+            terraform -chdir="$d" init -backend=false -input=false >/dev/null
+            terraform -chdir="$d" validate
+          done

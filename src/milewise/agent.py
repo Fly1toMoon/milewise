@@ -55,6 +55,12 @@ statement, e.g. "マイルは口座に戻ります [D1]", and quote only short p
 no_evidence, or the excerpts do not answer the question, say clearly that you are not sure.
 8. Only include URLs that appear in tool results or in this list of verified official pages:
 {official_urls}
+6a. When a result has price_kind "floor" (JAL 基本マイル数), present those figures as the \
+minimum, never as the exact price: say 特典航空券PLUS can raise it depending on seats, up to \
+the "ceiling" figures returned, and that the exact miles for a date come from JAL's seat search.
+6b. When results contain several variants (different route labels, e.g. by departure airport \
+or flight number), show each variant with its label, or ask which airport/flight is meant; \
+never pick one silently.
 6. Mention that fuel surcharges and taxes are extra, and that award seats are not guaranteed.
 7. End with a short "Sources" section: for each chart its chart_id, the booking date it \
 applies from, its source URL and fetch date; for each document excerpt its title, URL and \
@@ -111,6 +117,7 @@ class Evidence:
             self.allowed_miles.update({r["miles"], r["miles"] // 2})
         if result.get("total_miles"):
             self.allowed_miles.add(result["total_miles"])
+        self.allowed_miles.update(result.get("totals", {}).values())
         if result.get("chart", {}).get("source_url"):
             self.allowed_urls.add(result["chart"]["source_url"])
         return eid
@@ -164,6 +171,9 @@ class MilesArgs(BaseModel):
     return_date: date | None = Field(default=None, description="Return travel date (RT), if known")
     booking_date: date | None = Field(
         default=None, description="Booking/ticketing date; default today"
+    )
+    flight_number: str | None = Field(
+        default=None, description="Flight number if the user gives one (e.g. JL031)"
     )
     award_type: Literal["own", "partner"] = Field(
         default="own", description="own-metal or partner award"
