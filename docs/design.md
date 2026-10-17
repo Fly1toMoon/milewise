@@ -15,6 +15,7 @@
 | 2026-10-16 | 默认全部用小模型；运行方式选常开 | 见 §6 |
 | 2026-10-17 | **AWS 账户从 Free plan 升级为 Paid plan**。原因：spike 发现 Free plan 下 Aurora 只能用 express configuration（不能放进 VPC、只能 IAM 认证、存储 ≤ 1 GB），且 Terraform AWS provider 6.69.1 尚不支持该参数（[issue #47117](https://github.com/hashicorp/terraform-provider-aws/issues/47117)） | 原设计（VPC 私有 Aurora + Data API + 全部 Terraform）不用改；剩余抵扣额度 $140 保留；R21 降为低风险 |
 | 2026-10-17 | **spike 实测完成**（R1 已验证）、**M1 完成**（本地端到端） | 结果见 §9 |
+| 2026-10-18 | **去掉 Aurora：数据随镜像发布**（§4.6）。价目表直接读 repo 里的 CSV，规则索引（chunk + 向量）在构建时生成并打进镜像，内存检索；每日配额改用 DynamoDB，评测结果改存 S3 | 冷启动的约 20 秒唤醒等待消失；数据变更也要通过评测闸门，回滚 `live` 时数据一起回滚；Aurora、Data API、SQS/导入 Lambda 全部删除。§2、§4.3 中关于 Aurora 的内容保留为历史记录 |
 
 ---
 
@@ -24,7 +25,7 @@
 |---|---|---|
 | 语言 | **Python 3.12 + FastAPI** | LangChain / 评测 / 数据处理生态都在 Python；Lambda 流式的问题用 Lambda Web Adapter 解决 |
 | API 运行环境 | **日常：Lambda（容器镜像 + Lambda Web Adapter + Function URL 流式）**；**演示：ECS Fargate + ALB 的 Terraform 写好，按需 apply** | 空闲成本 ≈ $0；同一个镜像两边都能跑 |
-| 数据库 | **Aurora PostgreSQL Serverless v2（min 0 ACU 自动暂停）+ pgvector，通过 RDS Data API 访问** | 这是在"禁止 NAT / interface endpoint"约束下，让 VPC 外的 Lambda 同时访问 OpenAI API（公网）和数据库的唯一干净方案。RDS t4g.micro 做不到（见 §4.3） |
+| 数据库 | ~~Aurora PostgreSQL Serverless v2 + pgvector + Data API~~ → **2026-10-18 起不用数据库**：数据随镜像发布，配额用 DynamoDB（§4.6） | 这是在"禁止 NAT / interface endpoint"约束下，让 VPC 外的 Lambda 同时访问 OpenAI API（公网）和数据库的唯一干净方案。RDS t4g.micro 做不到（见 §4.3） |
 | LLM 提供方 | **OpenAI 官方 API**（2026-10-16 决定），API key 存在 Secrets Manager | 见变更记录 |
 | Embedding | **`text-embedding-3-large`，`dimensions=1024`**；M2 用 15 道检索题与 `text-embedding-3-small` 做一次对比 | 中文提问 → 日文文档的跨语言检索是关键；全量导入约 50 万 token，large 也只要约 $0.07 |
 | 模型分层 | **已决定（2026-10-16）**：路由 / 重排 / 评测打分 / agent 与最终回答**全部默认用 `gpt-6-luna`**；`gpt-6.1-sol` 保留为配置项，用于 A/B 对照和将来的升级路径 | 计算由代码完成，模型主要负责选工具和组织语言；Luna 的成本约为 Sol 的 1/13（每问约 $0.0024 对 $0.032），常开时整体约 $11/月，见 §6 |
@@ -526,7 +527,7 @@ LWA 是 AWS 官方维护的开源组件，在容器镜像里多加一层就行�
 - `infra/app` 里用变量 `enable_ecs_demo = false` 控制 ECS 模块。演示前设成 true 再 apply（约 5 分钟），演示后关掉。一天的演示成本约 $1.3。
 - 你原来的"$30/月"估算漏了 2024 年起收费的 **public IPv4**（每个 $3.6/月；ALB 跨 2 个 AZ 就有 2 个）。
 
-### 4.3 数据库：Aurora Serverless v2 vs RDS t4g.micro → **Aurora Serverless v2（min 0）+ Data API**
+### 4.3 数据库：Aurora Serverless v2 vs RDS t4g.micro → **Aurora Serverless v2（min 0）+ Data API**（2026-10-18 起被 §4.6 取代）
 
 | | Aurora Serverless v2，min 0 ACU，自动暂停 | RDS PostgreSQL db.t4g.micro（常开） |
 |---|---|---|
@@ -577,6 +578,36 @@ Data API 的代价（会如实写进 README 的已知局限）：
 - **鉴权**：Bearer token + 每日配额，详见 §1.2 第 1 步。不用 Cognito（对个人项目来说过重）；也不用 WAF（每月至少 $5）。
 
 ---
+
+### 4.6 数据随镜像发布，去掉 Aurora（2026-10-18，取代 §4.3）
+
+**为什么改**：M4 之后实测的数据规模是 305 个 chunk（1024 维 float32 ≈ 1.25 MB）加约 840 条价格。在这个规模上：
+
+- 向量检索在内存里暴力计算余弦相似度只要 1 ms 以内，HNSW 索引没有意义；
+- Aurora 自动暂停后唤醒要约 20 秒（§9.1），不暂停则 0.5 ACU 常开约 $55/月，两头都不理想；
+- **更关键的是一个设计漏洞**：导入 Lambda 直接写线上数据库，规则页面一更新，线上马上读到新数据，评测闸门拦不住数据变更，回滚 `live` 也回滚不了数据。
+
+**新设计**：
+
+| 数据 | 之前 | 之后 |
+|---|---|---|
+| 价目表（`fare`） | CSV → `load-charts` → Aurora | 直接读 repo 里的 `data/charts/**` CSV（本来就是唯一的事实来源），启动时载入内存 |
+| 规则索引（`rag`） | S3 → SQS → 导入 Lambda → Aurora + pgvector | **构建时**由 `milewise build-index` 生成 `build/index/`（`chunks.jsonl` + `embeddings.npy` + `manifest.json`），打进镜像；启动时载入，numpy 内存检索 |
+| 每日配额（`ops`） | Aurora 表 | DynamoDB on-demand，`UpdateItem` + `ADD` 原子计数，TTL 自动清理 |
+| 评测结果（`eval`） | Aurora 表 + 本地 JSONL | JSONL + 报告上传到 S3 artifacts 桶（`eval/`）；需要统计时在本地用 DuckDB 直接查 |
+
+- **数据和代码一起版本化**：同一个镜像 = 同一份代码 + 同一份数据，一起经过 candidate 评测，一起 promote / 回滚。索引的 `manifest.json` 记录内容哈希、构建时间和 embedding 模型，`/healthz` 和评测记录里都带上它。
+- **embedding 缓存**：按 `sha256(模型|维度|chunk 文本)` 复用上一次构建的向量，页面没变就不调用 OpenAI。CI 从 S3（`artifacts/index/latest/`）取上一次的索引作为缓存，发布成功后再写回。
+- **原文仍然不进 git**：CI 从 raw-docs 桶同步原文来构建索引。chunk 文本会进入**私有** ECR 镜像，和之前进入私有数据库是同一级别，不公开分发。
+- **更新规则文档的流程**：保存页面 → `make upload-raw` → 触发一次 deploy（`workflow_dispatch` 或 `make release`）。官方页面每周甚至每月才更新一次，走一次发布反而是优点。
+
+**代价**：
+
+- 失去 SQL 的灵活性。实际用到的查询（区域匹配、季节日历、路线匹配）都是简单过滤，用 Python 写更直接，golden 测试保证结果不变；
+- 数据规模的上限：到几万个 chunk（约 100 MB）之前，内存检索和镜像大小都没有问题；超过时再考虑 S3 Vectors 或外部向量库；
+- pgvector / Data API 的经验不再体现在线上系统里，但 §4.3、§9.1 的 spike 和这次的取舍本身保留为记录。
+
+**不选的备选**：EC2 自建 Postgres（约 $13/月，数据库端口要暴露到公网或者 Lambda 进 VPC，还要自己运维）；Neon 等外部 serverless Postgres（冷启动亚秒级，但多一个 AWS 外的供应商）。两者都解决不了"数据变更绕过评测"的问题。
 
 ## 5. 对象航司的数据调研
 
@@ -1012,3 +1043,15 @@ ADR 列表（M1 起逐步补齐，放在 `docs/adr/`）：
 - **工作流**：`ci.yml`（PR：ruff / mypy / pytest + pgvector service / 迁移 + 加载 / Terraform fmt + validate）、`deploy.yml`（main：ubuntu-24.04-arm 原生构建 arm64 镜像 → candidate → 评测 → promote；app 栈不存在时跳过）。用 GitHub 官方 schema 校验通过；GitHub 上的首次实际运行要等 push。
 - **未做**：PR 上的 `terraform plan`。只读的 plan 角色不能读取 secret 的值，`aws_secretsmanager_secret_version` 的 refresh 会失败，需要改为 `-refresh=false` 或调整资源结构。
 - **GitHub 上的首次运行**（PR #1 合并后）：第一次在 `configure-aws-credentials` 失败。原因是这个 repo 的 OIDC `sub` 采用**不可变格式** `repo:<owner>@<owner_id>/<repo>@<repo_id>:ref:…`，而信任策略按旧格式 `repo:<owner>/<repo>:…` 匹配。改为由变量 `github_oidc_subject_prefix` 指定前缀（值用 `gh api repos/<owner>/<repo>/actions/oidc/customization/sub` 查），apply bootstrap 后重跑：OIDC → candidate → **评测 25/25**（费用 $0.016）→ promote → **live v9（`de6bc95`）**。不可变格式在 repo 改名后仍然有效，也不会被之后同名的其他 repo 冒用。
+
+### 9.13 去掉 Aurora：数据随镜像发布（2026-10-18，设计见 §4.6）
+
+- **价目表**：`milewise.charts.store.FareStore` 直接解析 `data/charts/**` 的 CSV，启动时载入。原来数据库约束（区域对与路线二选一、季节区间不重叠）改成载入时的断言。golden 测试（ANA / JAL）不改一行期望值全部通过。
+- **规则索引**：`milewise build-index` → `build/index/`（`chunks.jsonl` 470 KB + `embeddings.npy` 1.25 MB + `manifest.json`）。36 页 305 个 chunk，与云端 Aurora 中的数量一致；其中 268 个不同文本需要 embedding（其余是跨页重复的通知）。按 `sha256(模型|维度|文本)` 缓存，重建时只对有变化的 chunk 调用 API。
+- **检索**：numpy 精确余弦相似度 + 按 `body_sha256` 去重（不再有 HNSW 候选池 3k 的近似），每次 0.4–2.5 ms；进程启动时载入价目表和索引约 170 ms。
+- **新工具能力**：`get_season` 接受一个期间（`date_from` / `date_to`），返回按季节切分的日期段（跨年的同一季节合并），并作为 [Cn] 证据；工具调用上限 4 → 8（期间 × 三个舱位需要 4 次调用）。`台湾 / 臺灣 / Taiwan` 解析为台北。
+- **配额**：DynamoDB `milewise-usage`（on-demand，`ADD` 原子计数，TTL 35 天）；本地没有表名时用进程内计数。
+- **评测记录**：JSONL + 报告上传到 `s3://milewise-artifacts-<account>/eval/`（`runs/`、`reports/`），每次运行记录所用索引的 `content_sha256`。
+- **发布**：`release.sh index`（从 raw 桶同步原文，以 `artifacts/index/live/` 为 embedding 缓存构建索引）→ `candidate`（镜像 = 代码 + 索引，版本描述里带索引哈希）→ 评测 → `promote`（同时把这份索引写回 `index/live/` 作为下次的缓存）。
+- **删除**：Aurora 集群、VPC / 子网、Data API 权限、SQS + DLQ、导入 Lambda、DLQ 告警、`db/migrations`、本地 docker compose 的 Postgres。CI 不再需要 pgvector service。
+

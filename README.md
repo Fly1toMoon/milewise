@@ -1,6 +1,6 @@
 # Milewise
 
-Award-ticket (mileage) assistant for **ANA Mileage Club** and **JAL Mileage Bank**, running on AWS (Lambda, Aurora Serverless v2 + pgvector) with the OpenAI API.
+Award-ticket (mileage) assistant for **ANA Mileage Club** and **JAL Mileage Bank**, running on AWS Lambda with the OpenAI API. Award charts and the rules index ship inside the container image, so data changes go through the same eval gate as code.
 
 - Required miles are **computed by code** from structured award charts (no RAG guessing on numbers).
 - Rules, change and refund conditions are answered with **retrieval + citations** to the airlines' official pages.
@@ -12,10 +12,12 @@ Award-ticket (mileage) assistant for **ANA Mileage Club** and **JAL Mileage Bank
 
 ```
 src/milewise/          application (FastAPI, agent, tools)
-db/migrations/         plain SQL migrations (local Postgres and Aurora via Data API)
-data/charts/           structured award charts (CSV + source URL + fetch date); raw pages are never committed
+data/charts/           structured award charts (CSV + source URL + fetch date), read directly at runtime
+data/sources.yaml      the official pages indexed for rules questions; raw pages are never committed
+build/index/           rules index built from raw pages (gitignored, shipped in the image)
 eval/                  evaluation cases and results
 infra/bootstrap/       persistent Terraform stack: state bucket, budgets, ECR, buckets, GitHub OIDC
+infra/app/             destroyable stack: Lambda + Function URLs, DynamoDB usage table, secrets, alarms
 infra/spikes/          throwaway experiments that validate design assumptions
 scripts/               crawlers, parsers, preflight checks
 ```
@@ -25,11 +27,19 @@ scripts/               crawlers, parsers, preflight checks
 ```bash
 make setup                 # Python 3.12 deps via uv
 cp .env.example .env       # then set OPENAI_API_KEY
-make db-up                 # local Postgres 16 + pgvector
-make migrate load-charts   # schema + committed award charts
-make test                  # 40 tests: parser, city resolution, miles golden values, post-check
+make test                  # unit tests: parsers, miles golden values, index, post-check
+make import-raw index      # saved pages -> raw/ -> build/index (chunks + embeddings)
 make ask Q="東京→ロンドンのビジネスクラス特典航空券は何マイル必要？"
 ```
+
+## How it evolved
+
+The first version stored everything in Aurora PostgreSQL Serverless v2 with pgvector, reached
+from Lambda through the RDS Data API (no VPC, no NAT). Measured at real size (305 chunks,
+~840 chart rows) that was the wrong tool: a paused cluster took ~20 s to answer the first
+question, an always-on one cost ~$55/month, and the ingest pipeline wrote straight into the
+live database, so new documents bypassed the eval gate. The data now ships in the image and is
+searched in memory (<3 ms per query); see design.md §4.6 for the trade-offs.
 
 ## Evaluation (baseline, 2026-10-17)
 

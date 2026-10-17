@@ -1,12 +1,11 @@
-# Both functions run the same image (FastAPI + Lambda Web Adapter), outside any VPC:
-# they reach OpenAI over the internet and Aurora through the Data API.
+# The api function runs the image (FastAPI + Lambda Web Adapter) outside any VPC. Charts
+# and the rules index are inside the image (design.md §4.6), so its only dependencies are
+# OpenAI (internet), Secrets Manager and the DynamoDB usage table.
 
 locals {
   image_uri = "${local.bootstrap.ecr_repository_url}:${var.image_tag}"
   common_env = {
-    DB_CLUSTER_ARN            = aws_rds_cluster.this.arn
-    DB_SECRET_ARN             = aws_rds_cluster.this.master_user_secret[0].secret_arn
-    DB_NAME                   = aws_rds_cluster.this.database_name
+    USAGE_TABLE               = aws_dynamodb_table.usage.name
     OPENAI_API_KEY_SECRET_ARN = aws_secretsmanager_secret.openai.arn
     OPENAI_MODEL              = var.openai_model
   }
@@ -24,15 +23,14 @@ data "aws_iam_policy_document" "lambda_trust" {
 
 data "aws_iam_policy_document" "app_common" {
   statement {
-    sid       = "DataApi"
-    actions   = ["rds-data:ExecuteStatement", "rds-data:BatchExecuteStatement", "rds-data:BeginTransaction", "rds-data:CommitTransaction", "rds-data:RollbackTransaction"]
-    resources = [aws_rds_cluster.this.arn]
+    sid       = "Usage"
+    actions   = ["dynamodb:UpdateItem"]
+    resources = [aws_dynamodb_table.usage.arn]
   }
   statement {
     sid     = "Secrets"
     actions = ["secretsmanager:GetSecretValue"]
     resources = [
-      aws_rds_cluster.this.master_user_secret[0].secret_arn,
       aws_secretsmanager_secret.openai.arn,
       aws_secretsmanager_secret.app_token.arn,
     ]

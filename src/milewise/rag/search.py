@@ -9,8 +9,8 @@ from typing import Any
 from openai import OpenAI
 
 from milewise.config import Settings, get_settings
-from milewise.db import Db
-from milewise.rag.embeddings import embed, to_pgvector
+from milewise.rag.embeddings import embed
+from milewise.rag.index import RulesIndex
 
 RECALL_K = 20
 SNIPPET_CHARS = 700
@@ -35,37 +35,11 @@ class RulesResult:
     usage: dict[str, int] = field(default_factory=dict)
 
 
-def recall_by_vector(
-    db: Db, vec: list[float], airline: str | None, k: int = RECALL_K
+def recall(
+    index: RulesIndex, query: str, airline: str | None, settings: Settings, k: int = RECALL_K
 ) -> list[dict[str, Any]]:
-    """Nearest chunks, one per distinct body text.
-
-    The same notice is printed on many pages; without this, copies crowd out other
-    evidence, and which page "owns" the copy would depend on ingestion order and
-    concurrency (design.md §9.10). The inner query still uses the HNSW index.
-    """
-    return db.query(
-        "WITH candidates AS ("
-        "  SELECT c.chunk_id, c.text, c.body_sha256, d.title, d.source_url, d.airline,"
-        "   d.doc_type, d.fetched_at, c.embedding <=> CAST(:q AS vector) AS dist"
-        "  FROM rag.chunks c JOIN rag.documents d USING (doc_id)"
-        "  WHERE d.is_current AND (:airline = '' OR d.airline = :airline)"
-        "  ORDER BY c.embedding <=> CAST(:q AS vector) LIMIT :pool"
-        "), distinct_bodies AS ("
-        "  SELECT DISTINCT ON (body_sha256) * FROM candidates"
-        "  ORDER BY body_sha256, dist, source_url"
-        ")"
-        " SELECT chunk_id, text, title, source_url, airline, doc_type,"
-        "  to_char(fetched_at AT TIME ZONE 'Asia/Tokyo', 'YYYY-MM-DD') AS fetched_date,"
-        "  1 - dist AS score"
-        " FROM distinct_bodies ORDER BY dist, source_url LIMIT :k",
-        {"q": to_pgvector(vec), "airline": airline or "", "k": k, "pool": 3 * k},
-    )
-
-
-def recall(db: Db, query: str, airline: str | None, settings: Settings) -> list[dict[str, Any]]:
     [vec] = embed([query], settings)
-    return recall_by_vector(db, vec, airline)
+    return index.recall(vec, airline, k)
 
 
 def rerank(
@@ -98,10 +72,14 @@ def rerank(
 
 
 def search_rules(
-    db: Db, question: str, airline: str | None = None, k: int = 5, settings: Settings | None = None
+    index: RulesIndex,
+    question: str,
+    airline: str | None = None,
+    k: int = 5,
+    settings: Settings | None = None,
 ) -> RulesResult:
     s = settings or get_settings()
-    rows = recall(db, question, airline, s)
+    rows = recall(index, question, airline, s)
     if not rows:
         return RulesResult("no_evidence")
     picked, usage = rerank(question, rows, s)

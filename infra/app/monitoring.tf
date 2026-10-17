@@ -10,21 +10,6 @@ resource "aws_sns_topic_subscription" "email" {
   endpoint  = var.alert_email # AWS sends a confirmation email once
 }
 
-resource "aws_cloudwatch_metric_alarm" "dlq" {
-  alarm_name          = "${local.name}-ingest-dlq-not-empty"
-  alarm_description   = "Pages failed ingestion 3 times; inspect the DLQ"
-  namespace           = "AWS/SQS"
-  metric_name         = "ApproximateNumberOfMessagesVisible"
-  dimensions          = { QueueName = aws_sqs_queue.ingest_dlq.name }
-  statistic           = "Maximum"
-  period              = 300
-  evaluation_periods  = 1
-  threshold           = 0
-  comparison_operator = "GreaterThanThreshold"
-  treat_missing_data  = "notBreaching"
-  alarm_actions       = [aws_sns_topic.alerts.arn]
-}
-
 resource "aws_cloudwatch_metric_alarm" "api_errors" {
   alarm_name          = "${local.name}-api-errors"
   alarm_description   = "Unhandled errors in /ask"

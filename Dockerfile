@@ -1,5 +1,5 @@
 # One image for both runtimes (design.md §1.1):
-#   Lambda  – Lambda Web Adapter (extension) forwards Function URL / SQS events to uvicorn
+#   Lambda  – Lambda Web Adapter (extension) forwards Function URL requests to uvicorn
 #   Fargate – the same uvicorn process, no adapter involved
 FROM public.ecr.aws/docker/library/python:3.12-slim AS build
 COPY --from=ghcr.io/astral-sh/uv:0.13.1 /uv /usr/local/bin/uv
@@ -16,14 +16,15 @@ WORKDIR /app
 COPY --from=build /app/.venv /app/.venv
 COPY src ./src
 COPY data ./data
-COPY db ./db
+# Rules index built by `milewise build-index` (design.md §4.6): data ships with the code.
+COPY build/index ./index
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     MILEWISE_DATA_DIR=/app/data \
+    MILEWISE_INDEX_DIR=/app/index \
     AWS_LWA_PORT=8080 \
     AWS_LWA_READINESS_CHECK_PATH=/healthz \
-    AWS_LWA_INVOKE_MODE=response_stream \
-    AWS_LWA_PASS_THROUGH_PATH=/events
+    AWS_LWA_INVOKE_MODE=response_stream
 EXPOSE 8080
 RUN useradd --uid 10001 --no-create-home app
 USER 10001
