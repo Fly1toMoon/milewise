@@ -24,7 +24,6 @@ EmbedFn = Callable[[Sequence[str]], list[list[float]]]
 class IngestResult:
     status: str  # succeeded | skipped_same_content | duplicate
     chunks_written: int = 0
-    chunks_skipped_boilerplate: int = 0
 
 
 def _sha(text: str) -> str:
@@ -88,7 +87,9 @@ def _ingest(
 ) -> IngestResult:
     sections = extract_sections(page_html)
     chunks = chunk_sections(sections)
-    content_sha = _sha("\n\n".join(c.text for c in chunks))
+    # The chunker version is part of the content hash: after a chunker change the stored
+    # chunks differ even if the page did not, so the page must be re-stored.
+    content_sha = _sha(f"chunker{CHUNKER_VERSION}\n" + "\n\n".join(c.text for c in chunks))
     current = db.query(
         "SELECT doc_id, content_sha256 FROM rag.documents WHERE source_url = :u AND is_current",
         {"u": source["url"]},
@@ -96,16 +97,10 @@ def _ingest(
     if current and current[0]["content_sha256"] == content_sha:
         return IngestResult("skipped_same_content")
 
-    # Boilerplate (identical notices on every page) is stored once per airline.
-    seen = {
-        r["body_sha256"]
-        for r in db.query(
-            "SELECT c.body_sha256 FROM rag.chunks c JOIN rag.documents d USING (doc_id)"
-            " WHERE d.is_current AND d.airline = :a AND d.source_url <> :u",
-            {"a": source["airline"], "u": source["url"]},
-        )
-    }
-    keep = [c for c in chunks if _sha(_body(c)) not in seen]
+    # Every page is stored whole. Notices repeated across pages are collapsed at query
+    # time (search.recall_by_vector), which, unlike skipping them here, does not depend on
+    # ingestion order or race between concurrent ingest Lambdas (design.md §9.10).
+    keep = chunks
     vectors = embed_fn([c.text for c in keep]) if keep else []
 
     with db.transaction():
@@ -152,4 +147,4 @@ def _ingest(
                 for c, v in zip(keep, vectors, strict=True)
             ],
         )
-    return IngestResult("succeeded", len(keep), len(chunks) - len(keep))
+    return IngestResult("succeeded", len(keep))
