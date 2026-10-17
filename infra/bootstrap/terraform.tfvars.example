@@ -1,0 +1,6 @@
+# Copy to terraform.tfvars (gitignored) and fill in.
+budget_email      = "you@example.com"
+github_repository = "your-github-user/milewise"
+
+# monthly_budget_usd          = 30
+# create_github_oidc_provider = false  # if the account already has the GitHub OIDC provider

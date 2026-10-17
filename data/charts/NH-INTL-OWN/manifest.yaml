@@ -1,0 +1,27 @@
+chart_family: NH-INTL-OWN
+airline: NH
+award_type: own_intl
+pricing_basis: zone_pair
+price_kind: fixed
+source_url: https://www.ana.co.jp/ja/jp/guide/amc/award/international/terms/
+fetched_at: '2026-10-16T15:33:45+00:00'
+source_sha256: bf4c83cddc8e8ddf7345eb5a20519bc7629b53616418f50f8b09e8ab4245f299
+parser_version: ana-intl-1
+charts:
+- chart_id: NH-INTL-OWN-RT@2025-06-24
+  trip_type: RT
+  booking_from: '2025-06-24'
+- chart_id: NH-INTL-OWN-OW@2025-06-24
+  trip_type: OW
+  booking_from: '2025-06-24'
+notes:
+- 'Rates are symmetric (発着): a zone pair applies in both directions.'
+- Where the page shows 改定前/改定後, only 改定後 (bookings from 2025-06-24) is kept.
+- 'Round trip with different outbound/return seasons: half of each season''s RT value,
+  summed.'
+- Season calendars are defined only for itineraries with Japan (Zone 1) as one end.
+counts:
+  zones: 8
+  season_ranges: 79
+  rates_rt: 279
+  rates_ow: 279

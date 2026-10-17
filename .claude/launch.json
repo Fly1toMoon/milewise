@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "milewise-api",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": ["run", "--env-file", ".env", "uvicorn", "milewise.api:app", "--port", "8080"],
+      "port": 8080
+    }
+  ]
+}
