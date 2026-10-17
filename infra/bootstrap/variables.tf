@@ -14,9 +14,18 @@ variable "monthly_budget_usd" {
   default     = 30
 }
 
-variable "github_repository" {
-  description = "GitHub repository allowed to assume the CI roles, as \"owner/name\"."
+variable "github_oidc_subject_prefix" {
+  description = <<-EOT
+    Prefix of the GitHub OIDC `sub` claim for the repository. New repositories use the
+    immutable form "repo:<owner>@<owner_id>/<repo>@<repo_id>", which keeps working after a
+    rename and cannot be matched by another repository later created under the same name.
+    Read it with: gh api repos/<owner>/<repo>/actions/oidc/customization/sub
+  EOT
   type        = string
+  validation {
+    condition     = can(regex("^repo:[^@/]+@[0-9]+/[^@/]+@[0-9]+$", var.github_oidc_subject_prefix))
+    error_message = "Expected the immutable form repo:<owner>@<owner_id>/<repo>@<repo_id>."
+  }
 }
 
 variable "create_github_oidc_provider" {
