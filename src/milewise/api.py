@@ -170,6 +170,13 @@ async def ask_endpoint(
             {
                 "request_id": request_id,
                 "sources": sources,
+                # evidence id -> source URL, so a remote evaluator can check citations
+                "evidence": {
+                    eid: v.get("url") or v.get("chart", {}).get("source_url")
+                    for eid, v in res.evidence.items()
+                },
+                "tools": [t["name"] for t in res.tool_calls],
+                "usage": res.usage,
                 "postcheck_ok": res.postcheck.ok,
                 "latency_ms": res.latency_ms,
                 "cost_usd": res.cost_usd,

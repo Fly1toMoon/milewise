@@ -18,7 +18,13 @@ from pathlib import Path
 
 import yaml
 
-from milewise.charts.jal import CHART_FAMILY, PARSER_VERSION, ROUTES, SOURCE_URL, parse_jal_award_chart
+from milewise.charts.jal import (
+    CHART_FAMILY,
+    PARSER_VERSION,
+    ROUTES,
+    SOURCE_URL,
+    parse_jal_award_chart,
+)
 
 OUT = Path("data/charts") / CHART_FAMILY
 # JAL does not state an effective date on the page; its "更新日" is used (design.md §5.2).
@@ -56,15 +62,39 @@ def main() -> int:
         w = csv.writer(f, lineterminator="\n")
         w.writerow(["chart_family", "season_group", "season", "date_from", "date_to"])
         for s in sorted(chart.seasons, key=lambda s: s.date_from):
-            w.writerow([CHART_FAMILY, "F", s.season, s.date_from.isoformat(), s.date_to.isoformat()])
+            w.writerow(
+                [CHART_FAMILY, "F", s.season, s.date_from.isoformat(), s.date_to.isoformat()]
+            )
     with (OUT / "rates.csv").open("w", newline="", encoding="utf-8") as f:
         w = csv.writer(f, lineterminator="\n")
-        w.writerow(["chart_id", "origin_match", "dest_match", "flight_numbers", "route_label",
-                    "cabin", "season", "miles", "source_ref"])
+        w.writerow(
+            [
+                "chart_id",
+                "origin_match",
+                "dest_match",
+                "flight_numbers",
+                "route_label",
+                "cabin",
+                "season",
+                "miles",
+                "source_ref",
+            ]
+        )
         for r in chart.rates:
             origin, dest, flights = ROUTES[r.label]
-            w.writerow([chart_id(r.block), "|".join(origin), "|".join(dest), "|".join(flights or []),
-                        r.label, r.cabin, r.season, r.miles, r.source_ref])
+            w.writerow(
+                [
+                    chart_id(r.block),
+                    "|".join(origin),
+                    "|".join(dest),
+                    "|".join(flights or []),
+                    r.label,
+                    r.cabin,
+                    r.season,
+                    r.miles,
+                    r.source_ref,
+                ]
+            )
     manifest = {
         "chart_family": CHART_FAMILY,
         "airline": "JL",
@@ -75,8 +105,13 @@ def main() -> int:
         "source_sha256": hashlib.sha256(raw).hexdigest(),
         "parser_version": PARSER_VERSION,
         "charts": [
-            {"chart_id": chart_id(b), "trip_type": "OW", "booking_from": BOOKING_FROM, "price_kind": kind,
-             "block": b}
+            {
+                "chart_id": chart_id(b),
+                "trip_type": "OW",
+                "booking_from": BOOKING_FROM,
+                "price_kind": kind,
+                "block": b,
+            }
             for b, (_, kind) in CHARTS.items()
         ],
         "notes": [
@@ -86,10 +121,12 @@ def main() -> int:
             "booking_from is the page's 更新日; the page states no effective date.",
             *chart.notes,
         ],
-        "counts": {b: sum(r.block == b for r in chart.rates) for b in CHARTS} | {"season_ranges": len(chart.seasons)},
+        "counts": {b: sum(r.block == b for r in chart.rates) for b in CHARTS}
+        | {"season_ranges": len(chart.seasons)},
     }
-    (OUT / "manifest.yaml").write_text(yaml.safe_dump(manifest, allow_unicode=True, sort_keys=False),
-                                       encoding="utf-8")
+    (OUT / "manifest.yaml").write_text(
+        yaml.safe_dump(manifest, allow_unicode=True, sort_keys=False), encoding="utf-8"
+    )
     print(f"wrote {OUT}: {manifest['counts']}")
     return 0
 
