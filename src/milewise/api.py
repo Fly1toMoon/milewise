@@ -6,7 +6,8 @@ Routes
   GET  /         single-page UI
   GET  /healthz  readiness check for the adapter
   POST /ask      Bearer token, daily quota, Server-Sent Events: status → answer → done
-  POST /events   SQS batch (S3 ObjectCreated) forwarded by the adapter → ingestion
+
+Charts and the rules index ship in the image (design.md §4.6) and are loaded at init.
 """
 
 from __future__ import annotations
@@ -16,27 +17,26 @@ import hashlib
 import hmac
 import json
 import os
-import re
 import time
 import uuid
 from collections.abc import AsyncIterator
-from datetime import datetime
+from functools import cache
 from pathlib import Path
 from typing import Any
-from urllib.parse import unquote_plus
 
-from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
-from milewise.config import data_dir, get_settings
-from milewise.db import Db, connect
+from milewise.charts.store import get_fare_store
+from milewise.config import get_settings
 from milewise.obs import emit
+from milewise.quota import UsageCounter, counter
+from milewise.rag.index import get_rules_index
 from milewise.tools.miles import today_jst
 
 STATIC = Path(__file__).parent / "static"
-_RAW_KEY = re.compile(r"(?:^|/)(?P<airline>nh|jl)/(?P<id>[a-z0-9-]+)_(?P<ts>\d{8}T\d{6})\.html$")
 
 
 def load_secrets() -> bool:
@@ -44,8 +44,7 @@ def load_secrets() -> bool:
 
     Never raises: a secret without a value (e.g. the OpenAI key before `make
     put-openai-key`) must not crash the function at init, which would also take down
-    /healthz and SQS ingestion. Callers retry on the next request (seen on the first
-    `make up`: S3's test event reached the ingest function before the key was stored).
+    /healthz. Callers retry on the next request.
     """
     pairs = {"OPENAI_API_KEY": "OPENAI_API_KEY_SECRET_ARN", "APP_TOKEN": "APP_TOKEN_SECRET_ARN"}
     todo = {
@@ -77,14 +76,24 @@ def require_secrets() -> None:
 
 load_secrets()
 app = FastAPI(title="Milewise", docs_url=None, redoc_url=None)
-_db: Db | None = None
 
 
-def db() -> Db:
-    global _db
-    if _db is None:
-        _db = connect()
-    return _db
+@cache
+def usage() -> UsageCounter:
+    return counter(get_settings().usage_table)
+
+
+def data_version() -> dict[str, Any]:
+    """Which rules index this process serves (None when it is missing, e.g. local dev)."""
+    try:
+        return {"rules_index": get_rules_index().version}
+    except FileNotFoundError:
+        return {"rules_index": None}
+
+
+# Parse the bundled data during init (free in Lambda) rather than on the first question.
+get_fare_store()
+data_version()
 
 
 class AskBody(BaseModel):
@@ -104,19 +113,14 @@ def _check_token(authorization: str | None) -> None:
 
 def _reserve_quota() -> None:
     s = get_settings()
-    row = db().query(
-        "INSERT INTO ops.daily_usage (day, requests) VALUES (CAST(:d AS date), 1)"
-        " ON CONFLICT (day) DO UPDATE SET requests = ops.daily_usage.requests + 1"
-        " RETURNING requests, cost_usd",
-        {"d": today_jst().isoformat()},
-    )[0]
-    if row["requests"] > s.daily_request_limit or float(row["cost_usd"]) > s.daily_cost_limit_usd:
+    u = usage().add(today_jst().isoformat(), requests=1)
+    if u.requests > s.daily_request_limit or u.cost_usd > s.daily_cost_limit_usd:
         raise HTTPException(429, "daily limit reached; try again tomorrow")
 
 
 @app.get("/healthz")
-def healthz() -> dict[str, bool]:
-    return {"ok": True}
+def healthz() -> dict[str, Any]:
+    return {"ok": True, **data_version()}
 
 
 @app.get("/")
@@ -138,7 +142,7 @@ async def ask_endpoint(
 
         yield _sse("status", {"request_id": request_id, "stage": "working"})
         t0 = time.perf_counter()
-        task = asyncio.ensure_future(run_in_threadpool(ask, body.question, db()))
+        task = asyncio.ensure_future(run_in_threadpool(ask, body.question))
         while not task.done():  # keep the stream (and the user) alive while the agent works
             await asyncio.sleep(3)
             if not task.done():
@@ -155,11 +159,7 @@ async def ask_endpoint(
             )
             yield _sse("error", {"request_id": request_id, "message": "internal error"})
             return
-        await run_in_threadpool(
-            db().execute,
-            "UPDATE ops.daily_usage SET cost_usd = cost_usd + :c WHERE day = CAST(:d AS date)",
-            {"c": res.cost_usd, "d": today_jst().isoformat()},
-        )
+        await run_in_threadpool(usage().add, today_jst().isoformat(), 0, res.cost_usd)
         sources = sorted(
             {v.get("url") or v.get("chart", {}).get("source_url") for v in res.evidence.values()}
             - {None}
@@ -181,6 +181,7 @@ async def ask_endpoint(
                 "latency_ms": res.latency_ms,
                 "cost_usd": res.cost_usd,
                 "model": res.model,
+                "data": data_version(),
             },
         )
         emit(
@@ -201,58 +202,3 @@ async def ask_endpoint(
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Request-Id": request_id},
     )
-
-
-@app.post("/events")
-async def events(request: Request) -> JSONResponse:
-    """SQS → ingest. Returns partial-batch failures so only failed messages are retried."""
-    await run_in_threadpool(require_secrets)  # 503 → every message is retried later
-    payload = await request.json()
-    failures = []
-    for record in payload.get("Records", []):
-        try:
-            await run_in_threadpool(_ingest_s3_event, json.loads(record["body"]))
-        except Exception as e:
-            emit(
-                "ingest",
-                service="ingest",
-                error=1,
-                message_id=record.get("messageId"),
-                error_type=type(e).__name__,
-                detail=str(e)[:500],
-            )
-            failures.append({"itemIdentifier": record["messageId"]})
-    return JSONResponse({"batchItemFailures": failures})
-
-
-def _ingest_s3_event(s3_event: dict[str, Any]) -> None:
-    import boto3
-    import yaml
-
-    from milewise.rag.ingest import ingest_page
-
-    sources = {
-        s["id"]: s
-        for s in yaml.safe_load((data_dir() / "sources.yaml").read_text(encoding="utf-8"))[
-            "sources"
-        ]
-    }
-    s3 = boto3.client("s3")
-    for rec in s3_event.get("Records", []):  # S3 test events have no Records
-        bucket, key = rec["s3"]["bucket"]["name"], unquote_plus(rec["s3"]["object"]["key"])
-        m = _RAW_KEY.search(key)
-        if not m or m["id"] not in sources or sources[m["id"]]["kind"] != "rules":
-            emit("ingest", service="ingest", skipped=key)
-            continue
-        obj = s3.get_object(Bucket=bucket, Key=key)
-        fetched = datetime.strptime(m["ts"], "%Y%m%dT%H%M%S").isoformat() + "+09:00"
-        res = ingest_page(
-            db(),
-            obj["Body"].read().decode("utf-8"),
-            source=sources[m["id"]],
-            raw_key=f"s3://{bucket}/{key}",
-            raw_etag=obj["ETag"].strip('"'),
-            fetched_at=fetched,
-            embedding_model=get_settings().openai_embedding_model,
-        )
-        emit("ingest", service="ingest", key=key, status=res.status, chunks=res.chunks_written)

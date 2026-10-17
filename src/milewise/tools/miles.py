@@ -10,7 +10,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Literal
 
-from milewise.db import Db
+from milewise.charts.store import SEASON_ORDER, FareStore
 from milewise.locations import City, airport_hint, resolve_city
 
 JST = timezone(timedelta(hours=9))
@@ -65,43 +65,32 @@ def today_jst() -> date:
     return datetime.now(JST).date()
 
 
-def _endpoint(db: Db, family: str, query: str) -> tuple[Endpoint, list[City]]:
+def _endpoint(fares: FareStore, family: str, query: str) -> tuple[Endpoint, list[City]]:
     cities = resolve_city(query)
     ep = Endpoint(input=query)
     if len(cities) != 1:
         return ep, cities
     c = cities[0]
     ep.city_code, ep.name_ja, ep.airports = c.city_code, c.name_ja, list(c.airports)
-    rows = db.query(
-        "SELECT zone_code, match_kind FROM fare.zone_members WHERE chart_family = :f AND ("
-        " (match_kind = 'airport' AND match_value = ANY(string_to_array(:airports, ',')))"
-        " OR (match_kind = 'city' AND match_value = :city)"
-        " OR (match_kind = 'country' AND match_value = :country))",
-        {"f": family, "airports": ",".join(c.airports), "city": c.city_code, "country": c.country},
-    )
-    rank = {"airport": 0, "city": 1, "country": 2}
-    if rows:
-        ep.zone = min(rows, key=lambda r: rank[r["match_kind"]])["zone_code"]
+    ep.zone = fares.zone_for(family, list(c.airports), c.city_code, c.country)
     return ep, cities
 
 
-def season_for(db: Db, family: str, zone_a: str, zone_b: str, day: date) -> str | None:
-    """Season of a travel date. Calendars exist only for itineraries touching Japan."""
+def season_group_for(fares: FareStore, family: str, zone_a: str, zone_b: str) -> str | None:
+    """Calendars exist only for itineraries with Japan at one end."""
     if JAPAN_ZONE not in (zone_a, zone_b) or zone_a == zone_b:
         return None
-    other = zone_b if zone_a == JAPAN_ZONE else zone_a
-    rows = db.query(
-        "SELECT s.season FROM fare.season_calendar s JOIN fare.zones z"
-        " ON z.chart_family = s.chart_family AND z.season_group = s.season_group"
-        " WHERE s.chart_family = :f AND z.zone_code = :zone"
-        " AND CAST(:d AS date) BETWEEN s.date_from AND s.date_to",
-        {"f": family, "zone": other, "d": day.isoformat()},
-    )
-    return rows[0]["season"] if rows else None
+    return fares.season_group(family, zone_b if zone_a == JAPAN_ZONE else zone_a)
+
+
+def season_for(fares: FareStore, family: str, zone_a: str, zone_b: str, day: date) -> str | None:
+    """Season of a travel date."""
+    group = season_group_for(fares, family, zone_a, zone_b)
+    return fares.season_on(family, group, day) if group else None
 
 
 def get_required_miles(
-    db: Db,
+    fares: FareStore,
     airline: str,
     origin: str,
     destination: str,
@@ -128,7 +117,7 @@ def get_required_miles(
         )
     if family in ROUTE_FAMILIES:
         return _route_required_miles(
-            db,
+            fares,
             family,
             base,
             origin,
@@ -141,8 +130,8 @@ def get_required_miles(
             flight_number,
         )
 
-    o, o_cands = _endpoint(db, family, origin)
-    d, d_cands = _endpoint(db, family, destination)
+    o, o_cands = _endpoint(fares, family, origin)
+    d, d_cands = _endpoint(fares, family, destination)
     res = MilesResult("ok", origin=o, destination=d, **base)
     for label, ep, cands in (("origin", o, o_cands), ("destination", d, d_cands)):
         if len(cands) > 1:
@@ -163,31 +152,28 @@ def get_required_miles(
         return res
 
     booking = booking_date or today_jst()
-    charts = db.query(
-        "SELECT chart_id, booking_from, source_url, fetched_at, price_kind FROM fare.award_charts"
-        " WHERE chart_family = :f AND trip_type = :t AND booking_from <= CAST(:b AS date)"
-        " AND (booking_to IS NULL OR booking_to >= CAST(:b AS date))",
-        {"f": family, "t": trip_type, "b": booking.isoformat()},
-    )
+    charts = fares.charts_for(family, booking, trip_type)
     if not charts:
         res.status = "not_found"
         res.message = f"予約・発券日 {booking} に適用されるチャートが収録されていません。"
         return res
     chart = charts[0]
-    res.price_kind = chart["price_kind"]
+    res.price_kind = chart.price_kind
     res.chart = {
-        "chart_id": chart["chart_id"],
-        "booking_from": chart["booking_from"].isoformat(),
-        "source_url": chart["source_url"],
-        "fetched_at": chart["fetched_at"].astimezone(JST).isoformat(),
+        "chart_id": chart.chart_id,
+        "booking_from": chart.booking_from.isoformat(),
+        "source_url": chart.source_url,
+        "fetched_at": chart.fetched_at.astimezone(JST).isoformat(),
     }
 
-    rows = db.query(
-        "SELECT season, miles, source_ref FROM fare.award_rates WHERE chart_id = :c AND cabin = :cabin"
-        " AND ((origin_zone = :a AND dest_zone = :b) OR (origin_zone = :b AND dest_zone = :a))"
-        " ORDER BY array_position(ARRAY['L','R','H','ANY'], season)",
-        {"c": chart["chart_id"], "cabin": cabin, "a": o.zone, "b": d.zone},
-    )
+    pair = {(o.zone, d.zone), (d.zone, o.zone)}
+    rows: list[dict[str, Any]] = [
+        {"season": r.season, "miles": r.miles, "source_ref": r.source_ref}
+        for r in sorted(fares.family(family).rates, key=lambda r: SEASON_ORDER[r.season])
+        if r.chart_id == chart.chart_id
+        and r.cabin == cabin
+        and (r.origin_zone, r.dest_zone) in pair
+    ]
     if not rows:
         res.status = "not_found"
         res.message = f"Zone{o.zone}–Zone{d.zone} の {cabin} クラスは特典航空券の設定がありません（設定なし）。"
@@ -198,7 +184,7 @@ def get_required_miles(
     res.caveats = list(STANDARD_CAVEATS)
 
     if outbound_date:
-        s_out = season_for(db, family, o.zone, d.zone, outbound_date)
+        s_out = season_for(fares, family, o.zone, d.zone, outbound_date)
         res.seasons_for_dates["outbound"] = s_out
         if s_out is None:
             res.caveats.append(f"{outbound_date} のシーズンは収録カレンダー外のため判定できません")
@@ -206,7 +192,7 @@ def get_required_miles(
             res.total_miles = by_season[s_out]
             res.calculation = f"片道 {s_out} シーズン = {res.total_miles:,}"
         elif trip_type == "RT" and return_date:
-            s_ret = season_for(db, family, o.zone, d.zone, return_date)
+            s_ret = season_for(fares, family, o.zone, d.zone, return_date)
             res.seasons_for_dates["return"] = s_ret
             if s_ret is None:
                 res.caveats.append(
@@ -251,17 +237,8 @@ def _route_tokens(query: str, city: City) -> list[str]:
     ]
 
 
-def season_for_group(db: Db, family: str, group: str, day: date) -> str | None:
-    rows = db.query(
-        "SELECT season FROM fare.season_calendar WHERE chart_family = :f AND season_group = :g"
-        " AND CAST(:d AS date) BETWEEN date_from AND date_to",
-        {"f": family, "g": group, "d": day.isoformat()},
-    )
-    return rows[0]["season"] if rows else None
-
-
 def _route_required_miles(
-    db: Db,
+    fares: FareStore,
     family: str,
     base: dict[str, Any],
     origin: str,
@@ -304,22 +281,30 @@ def _route_required_miles(
     (jp_q, jp_city), (fx_q, fx_city) = (
         ((o_q, o_city), (d_q, d_city)) if o_city.country == "JP" else ((d_q, d_city), (o_q, o_city))
     )
-    rows = db.query(
-        "SELECT c.chart_id, c.price_kind, c.booking_from, c.source_url, c.fetched_at, r.route_label,"
-        " r.flight_numbers, r.season, r.miles, r.source_ref"
-        " FROM fare.award_rates r JOIN fare.award_charts c USING (chart_id)"
-        " WHERE c.chart_family = :f AND c.booking_from <= CAST(:b AS date)"
-        " AND (c.booking_to IS NULL OR c.booking_to >= CAST(:b AS date)) AND r.cabin = :cabin"
-        " AND r.origin_match && string_to_array(:jp, ',') AND r.dest_match && string_to_array(:fx, ',')"
-        " ORDER BY c.price_kind DESC, r.route_label, array_position(ARRAY['L','R','H','ANY'], r.season)",
+    charts = {c.chart_id: c for c in fares.charts_for(family, booking)}
+    jp_tokens, fx_tokens = set(_route_tokens(jp_q, jp_city)), set(_route_tokens(fx_q, fx_city))
+    rows: list[dict[str, Any]] = [
         {
-            "f": family,
-            "b": booking.isoformat(),
-            "cabin": cabin,
-            "jp": ",".join(_route_tokens(jp_q, jp_city)),
-            "fx": ",".join(_route_tokens(fx_q, fx_city)),
-        },
-    )
+            "chart_id": r.chart_id,
+            "price_kind": charts[r.chart_id].price_kind,
+            "booking_from": charts[r.chart_id].booking_from,
+            "source_url": charts[r.chart_id].source_url,
+            "fetched_at": charts[r.chart_id].fetched_at,
+            "route_label": r.route_label,
+            "flight_numbers": list(r.flight_numbers) or None,
+            "season": r.season,
+            "miles": r.miles,
+            "source_ref": r.source_ref,
+        }
+        for r in fares.family(family).rates
+        if r.chart_id in charts
+        and r.cabin == cabin
+        and r.origin_match & jp_tokens
+        and r.dest_match & fx_tokens
+    ]
+    # floor/fixed before ceiling, then by route and season (the order answers list them in)
+    rows.sort(key=lambda r: (r["route_label"] or "", SEASON_ORDER[r["season"]]))
+    rows.sort(key=lambda r: r["price_kind"], reverse=True)
     # Some routes are priced per flight (バンコク JL031/JL034便). With a flight number the
     # matching flight-specific rows replace the general ones of the same chart; without one,
     # all rows are kept and returned as variants.
@@ -379,7 +364,7 @@ def _route_required_miles(
         else:
             by_season = {r["season"]: r["miles"] for r in priced}
             dates = [outbound_date, return_date][:legs]
-            seasons = [season_for_group(db, family, "F", d) if d else None for d in dates]
+            seasons = [fares.season_on(family, "F", d) if d else None for d in dates]
             for key, d, s in zip(("outbound", "return"), dates, seasons, strict=False):
                 if d:
                     res.seasons_for_dates[key] = s

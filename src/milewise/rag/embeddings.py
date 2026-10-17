@@ -23,8 +23,3 @@ def embed(texts: Sequence[str], settings: Settings | None = None) -> list[list[f
         )
         out.extend(d.embedding for d in sorted(r.data, key=lambda d: d.index))
     return out
-
-
-def to_pgvector(vec: Sequence[float]) -> str:
-    """Text form accepted by CAST(:v AS vector); works for psycopg and the Data API alike."""
-    return "[" + ",".join(f"{x:.7f}" for x in vec) + "]"

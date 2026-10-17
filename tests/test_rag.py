@@ -2,10 +2,14 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Sequence
+from pathlib import Path
 
-from milewise.db import Db
+import pytest
+import yaml
+
+from milewise.config import Settings
 from milewise.rag.chunking import chunk_sections, extract_sections
-from milewise.rag.ingest import ingest_page
+from milewise.rag.index import RulesIndex, build_index
 
 PAGE = """<html><body>
 <nav><a>トップ</a> <a>国内</a></nav>
@@ -48,40 +52,82 @@ def test_chunks_carry_heading_path() -> None:
     assert chunks and all(c.text.startswith("テスト特典 変更・払い戻し > ") for c in chunks)
 
 
-def ingest(db: Db, html: str, etag: str) -> str:
-    return ingest_page(
-        db,
-        html,
-        source=SOURCE,
-        raw_key="raw/nh/test.html",
-        raw_etag=etag,
-        fetched_at="2026-10-17T00:00:00+09:00",
-        embedding_model="fake",
-        embed_fn=fake_embed,
-    ).status
+class CountingEmbed:
+    def __init__(self) -> None:
+        self.calls: list[int] = []
+
+    def __call__(self, texts: Sequence[str]) -> list[list[float]]:
+        self.calls.append(len(texts))
+        return fake_embed(texts)
 
 
-def test_ingest_is_idempotent_and_versions_documents(db: Db) -> None:
-    assert ingest(db, PAGE, "e1") == "succeeded"
-    assert ingest(db, PAGE, "e1") == "duplicate"  # same object delivered twice
-    assert ingest(db, PAGE, "e2") == "skipped_same_content"  # re-uploaded, same text
-    assert ingest(db, PAGE.replace("3,000", "4,000"), "e3") == "succeeded"  # page changed
+def write_site(tmp: Path, pages: dict[str, tuple[dict[str, str], str]]) -> Path:
+    """sources.yaml + raw/<airline>/<id>_<ts>.html, as fetch/import scripts lay them out."""
+    sources = []
+    for name, (src, html) in pages.items():
+        sources.append({**src, "id": name, "kind": "rules"})
+        d = tmp / "raw" / src["airline"].lower()
+        d.mkdir(parents=True, exist_ok=True)
+        (d / f"{name}_20261017T100000.html").write_text(html, encoding="utf-8")
+    (tmp / "sources.yaml").write_text(yaml.safe_dump({"sources": sources}), encoding="utf-8")
+    return tmp / "sources.yaml"
 
-    docs = db.query(
-        "SELECT is_current, superseded_at IS NOT NULL AS superseded FROM rag.documents"
-        " WHERE source_url = :u ORDER BY fetched_at, superseded_at NULLS LAST",
-        {"u": SOURCE["url"]},
+
+SETTINGS = Settings(openai_api_key="x", openai_embedding_model="fake", embedding_dimensions=1024)
+
+
+def build(tmp: Path, sources: Path, embed: CountingEmbed, cache: Path | None = None) -> RulesIndex:
+    build_index(
+        tmp / "raw",
+        tmp / "index",
+        cache_dir=cache,
+        sources_path=sources,
+        embed_fn=embed,
+        settings=SETTINGS,
     )
-    assert sorted((d["is_current"], d["superseded"]) for d in docs) == [
-        (False, True),
-        (True, False),
+    return RulesIndex.load(tmp / "index")
+
+
+def test_index_build_reuses_cached_embeddings_and_is_deterministic(tmp_path: Path) -> None:
+    sources = write_site(tmp_path, {"test-refund": (SOURCE, PAGE)})
+    embed = CountingEmbed()
+    first = build(tmp_path, sources, embed)
+    assert first.manifest["n_chunks"] == len(first.chunks) > 0 and embed.calls == [
+        len(first.chunks)
     ]
-    current_text = db.query(
-        "SELECT string_agg(c.text, ' ') AS t FROM rag.chunks c JOIN rag.documents d USING (doc_id)"
-        " WHERE d.source_url = :u AND d.is_current",
-        {"u": SOURCE["url"]},
-    )[0]["t"]
-    assert "4,000マイル" in current_text and "3,000マイル" not in current_text
+    assert (
+        first.chunks[0]["url"] == SOURCE["url"] and first.chunks[0]["fetched_date"] == "2026-10-17"
+    )
+
+    again = build(tmp_path, sources, embed, cache=tmp_path / "index")
+    assert embed.calls == [len(first.chunks)]  # nothing re-embedded
+    assert again.manifest["content_sha256"] == first.manifest["content_sha256"]
+
+    write_site(tmp_path, {"test-refund": (SOURCE, PAGE.replace("3,000", "4,000"))})
+    changed = build(tmp_path, sources, embed, cache=tmp_path / "index")
+    assert embed.calls[1:] == [1]  # only the changed chunk
+    text = " ".join(c["text"] for c in changed.chunks)
+    assert "4,000マイル" in text and "3,000マイル" not in text
+
+
+def test_missing_raw_page_is_reported(tmp_path: Path) -> None:
+    sources = write_site(tmp_path, {"test-refund": (SOURCE, PAGE)})
+    cfg = yaml.safe_load(sources.read_text(encoding="utf-8"))
+    cfg["sources"].append({**SOURCE, "id": "not-saved", "kind": "rules"})
+    sources.write_text(yaml.safe_dump(cfg), encoding="utf-8")
+    rep = build_index(
+        tmp_path / "raw",
+        tmp_path / "index",
+        sources_path=sources,
+        embed_fn=fake_embed,
+        settings=SETTINGS,
+    )
+    assert rep.missing == ["not-saved"] and rep.n_docs == 1
+
+
+def test_load_without_index_says_how_to_build_it(tmp_path: Path) -> None:
+    with pytest.raises(FileNotFoundError, match="make index"):
+        RulesIndex.load(tmp_path)
 
 
 JAL_LIKE = """<body><h1 class="heading">JAL国際線特典航空券</h1>
@@ -122,39 +168,36 @@ def _page(title: str, notice_heading: str, own: str) -> str:
     )
 
 
-def test_notice_repeated_across_pages_is_stored_whole_but_retrieved_once(db: Db) -> None:
-    from milewise.rag.search import recall_by_vector
-
-    a = {"id": "dedup-a", "airline": "JL", "url": "https://example.test/a", "lang": "ja"}
-    b = {"id": "dedup-b", "airline": "JL", "url": "https://example.test/b", "lang": "ja"}
-    for src, page in (
-        (a, _page("ページA", "ご注意", "Aだけの規則です。")),
-        (b, _page("ページB", "お知らせ", "Bだけの規則です。")),
-    ):
-        status = ingest_page(
-            db,
-            page,
-            source=src,
-            raw_key=f"raw/jl/{src['id']}.html",
-            raw_etag="e",
-            fetched_at="2026-10-17T00:00:00+09:00",
-            embedding_model="fake",
-            embed_fn=fake_embed,
-        ).status
-        assert status == "succeeded"
-
-    stored = db.query(
-        "SELECT count(*) AS n FROM rag.chunks c JOIN rag.documents d USING (doc_id)"
-        " WHERE d.is_current AND d.source_url LIKE 'https://example.test/_' AND c.text LIKE '%カード決済%'"
-    )[0]["n"]
-    assert stored == 2  # both pages keep their own copy: no ingestion-order dependence
+def test_notice_repeated_across_pages_is_stored_whole_but_retrieved_once(
+    tmp_path: Path,
+) -> None:
+    a = {"airline": "JL", "url": "https://example.test/a", "lang": "ja"}
+    b = {"airline": "JL", "url": "https://example.test/b", "lang": "ja"}
+    other = {"airline": "NH", "url": "https://example.test/nh", "lang": "ja"}
+    sources = write_site(
+        tmp_path,
+        {
+            "dedup-a": (a, _page("ページA", "ご注意", "Aだけの規則です。")),
+            "dedup-b": (b, _page("ページB", "お知らせ", "Bだけの規則です。")),
+            "nh-page": (other, _page("ANAページ", "ご注意", "ANAの規則です。")),
+        },
+    )
+    index = build(tmp_path, sources, CountingEmbed())
+    stored = [c for c in index.chunks if "カード決済" in c["text"]]
+    assert len(stored) == 3  # every page keeps its own copy: no ingestion-order dependence
 
     [query_vec] = fake_embed(
         [
             "ページA > ご注意\nシステム調整のため停止しておりました取消手数料のカード決済を再開しました。"
         ]
     )
-    rows = recall_by_vector(db, query_vec, "JL", k=20)
+    rows = index.recall(query_vec, "JL", k=20)
     notices = [r for r in rows if "カード決済" in r["text"]]
-    assert len(notices) == 1  # ...but retrieval returns the notice once
-    assert {r["text"].split("\n")[0] for r in rows} >= {"ページA > 固有", "ページB > 固有"}
+    assert len(notices) == 1 and notices[0]["source_url"] == "https://example.test/a"
+    assert {r["text"].split("\n")[0] for r in rows} == {
+        "ページA > 固有",
+        "ページB > 固有",
+        "ページA > ご注意",
+    }
+    assert all(r["airline"] == "JL" for r in rows)
+    assert rows[0]["score"] == pytest.approx(1.0, abs=1e-5)

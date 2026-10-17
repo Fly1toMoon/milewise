@@ -26,11 +26,8 @@ class Settings(BaseSettings):
     openai_embedding_model: str = "text-embedding-3-large"
     embedding_dimensions: int = 1024
 
-    database_url: str = "postgresql://milewise:milewise@localhost:5432/milewise"
-    # Set in Lambda: Aurora through the RDS Data API instead of database_url.
-    db_cluster_arn: str = ""
-    db_secret_arn: str = ""
-    db_name: str = "milewise"
+    # DynamoDB table for the daily quota (set in Lambda); empty = in-process counter.
+    usage_table: str = ""
 
     # Public endpoint guards (design.md R7). In Lambda the secrets come from Secrets
     # Manager ARNs and are resolved once at start-up (milewise.api.load_secrets).

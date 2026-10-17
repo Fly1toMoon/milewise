@@ -142,13 +142,13 @@ JAL 屏蔽脚本访问，ANA 的部分页面也一样，所以这些页面由人
    ```
 
    它会转换成 `raw/<airline>/<id>_<时间戳>.html`。没有登记在 `data/sources.yaml` 里的页面会被报出来。
-3. 本地导入：
+3. 本地重建规则索引（只对内容有变化的 chunk 调用 embedding API）：
 
    ```bash
-   make ingest-local
+   make index
    ```
 
-   云端同步则用 `make deploy`，然后 `make upload-raw`。
+4. 同步到云端：先 `make upload-raw` 把原文传到 S3，再发布一次（GitHub 上手动运行 deploy 工作流，或本地 `make release`）。数据随镜像发布，所以新页面也要先通过评测才会上线（design.md §4.6）。
 
 ---
 
