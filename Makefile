@@ -117,7 +117,7 @@ IMAGE_TAG ?= $(shell git rev-parse --short HEAD 2>/dev/null || date +dev-%Y%m%d%
 TFOUT      = $(TF) -chdir=$(APP_DIR) output -raw
 CLOUD_DB   = DB_CLUSTER_ARN=$$($(TFOUT) cluster_arn) DB_SECRET_ARN=$$($(TFOUT) db_secret_arn)
 
-.PHONY: image deploy app-init app-plan app-apply put-openai-key upload-raw restore smoke up down
+.PHONY: image candidate eval-candidate promote release deploy app-init app-plan app-apply put-openai-key upload-raw reingest-cloud restore smoke up down
 # Lambda rejects OCI indexes with attestation manifests, so attestations are disabled.
 image:  ## Build the arm64 image and push it to ECR as $(IMAGE_TAG)
 	@repo=$$($(TF) -chdir=$(BOOTSTRAP_DIR) output -raw ecr_repository_url) && \
@@ -125,19 +125,20 @@ image:  ## Build the arm64 image and push it to ECR as $(IMAGE_TAG)
 	docker build --platform linux/arm64 --provenance=false --sbom=false -t $$repo:$(IMAGE_TAG) . && \
 	docker push $$repo:$(IMAGE_TAG)
 
-deploy: image  ## Code-only release: new image -> both functions -> new version -> live + candidate
-	@repo=$$($(TF) -chdir=$(BOOTSTRAP_DIR) output -raw ecr_repository_url) && \
-	for fn in milewise-api milewise-ingest; do \
-	  aws lambda update-function-code --function-name $$fn --image-uri $$repo:$(IMAGE_TAG) \
-	    --query 'LastUpdateStatus' --output text && \
-	  aws lambda wait function-updated-v2 --function-name $$fn || exit 1; \
-	done && \
-	v=$$(aws lambda publish-version --function-name milewise-api --description "$(IMAGE_TAG)" \
-	  --query Version --output text) && \
-	for alias in candidate live; do \
-	  aws lambda update-alias --function-name milewise-api --name $$alias --function-version $$v \
-	    --query 'AliasArn' --output text || exit 1; \
-	done && echo "milewise-api version $$v ($(IMAGE_TAG)) is live"
+candidate:  ## Push $(IMAGE_TAG), update both functions, point the `candidate` alias at it
+	scripts/release.sh candidate $(IMAGE_TAG)
+
+eval-candidate:  ## Run the eval set against the candidate URL (results saved to Aurora)
+	@eval "$$(scripts/release.sh eval-env)" && \
+	uv run milewise eval --target "$$(scripts/release.sh candidate-url)" \
+	  --token-secret-arn milewise/app-token --trigger $(or $(TRIGGER),manual) --workers 2
+
+promote:  ## Point `live` at the version `candidate` serves
+	scripts/release.sh promote
+
+release: candidate eval-candidate promote  ## Eval-gated release (what CI does on main)
+
+deploy: candidate promote  ## Ungated release (no eval): candidate + promote
 
 app-init:
 	$(TF) -chdir=$(APP_DIR) init -backend-config=../backend.hcl -backend-config="key=app/terraform.tfstate"
@@ -154,6 +155,13 @@ put-openai-key:  ## Copy the OpenAI key from .env into Secrets Manager (not via 
 upload-raw:  ## Upload raw rules pages; S3 events trigger the ingest Lambda
 	aws s3 sync raw/ s3://$$($(TF) -chdir=$(BOOTSTRAP_DIR) output -raw raw_docs_bucket)/ \
 	  --exclude "*" --include "nh/*.html" --include "jl/*.html"
+
+reingest-cloud:  ## Re-trigger ingestion of every raw page in S3 (after a chunker change)
+	@bucket=$$($(TF) -chdir=$(BOOTSTRAP_DIR) output -raw raw_docs_bucket) && \
+	for prefix in nh/ jl/; do \
+	  aws s3 cp s3://$$bucket/$$prefix s3://$$bucket/$$prefix --recursive --only-show-errors \
+	    --exclude "*" --include "*.html" --metadata-directive REPLACE --metadata retrigger=$$(date +%s) || exit 1; \
+	done && echo "re-triggered all raw pages in s3://$$bucket"
 
 restore:  ## Rebuild cloud data: migrations, charts, then re-ingest raw pages
 	$(CLOUD_DB) uv run milewise migrate

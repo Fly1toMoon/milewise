@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 import threading
 import time
+import uuid
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from datetime import UTC, date, datetime
@@ -102,6 +103,8 @@ def split_statements(sql: str) -> list[str]:
 def _to_field(value: Any) -> dict[str, Any]:
     if value is None:
         return {"isNull": True}
+    if isinstance(value, uuid.UUID):
+        return {"stringValue": str(value), "typeHint": "UUID"}
     if isinstance(value, bool):
         return {"booleanValue": value}
     if isinstance(value, int):
@@ -127,6 +130,8 @@ def _from_field(field: dict[str, Any], type_name: str) -> Any:
         return dt.replace(tzinfo=UTC) if dt.tzinfo is None else dt
     if type_name == "numeric":
         return Decimal(value)
+    if type_name == "uuid":  # psycopg returns UUID objects; match it (uuid = text bug, §9.10)
+        return uuid.UUID(value)
     return value
 
 
@@ -163,7 +168,12 @@ class DataApiDb:
 
     @staticmethod
     def _params(params: Params | None) -> list[dict[str, Any]]:
-        return [{"name": k, "value": _to_field(v)} for k, v in (params or {}).items()]
+        out = []
+        for k, v in (params or {}).items():
+            field = _to_field(v)
+            hint = field.pop("typeHint", None)
+            out.append({"name": k, "value": field, **({"typeHint": hint} if hint else {})})
+        return out
 
     def query(self, sql: str, params: Params | None = None) -> list[dict[str, Any]]:
         r = self._call(

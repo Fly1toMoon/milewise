@@ -149,3 +149,24 @@ JAL 屏蔽脚本访问，ANA 的部分页面也一样，所以这些页面由人
    ```
 
    云端同步则用 `make deploy`，然后 `make upload-raw`。
+
+---
+
+## 附：启用 GitHub Actions（push 时做一次）
+
+1. 设置 deploy 用的 IAM 角色（`infra/bootstrap` 创建的 OIDC 角色）。这是 repo 变量，不是 secret：
+
+   ```bash
+   gh variable set AWS_DEPLOY_ROLE_ARN --repo Fly1toMoon/milewise --body "$(terraform -chdir=infra/bootstrap output -raw github_deploy_role_arn)"
+   ```
+
+2. push 分支并创建 PR，`ci.yml` 就会运行（lint / 类型 / 测试 / Terraform validate）：
+
+   ```bash
+   git push -u origin feat/v1-weekend
+   ```
+
+3. 合并到 main 后，`deploy.yml` 会运行：构建 → candidate → 评测 → 通过才更新 live。app 栈被 destroy 的期间会自动跳过。
+
+   - **GitHub 上不需要保存 secret**：AWS 通过 OIDC 访问；评测用的 OpenAI key 和 app token 在运行时从 Secrets Manager 读取。
+   - deploy 角色的 trust policy 只允许 `repo:Fly1toMoon/milewise:ref:refs/heads/main`。

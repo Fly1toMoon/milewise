@@ -1,0 +1,76 @@
+# Eval-gated release on main (design.md M5):
+#   build arm64 image -> update functions -> `candidate` alias -> eval against the candidate URL
+#   -> promote to `live` only if the eval passes. A failing eval leaves users on the old version.
+# AWS access is through GitHub OIDC (role created in infra/bootstrap; no stored keys).
+# When the app stack has been destroyed (`make down`), the job skips instead of failing.
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ap-northeast-1
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04-arm # native arm64 build for the arm64 Lambda functions
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Is the app stack up?
+        id: stack
+        run: |
+          if scripts/release.sh 'up?'; then
+            echo "up=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::app stack is down (make down); nothing to deploy"
+            echo "up=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build and deploy to the candidate alias
+        if: steps.stack.outputs.up == 'true'
+        run: scripts/release.sh candidate "${GITHUB_SHA::7}"
+
+      - name: Evaluate the candidate
+        if: steps.stack.outputs.up == 'true'
+        run: |
+          eval "$(scripts/release.sh eval-env)"
+          echo "::add-mask::$OPENAI_API_KEY"
+          uv run milewise eval \
+            --target "$(scripts/release.sh candidate-url)" \
+            --token-secret-arn milewise/app-token \
+            --trigger ci-deploy --workers 2
+
+      - name: Eval report
+        if: always() && steps.stack.outputs.up == 'true'
+        run: cat eval/results/latest.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Promote to live
+        if: steps.stack.outputs.up == 'true'
+        run: scripts/release.sh promote
+
+      - uses: actions/upload-artifact@v7
+        if: always() && steps.stack.outputs.up == 'true'
+        with:
+          name: eval-results
+          path: eval/results/

@@ -13,7 +13,7 @@ import html as htmllib
 import re
 from dataclasses import dataclass
 
-CHUNKER_VERSION = 4  # bump when extraction/chunking changes so pages are re-ingested
+CHUNKER_VERSION = 5  # bump when extraction/chunking changes so pages are re-ingested
 MAX_CHARS = 900  # ~300–600 tokens of Japanese text
 MIN_CHARS = 200  # smaller sections are merged with their next sibling
 

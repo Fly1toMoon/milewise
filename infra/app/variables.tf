@@ -19,8 +19,9 @@ variable "openai_model" {
 }
 
 variable "daily_request_limit" {
-  type    = number
-  default = 100
+  description = "Requests/day to POST /ask, CI evals included (25 cases + retries per release)."
+  type        = number
+  default     = 300
 }
 
 variable "daily_cost_limit_usd" {

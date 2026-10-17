@@ -20,6 +20,7 @@ defaults:
   ana_application: &ana_application https://www.ana.co.jp/ja/jp/guide/amc/award/international/application/
   ana_partner: &ana_partner https://www.ana.co.jp/ja/jp/guide/amc/award/tk/usage/
   ana_revision: &ana_revision https://www.ana.co.jp/ja/jp/guide/amc/award/tk/zone/info/250415/
+  jal_chart: &jal_chart https://www.jal.co.jp/jp/ja/jalmile/use/jal/inter/routemiles.html
   jal_refund: &jal_refund https://www.jal.co.jp/jp/ja/jalmile/use/jal/inter/cancel.html
   jal_notes: &jal_notes https://www.jal.co.jp/jp/ja/jalmile/use/ticket.html
 
@@ -113,6 +114,45 @@ cases:
     verified_at: null
     verified_by: null
 
+  - id: miles-09
+    category: miles
+    lang: ja
+    question: "JALで東京→ロンドンのビジネスクラス片道は何マイル？"
+    expected:
+      miles: [57000]
+      reference: "基本マイル数 57,000（最少）。特典航空券PLUSにより空席状況でそれ以上になり得る（最大 441,000）。"
+      must_mention: ["57,000 は最少（基本マイル数）であり、PLUS で増える可能性がある"]
+      must_not_say: ["57,000マイルで必ず予約できる"]
+    gold_urls: [*jal_chart]
+    source_note: "日本発着（片道）基本マイル数 ヨーロッパ ロンドン C 57,000；PLUS利用時 ロンドン C 441,000"
+    verified_at: null
+    verified_by: null
+
+  - id: miles-10
+    category: miles
+    lang: zh
+    question: "JAL从东京到台北经济舱单程要多少里程？"
+    expected:
+      miles: [11000, 9000]
+      reference: "羽田出发 11,000、成田出发 9,000（基本里程，最低值）。"
+      must_mention: ["羽田和成田出发所需里程不同（或询问出发机场）"]
+      must_not_say: []
+    gold_urls: [*jal_chart]
+    source_note: "基本マイル数 東アジア 台北－東京（羽田）便 Y 11,000 / 台北－東京（成田）、大阪（関西）、名古屋（中部）便 Y 9,000"
+    verified_at: null
+    verified_by: null
+
+  - id: miles-11
+    category: miles
+    lang: en
+    question: "JAL first class award, Tokyo to London round trip, leaving 1 August 2026 and returning 1 October 2026: how many miles?"
+    expected:
+      miles: [265000]
+    gold_urls: [*jal_chart]
+    source_note: "ファーストクラス ロンドン H 140,000（8/1 は H: 7/9～8/25）+ R 125,000（10/1 は R: 8/26～12/12）= 265,000（往復は片道の合算）"
+    verified_at: null
+    verified_by: null
+
   # ---------------------------------------------------------------- rules (7)
   - id: rules-01
     category: rules
@@ -138,12 +178,13 @@ cases:
       reference: >-
         可以变更搭乘日期和同一区间的航班（出票后需在已订航班出发前、且新航班出发24小时前办理）。
         原则上不能变更航空公司、乘客、区间、经停地和舱位，也不能在往返和单程之间互换。
-        （官网列出的例外：出票后若下位舱有空位，可以电话申请降舱，差额里程不退；提到这一点不算错。）
+        （官网列出的两个例外，提到不算错：①出票后若下位舱有空位，可以电话申请降舱，差额里程不退；
+        ②已按上位舱里程出票的区间，在上位舱有空位时可以改回上位舱。两者都需电话办理。）
       must_mention: ["可以改日期/同区间航班", "原则上不能改舱位或区间（目的地）"]
       must_not_say: ["可以改目的地（区间）", "一般情况下可以自由更改舱位或升舱"]
     gold_urls: [*ana_refund]
     source_note: "変更・払い戻し > 変更；例外は 変更手続き の電話対応リスト（下位クラスへの変更）"
-    revision_note: "2026-10-17: 公式に記載のある降格の例外を許容。要人工確認（グレーゾーン）"
+    revision_note: "2026-10-17: 公式に記載のある例外2件（下位クラスへの変更／上位クラスのマイルで発券済み区間の上位クラスへの変更）を許容。要人工確認"
     verified_at: null
     verified_by: null
 

@@ -36,6 +36,10 @@ def main(argv: list[str] | None = None) -> int:
         "--no-save", action="store_true", help="skip writing results to the database"
     )
     p_eval.add_argument("--trigger", default="local")
+    p_eval.add_argument("--target", default="local", help='"local" or a deployed https URL')
+    p_eval.add_argument(
+        "--token-secret-arn", help="read the app token for --target from Secrets Manager"
+    )
     args = parser.parse_args(argv)
 
     from milewise.db import connect, migrate
@@ -53,7 +57,15 @@ def main(argv: list[str] | None = None) -> int:
     elif args.cmd == "eval":
         from milewise.evals.run import run_eval
 
+        token = None
+        if args.token_secret_arn:
+            import boto3
+
+            sm = boto3.client("secretsmanager")
+            token = sm.get_secret_value(SecretId=args.token_secret_arn)["SecretString"]
         run = run_eval(
+            target=args.target,
+            token=token,
             model=args.model,
             judge_model=args.judge_model,
             only=args.only,
@@ -127,10 +139,7 @@ def ingest_local(db: object) -> None:
             failures += 1
             print(f"FAILED                {src['id']}: {type(e).__name__}: {e}")
             continue
-        print(
-            f"{res.status:<21} {src['id']}: {res.chunks_written} chunks"
-            f" ({res.chunks_skipped_boilerplate} boilerplate skipped)"
-        )
+        print(f"{res.status:<21} {src['id']}: {res.chunks_written} chunks")
     if failures:
         raise SystemExit(f"{failures} page(s) failed to ingest")
 

@@ -1,6 +1,6 @@
-# Eval run 29416bb1 (2026-10-17T02:00Z)
+# Eval run 9eb6c64e (2026-10-17T14:09Z)
 
-model `gpt-6-luna`, judge `gpt-6-luna`, git `uncommitted`, 22 cases (22 not yet human-verified)
+model `deployed`, judge `gpt-6-luna`, git `702ad19-dirty`, 25 cases (25 not yet human-verified)
 
 | metric | value | threshold |
 |---|---|---|
@@ -10,8 +10,8 @@ model `gpt-6-luna`, judge `gpt-6-luna`, git `uncommitted`, 22 cases (22 not yet 
 | citation accuracy | 100% | 80% |
 | post-check failures | 0% | |
 | overall | 100% | |
-| latency avg / p95 | 6357 / 8752 ms | |
-| cost avg / total | $0.00084 / $0.0186 | |
+| latency avg / p95 | 9040 / 12104 ms | |
+| cost avg / total | $0.00059 / $0.0148 | |
 
 **PASSED**
 
@@ -25,6 +25,9 @@ model `gpt-6-luna`, judge `gpt-6-luna`, git `uncommitted`, 22 cases (22 not yet 
 | miles-06 | miles | en | ✅ |  |
 | miles-07 | miles | zh | ✅ |  |
 | miles-08 | miles | ja | ✅ |  |
+| miles-09 | miles | ja | ✅ |  |
+| miles-10 | miles | zh | ✅ |  |
+| miles-11 | miles | en | ✅ |  |
 | rules-01 | rules | ja | ✅ |  |
 | rules-02 | rules | zh | ✅ |  |
 | rules-03 | rules | ja | ✅ |  |
