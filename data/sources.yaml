@@ -1,0 +1,417 @@
+# Official pages Milewise reads (design.md §5). Committed; page contents are not.
+#   fetch: http   -> scripts/fetch_sources.py fetches it (robots.txt checked, 5 s apart, honest UA)
+#   fetch: manual -> saved by a person from a normal browser; imported with
+#                    scripts/import_raw_bundle.py from data/raw/<bundle>/ (gitignored)
+#   kind: rules -> chunked into RAG | chart -> parsed into data/charts | chart_later -> v1.1
+# URLs are the final URLs after redirects, as recorded by the browser on 2026-10-17.
+
+user_agent: "milewise/0.1 (+https://github.com/Fly1toMoon/milewise)"
+
+sources:
+  # ---------- ANA ----------
+  - id: ana-award-index
+    airline: NH
+    kind: rules
+    doc_type: overview
+    lang: ja
+    fetch: http
+    url: https://www.ana.co.jp/ja/jp/guide/amc/award/
+
+  - id: ana-amc-award-common-usage
+    airline: NH
+    kind: rules
+    doc_type: rules
+    lang: ja
+    fetch: http
+    url: https://www.ana.co.jp/ja/jp/guide/amc/usage/
+
+  - id: ana-amc-award-register
+    airline: NH
+    kind: rules
+    doc_type: rules
+    lang: ja
+    fetch: http
+    url: https://www.ana.co.jp/ja/jp/guide/amc/register/
+
+  - id: ana-intl-award-chart
+    airline: NH
+    kind: chart
+    lang: ja
+    fetch: http
+    url: https://www.ana.co.jp/ja/jp/guide/amc/award/international/terms/
+
+  - id: ana-intl-award-usage
+    airline: NH
+    kind: rules
+    doc_type: rules
+    lang: ja
+    fetch: http
+    url: https://www.ana.co.jp/ja/jp/guide/amc/award/international/usage/
+
+  - id: ana-intl-award-application
+    airline: NH
+    kind: rules
+    doc_type: rules
+    lang: ja
+    fetch: http
+    url: https://www.ana.co.jp/ja/jp/guide/amc/award/international/application/
+
+  - id: ana-intl-award-refund
+    airline: NH
+    kind: rules
+    doc_type: fees
+    lang: ja
+    fetch: http
+    url: https://www.ana.co.jp/ja/jp/guide/amc/award/international/refund/
+
+  - id: ana-intl-award-unavailable-online
+    airline: NH
+    kind: rules
+    doc_type: rules
+    lang: ja
+    fetch: http
+    url: https://www.ana.co.jp/ja/jp/guide/amc/award/international/unavailable-application/
+
+  - id: ana-intl-award-revision-2025
+    airline: NH
+    kind: rules
+    doc_type: chart_notes
+    lang: ja
+    fetch: http
+    url: https://www.ana.co.jp/ja/jp/guide/amc/award/tk/zone/info/250415/
+    bundle_id: ana-partner-award-chart-revision-2025
+
+  - id: ana-partner-award-chart
+    airline: NH
+    kind: chart_later
+    lang: ja
+    fetch: http
+    url: https://www.ana.co.jp/ja/jp/guide/amc/award/tk/zone/
+
+  - id: ana-partner-award-usage
+    airline: NH
+    kind: rules
+    doc_type: partner
+    lang: ja
+    fetch: http
+    url: https://www.ana.co.jp/ja/jp/guide/amc/award/tk/usage/
+
+  - id: ana-partner-award-application
+    airline: NH
+    kind: rules
+    doc_type: partner
+    lang: ja
+    fetch: http
+    url: https://www.ana.co.jp/ja/jp/guide/amc/award/tk/application/
+
+  - id: ana-partner-award-refund
+    airline: NH
+    kind: rules
+    doc_type: partner
+    lang: ja
+    fetch: http
+    url: https://www.ana.co.jp/ja/jp/guide/amc/award/tk/refund/
+
+  - id: ana-star-rtw-award
+    airline: NH
+    kind: rules
+    doc_type: partner
+    lang: ja
+    fetch: http
+    url: https://www.ana.co.jp/ja/jp/guide/amc/award/tk/star_round/
+
+  - id: ana-fuel-surcharge
+    airline: NH
+    kind: rules
+    doc_type: fees
+    lang: ja
+    fetch: http
+    url: https://www.ana.co.jp/ja/jp/guide/plan/charge/fuelsurcharge/
+
+  - id: ana-fuel-surcharge-revision
+    airline: NH
+    kind: rules
+    doc_type: fees
+    lang: ja
+    fetch: http
+    url: https://www.ana.co.jp/ja/jp/guide/plan/charge/fuelsurcharge-info/
+
+  - id: ana-ticketing-fee
+    airline: NH
+    kind: rules
+    doc_type: fees
+    lang: ja
+    fetch: http
+    url: https://www.ana.co.jp/ja/jp/guide/plan/charge/commission/
+
+  # ---------- JAL ----------
+  - id: jal-intl-award-index
+    airline: JL
+    kind: rules
+    doc_type: overview
+    lang: ja
+    fetch: manual
+    url: https://www.jal.co.jp/jp/ja/jalmile/use/jal/inter/
+
+  - id: jal-intl-award-chart
+    airline: JL
+    kind: chart
+    lang: ja
+    fetch: manual
+    url: https://www.jal.co.jp/jp/ja/jalmile/use/jal/inter/routemiles.html
+
+  - id: jal-intl-award-mileage
+    airline: JL
+    kind: rules
+    doc_type: rules
+    lang: ja
+    fetch: manual
+    url: https://www.jal.co.jp/jp/ja/jalmile/use/jal/inter/mileage.html
+
+  - id: jal-intl-award-usage
+    airline: JL
+    kind: rules
+    doc_type: rules
+    lang: ja
+    fetch: manual
+    url: https://www.jal.co.jp/jp/ja/jalmile/use/jal/inter/roundtrip2.html
+
+  - id: jal-intl-award-application
+    airline: JL
+    kind: rules
+    doc_type: rules
+    lang: ja
+    fetch: manual
+    url: https://www.jal.co.jp/jp/ja/jalmile/use/jal/inter/application.html
+
+  - id: jal-intl-award-refund
+    airline: JL
+    kind: rules
+    doc_type: fees
+    lang: ja
+    fetch: manual
+    url: https://www.jal.co.jp/jp/ja/jalmile/use/jal/inter/cancel.html
+
+  - id: jal-intl-award-plus
+    airline: JL
+    kind: rules
+    doc_type: chart_notes
+    lang: ja
+    fetch: manual
+    url: https://www.jal.co.jp/jp/ja/jalmile/use/jal/inter/award-guide/
+
+  - id: jal-award-notes
+    airline: JL
+    kind: rules
+    doc_type: rules
+    lang: ja
+    fetch: manual
+    url: https://www.jal.co.jp/jp/ja/jalmile/use/ticket.html
+
+  - id: jal-award-group-index
+    airline: JL
+    kind: rules
+    doc_type: overview
+    lang: ja
+    fetch: manual
+    url: https://www.jal.co.jp/jp/ja/jalmile/use/jal/
+
+  - id: jal-ow-award-index
+    airline: JL
+    kind: rules
+    doc_type: partner
+    lang: ja
+    fetch: manual
+    url: https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/oneworld/
+
+  - id: jal-ow-award-usage
+    airline: JL
+    kind: rules
+    doc_type: partner
+    lang: ja
+    fetch: manual
+    url: https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/oneworld/conditions.html
+
+  - id: jal-ow-award-application
+    airline: JL
+    kind: rules
+    doc_type: partner
+    lang: ja
+    fetch: manual
+    url: https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/oneworld/application.html
+
+  - id: jal-ow-award-refund
+    airline: JL
+    kind: rules
+    doc_type: partner
+    lang: ja
+    fetch: manual
+    url: https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/oneworld/cancel.html
+
+  - id: jal-ow-award-mileage
+    airline: JL
+    kind: rules
+    doc_type: partner
+    lang: ja
+    fetch: manual
+    url: https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/oneworld/mileage.html
+
+  - id: jal-ow-award-chart
+    airline: JL
+    kind: chart_later
+    lang: ja
+    fetch: manual
+    url: https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/oneworld/miles.html
+
+  - id: jal-pjmb-award-index
+    airline: JL
+    kind: rules
+    doc_type: partner
+    lang: ja
+    fetch: manual
+    url: https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/p_jmb/
+
+  - id: jal-pjmb-award-usage
+    airline: JL
+    kind: rules
+    doc_type: partner
+    lang: ja
+    fetch: manual
+    url: https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/p_jmb/conditions.html
+
+  - id: jal-pjmb-award-application
+    airline: JL
+    kind: rules
+    doc_type: partner
+    lang: ja
+    fetch: manual
+    url: https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/p_jmb/application.html
+
+  - id: jal-pjmb-award-refund
+    airline: JL
+    kind: rules
+    doc_type: partner
+    lang: ja
+    fetch: manual
+    url: https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/p_jmb/cancel.html
+
+  - id: jal-pjmb-award-mileage
+    airline: JL
+    kind: rules
+    doc_type: partner
+    lang: ja
+    fetch: manual
+    url: https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/p_jmb/mileage.html
+
+  - id: jal-pjmb-award-chart
+    airline: JL
+    kind: chart_later
+    lang: ja
+    fetch: manual
+    url: https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/p_jmb/jmb_mile.html
+
+  - id: jal-partner-award-index
+    airline: JL
+    kind: rules
+    doc_type: partner
+    lang: ja
+    fetch: manual
+    url: https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/
+
+  - id: jal-partner-award-stopover-plans
+    airline: JL
+    kind: rules
+    doc_type: partner
+    lang: ja
+    fetch: manual
+    url: https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/info_stopover/
+
+  - id: jal-intl-fuel-surcharge
+    airline: JL
+    kind: rules
+    doc_type: fees
+    lang: ja
+    fetch: manual
+    url: https://www.jal.co.jp/jp/ja/inter/fare/fuel/detail.html
+
+# Saved but deliberately not used in v1 (kept here so the scope decision is visible).
+excluded:
+  - {id: ana-intl-award-chart-full, url: "https://www.ana.co.jp/ja/jp/guide/amc/award/international/usage/images/mileage_chart_int_2024.pdf", reason: "PDF of a chart: parse into structured data later (v1.1), never into RAG"}
+  - {id: ana-partner-award-chart-full, url: "https://www.ana.co.jp/ja/jp/guide/amc/award/tk/usage/images/mileage_chart_tk_2024.pdf", reason: "PDF of a chart: parse into structured data later (v1.1), never into RAG"}
+  - {id: ana-dom-award-chart, url: "https://www.ana.co.jp/ja/jp/guide/amc/award/domestic/terms/", reason: "domestic awards: out of v1 scope (design.md R5)"}
+  - {id: ana-dom-award-usage, url: "https://www.ana.co.jp/ja/jp/guide/amc/award/domestic/usage/", reason: "domestic awards: out of v1 scope (design.md R5)"}
+  - {id: ana-dom-award-application, url: "https://www.ana.co.jp/ja/jp/guide/amc/award/domestic/reservation/", reason: "domestic awards: out of v1 scope (design.md R5)"}
+  - {id: ana-dom-award-refund, url: "https://www.ana.co.jp/ja/jp/guide/amc/award/domestic/refund/", reason: "domestic awards: out of v1 scope (design.md R5)"}
+  - {id: ana-dom-award-boarding, url: "https://www.ana.co.jp/ja/jp/guide/amc/award/domestic/boarding/", reason: "domestic awards: out of v1 scope (design.md R5)"}
+  - {id: ana-dom-award-simulator, url: "https://www.ana.co.jp/ja/jp/guide/amc/award/domestic/simulation/", reason: "domestic awards: out of v1 scope (design.md R5)"}
+  - {id: ana-dom-award-booking-period-2410, url: "https://www.ana.co.jp/ja/jp/guide/amc/award/domestic/terms/info/2410/", reason: "domestic awards: out of v1 scope (design.md R5)"}
+  - {id: ana-upgrade-index, url: "https://www.ana.co.jp/ja/jp/guide/amc/upgrade/", reason: "upgrade awards: out of v1 scope"}
+  - {id: ana-upgrade-dom-usage, url: "https://www.ana.co.jp/ja/jp/guide/amc/upgrade/domestic/usage/", reason: "upgrade awards: out of v1 scope"}
+  - {id: ana-upgrade-dom-chart, url: "https://www.ana.co.jp/ja/jp/guide/amc/upgrade/domestic/terms/", reason: "upgrade awards: out of v1 scope"}
+  - {id: ana-upgrade-dom-application, url: "https://www.ana.co.jp/ja/jp/guide/amc/upgrade/domestic/application/", reason: "upgrade awards: out of v1 scope"}
+  - {id: ana-upgrade-dom-refund, url: "https://www.ana.co.jp/ja/jp/guide/amc/upgrade/domestic/refund/", reason: "upgrade awards: out of v1 scope"}
+  - {id: ana-upgrade-intl-usage, url: "https://www.ana.co.jp/ja/jp/guide/amc/upgrade/international/usage/", reason: "upgrade awards: out of v1 scope"}
+  - {id: ana-upgrade-intl-chart, url: "https://www.ana.co.jp/ja/jp/guide/amc/upgrade/international/terms/", reason: "upgrade awards: out of v1 scope"}
+  - {id: ana-upgrade-intl-application, url: "https://www.ana.co.jp/ja/jp/guide/amc/upgrade/international/application/", reason: "upgrade awards: out of v1 scope"}
+  - {id: ana-upgrade-intl-refund, url: "https://www.ana.co.jp/ja/jp/guide/amc/upgrade/international/refund/", reason: "upgrade awards: out of v1 scope"}
+  - {id: ana-upgrade-star-usage, url: "https://www.ana.co.jp/ja/jp/guide/amc/upgrade/star/usage/", reason: "upgrade awards: out of v1 scope"}
+  - {id: ana-upgrade-star-chart, url: "https://www.ana.co.jp/ja/jp/guide/amc/upgrade/star/terms/", reason: "upgrade awards: out of v1 scope"}
+  - {id: ana-upgrade-star-application, url: "https://www.ana.co.jp/ja/jp/guide/amc/upgrade/star/application/", reason: "upgrade awards: out of v1 scope"}
+  - {id: ana-upgrade-star-refund, url: "https://www.ana.co.jp/ja/jp/guide/amc/upgrade/star/refund/", reason: "upgrade awards: out of v1 scope"}
+  - {id: ana-fees-index, url: "https://www.ana.co.jp/ja/jp/guide/plan/charge/", reason: "navigation hub only"}
+  - {id: ana-dom-pfc, url: "https://www.ana.co.jp/ja/jp/guide/plan/charge/pfc/", reason: "domestic awards: out of v1 scope (design.md R5)"}
+  - {id: jal-intl-award-chart-ar, url: "https://www.jal.co.jp/ar/ja/jalmile/use/jal/inter/routemiles.html", reason: "for residents/departures outside Japan: v1 answers for Japan residents"}
+  - {id: jal-award-airport, url: "https://www.jal.co.jp/jp/ja/jalmile/use/award_airport/", reason: "day-of-travel airport services: not award tickets"}
+  - {id: jal-dom-award-application, url: "https://www.jal.co.jp/jp/ja/jalmile/use/jal/domestic-award/application.html", reason: "domestic awards: out of v1 scope (design.md R5)"}
+  - {id: jal-dom-award-calendar, url: "https://www.jal.co.jp/jp/ja/jalmile/use/jal/domestic-award/calendar/", reason: "domestic awards: out of v1 scope (design.md R5)"}
+  - {id: jal-dom-award-chart, url: "https://www.jal.co.jp/jp/ja/jalmile/use/jal/domestic-award/miles/", reason: "domestic awards: out of v1 scope (design.md R5)"}
+  - {id: jal-dom-award-guide, url: "https://www.jal.co.jp/jp/ja/jalmile/use/jal/dom/award-guide/", reason: "domestic awards: out of v1 scope (design.md R5)"}
+  - {id: jal-dom-award-index, url: "https://www.jal.co.jp/jp/ja/jalmile/use/jal/domestic-award/", reason: "domestic awards: out of v1 scope (design.md R5)"}
+  - {id: jal-dom-award-mileage, url: "https://www.jal.co.jp/jp/ja/jalmile/use/jal/domestic-award/mileage.html", reason: "domestic awards: out of v1 scope (design.md R5)"}
+  - {id: jal-dom-award-refund, url: "https://www.jal.co.jp/jp/ja/jalmile/use/jal/domestic-award/cancel.html", reason: "domestic awards: out of v1 scope (design.md R5)"}
+  - {id: jal-dom-award-usage, url: "https://www.jal.co.jp/jp/ja/jalmile/use/jal/domestic-award/conditions.html", reason: "domestic awards: out of v1 scope (design.md R5)"}
+  - {id: jal-upgrade-application, url: "https://www.jal.co.jp/jp/ja/jalmile/use/jal/upgrade/application.html", reason: "upgrade awards: out of v1 scope"}
+  - {id: jal-upgrade-chart, url: "https://www.jal.co.jp/jp/ja/jalmile/use/jal/upgrade/miles.html", reason: "upgrade awards: out of v1 scope"}
+  - {id: jal-upgrade-index, url: "https://www.jal.co.jp/jp/ja/jalmile/use/jal/upgrade/", reason: "upgrade awards: out of v1 scope"}
+  - {id: jal-upgrade-mileage, url: "https://www.jal.co.jp/jp/ja/jalmile/use/jal/upgrade/mileage.html", reason: "upgrade awards: out of v1 scope"}
+  - {id: jal-upgrade-refund, url: "https://www.jal.co.jp/jp/ja/jalmile/use/jal/upgrade/cancel.html", reason: "upgrade awards: out of v1 scope"}
+  - {id: jal-upgrade-usage, url: "https://www.jal.co.jp/jp/ja/jalmile/use/jal/upgrade/conditions.html", reason: "upgrade awards: out of v1 scope"}
+  - {id: jal-ow-award-chart-ar, url: "https://www.jal.co.jp/arl/ja/ar/jalmile/use/partner_air/oneworld/miles_ar.html", reason: "for residents/departures outside Japan: v1 answers for Japan residents"}
+  - {id: jal-gk-award-application, url: "https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/p_gkd/application.html", reason: "Jetstar Japan (mostly domestic): out of v1 scope"}
+  - {id: jal-gk-award-chart, url: "https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/p_gkd/gkd_miles.html", reason: "Jetstar Japan (mostly domestic): out of v1 scope"}
+  - {id: jal-gk-award-chart-ar, url: "https://www.jal.co.jp/arl/ja/ar/jalmile/use/partner_air/p_gkd/miles_ar.html", reason: "Jetstar Japan (mostly domestic): out of v1 scope"}
+  - {id: jal-gk-award-index, url: "https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/p_gkd/", reason: "Jetstar Japan (mostly domestic): out of v1 scope"}
+  - {id: jal-gk-award-mileage, url: "https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/p_gkd/mileage.html", reason: "Jetstar Japan (mostly domestic): out of v1 scope"}
+  - {id: jal-gk-award-refund, url: "https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/p_gkd/cancel.html", reason: "Jetstar Japan (mostly domestic): out of v1 scope"}
+  - {id: jal-gk-award-usage, url: "https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/p_gkd/conditions.html", reason: "Jetstar Japan (mostly domestic): out of v1 scope"}
+  - {id: jal-partner-award-area-ame, url: "https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/area/ame/", reason: "per-carrier / per-destination marketing pages: route fare tables without rule context"}
+  - {id: jal-partner-award-area-asia-resort, url: "https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/area/asia_resort/", reason: "per-carrier / per-destination marketing pages: route fare tables without rule context"}
+  - {id: jal-partner-award-area-eur, url: "https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/area/eur/", reason: "per-carrier / per-destination marketing pages: route fare tables without rule context"}
+  - {id: jal-partner-award-area-jpn, url: "https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/area/jpn/", reason: "per-carrier / per-destination marketing pages: route fare tables without rule context"}
+  - {id: jal-partner-award-area-oce, url: "https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/area/oce/", reason: "per-carrier / per-destination marketing pages: route fare tables without rule context"}
+  - {id: jal-partner-award-by-miles, url: "https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/mile/", reason: "per-carrier / per-destination marketing pages: route fare tables without rule context"}
+  - {id: jal-partner-award-by-miles-local, url: "https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/mile/local.html", reason: "per-carrier / per-destination marketing pages: route fare tables without rule context"}
+  - {id: jal-partner-award-aa, url: "https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/partner/aa/", reason: "per-carrier / per-destination marketing pages: route fare tables without rule context"}
+  - {id: jal-partner-award-af, url: "https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/partner/af/", reason: "per-carrier / per-destination marketing pages: route fare tables without rule context"}
+  - {id: jal-partner-award-as, url: "https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/partner/as/", reason: "per-carrier / per-destination marketing pages: route fare tables without rule context"}
+  - {id: jal-partner-award-at, url: "https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/partner/at/", reason: "per-carrier / per-destination marketing pages: route fare tables without rule context"}
+  - {id: jal-partner-award-ay, url: "https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/partner/ay/", reason: "per-carrier / per-destination marketing pages: route fare tables without rule context"}
+  - {id: jal-partner-award-ba, url: "https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/partner/ba/", reason: "per-carrier / per-destination marketing pages: route fare tables without rule context"}
+  - {id: jal-partner-award-cx, url: "https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/partner/cx/", reason: "per-carrier / per-destination marketing pages: route fare tables without rule context"}
+  - {id: jal-partner-award-ek, url: "https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/partner/ek/", reason: "per-carrier / per-destination marketing pages: route fare tables without rule context"}
+  - {id: jal-partner-award-fj, url: "https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/partner/fj/", reason: "per-carrier / per-destination marketing pages: route fare tables without rule context"}
+  - {id: jal-partner-award-ga, url: "https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/partner/ga/", reason: "per-carrier / per-destination marketing pages: route fare tables without rule context"}
+  - {id: jal-partner-award-gk, url: "https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/partner/gk/", reason: "Jetstar Japan (mostly domestic): out of v1 scope"}
+  - {id: jal-partner-award-ib, url: "https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/partner/ib/", reason: "per-carrier / per-destination marketing pages: route fare tables without rule context"}
+  - {id: jal-partner-award-ke, url: "https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/partner/ke/", reason: "per-carrier / per-destination marketing pages: route fare tables without rule context"}
+  - {id: jal-partner-award-la, url: "https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/partner/la/", reason: "per-carrier / per-destination marketing pages: route fare tables without rule context"}
+  - {id: jal-partner-award-mh, url: "https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/partner/mh/", reason: "per-carrier / per-destination marketing pages: route fare tables without rule context"}
+  - {id: jal-partner-award-mu, url: "https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/partner/mu/", reason: "per-carrier / per-destination marketing pages: route fare tables without rule context"}
+  - {id: jal-partner-award-pg, url: "https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/partner/pg/", reason: "per-carrier / per-destination marketing pages: route fare tables without rule context"}
+  - {id: jal-partner-award-qf, url: "https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/partner/qf/", reason: "per-carrier / per-destination marketing pages: route fare tables without rule context"}
+  - {id: jal-partner-award-qr, url: "https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/partner/qr/", reason: "per-carrier / per-destination marketing pages: route fare tables without rule context"}
+  - {id: jal-partner-award-rj, url: "https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/partner/rj/", reason: "per-carrier / per-destination marketing pages: route fare tables without rule context"}
+  - {id: jal-partner-award-ul, url: "https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/partner/ul/", reason: "per-carrier / per-destination marketing pages: route fare tables without rule context"}
+  - {id: jal-partner-award-wy, url: "https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/partner/wy/", reason: "per-carrier / per-destination marketing pages: route fare tables without rule context"}
+  - {id: jal-intl-fuel-surcharge-overseas, url: "https://www.jal.co.jp/jp/ja/inter/fare/fuel/detail_overseas.html", reason: "for residents/departures outside Japan: v1 answers for Japan residents"}
+  - {id: jal-intl-fuel-surcharge-table, url: "https://www.jal.co.jp/jp/ja/inter/fare/fuel/table.html", reason: "surcharge amount table by period: changes often, out of v1 scope"}

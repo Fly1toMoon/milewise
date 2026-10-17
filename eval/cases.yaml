@@ -1,0 +1,322 @@
+# Milewise evaluation set (design.md §4, R9).
+#
+# Gold answers come from the airlines' official pages, NOT from Milewise's own tools,
+# so a parser or tool bug shows up as a failed case instead of agreeing with itself.
+# Each case starts with verified_at: null. A person checks it against the official page
+# (source_note says where) and sets verified_at / verified_by. The runner reports how many
+# cases are still unverified.
+#
+# Categories and how they are graded:
+#   miles    every expected figure must appear in the answer; no unbacked figure may appear
+#   rules    LLM judge with a key-point rubric (must_mention / must_not_say)
+#   both     both of the above
+#   abstain  the answer must decline or say it is unsure, and give no mileage figure
+# Citation accuracy: at least one cited source URL is in gold_urls.
+
+defaults:
+  ana_chart: &ana_chart https://www.ana.co.jp/ja/jp/guide/amc/award/international/terms/
+  ana_refund: &ana_refund https://www.ana.co.jp/ja/jp/guide/amc/award/international/refund/
+  ana_usage: &ana_usage https://www.ana.co.jp/ja/jp/guide/amc/award/international/usage/
+  ana_application: &ana_application https://www.ana.co.jp/ja/jp/guide/amc/award/international/application/
+  ana_partner: &ana_partner https://www.ana.co.jp/ja/jp/guide/amc/award/tk/usage/
+  ana_revision: &ana_revision https://www.ana.co.jp/ja/jp/guide/amc/award/tk/zone/info/250415/
+  jal_refund: &jal_refund https://www.jal.co.jp/jp/ja/jalmile/use/jal/inter/cancel.html
+  jal_notes: &jal_notes https://www.jal.co.jp/jp/ja/jalmile/use/ticket.html
+
+cases:
+  # ---------------------------------------------------------------- miles (8)
+  - id: miles-01
+    category: miles
+    lang: ja
+    question: "ANAで東京→ロンドンのビジネスクラス往復の特典航空券は何マイル必要？"
+    expected:
+      miles: [110000, 115000, 180000]
+    gold_urls: [*ana_chart]
+    source_note: "往復チャート 日本（Zone 1）発着 欧州・ロシア2（Zone 7）、C: L 110,000 / R 115,000 / H 改定後 180,000"
+    verified_at: null
+    verified_by: null
+
+  - id: miles-02
+    category: miles
+    lang: zh
+    question: "用ANA里程从东京飞新加坡，商务舱单程需要多少里程？"
+    expected:
+      miles: [40000, 42500, 47500]
+    gold_urls: [*ana_chart]
+    source_note: "片道チャート 日本（Zone 1）発着 アジア2（Zone 4）、C: 40,000 / 42,500 / 47,500"
+    verified_at: null
+    verified_by: null
+
+  - id: miles-03
+    category: miles
+    lang: en
+    question: "How many ANA miles do I need for a round-trip economy award from Tokyo to Honolulu?"
+    expected:
+      miles: [35000, 40000, 65000]
+    gold_urls: [*ana_chart]
+    source_note: "往復チャート 日本（Zone 1）発着 ハワイ（Zone 5）、Y: 35,000 / 40,000 / 改定後 65,000"
+    verified_at: null
+    verified_by: null
+
+  - id: miles-04
+    category: miles
+    lang: ja
+    question: "ANAの特典航空券で、2026年2月20日に東京からロサンゼルスへ行き、3月5日に戻る場合、エコノミークラス往復は何マイル？"
+    expected:
+      miles: [45000]
+    gold_urls: [*ana_chart]
+    source_note: "ANA公式の確認例（往路L・復路R）: 40,000÷2 + 50,000÷2 = 45,000。2/20は日本・北米/欧州カレンダーでL、3/5はR"
+    verified_at: null
+    verified_by: null
+
+  - id: miles-05
+    category: miles
+    lang: ja
+    question: "大阪からニューヨークまでANAのファーストクラス往復だと何マイル？"
+    expected:
+      miles: [150000, 170000, 300000]
+    gold_urls: [*ana_chart]
+    source_note: "往復チャート 日本（Zone 1）発着 北米（Zone 6）、F: 150,000 / 170,000 / 改定後 300,000"
+    verified_at: null
+    verified_by: null
+
+  - id: miles-06
+    category: miles
+    lang: en
+    question: "ANA premium economy one way from Tokyo to Sydney on 10 August 2026: how many miles?"
+    expected:
+      miles: [44000]
+    gold_urls: [*ana_chart]
+    source_note: "片道チャート 日本（Zone 1）発着 オセアニア（Zone 10）、PY H 44,000。8/10 は日本・ハワイ/オセアニアカレンダーで H（7/16～8/23）"
+    verified_at: null
+    verified_by: null
+
+  - id: miles-07
+    category: miles
+    lang: zh
+    question: "ANA从札幌到曼谷的商务舱往返，旺季要多少里程？"
+    expected:
+      miles: [95000]
+    gold_urls: [*ana_chart]
+    source_note: "往復チャート 日本（Zone 1）発着 アジア2（Zone 4）、C H 改定後 95,000（札幌は日本 Zone 1）"
+    verified_at: null
+    verified_by: null
+
+  - id: miles-08
+    category: miles
+    lang: ja
+    question: "ANAの特典航空券で東京→ソウルのファーストクラスは何マイル？"
+    expected:
+      not_offered: true    # チャート上「設定なし」: must say it is not offered, give no F figure
+    gold_urls: [*ana_chart]
+    source_note: "往復・片道チャート 日本（Zone 1）発着 韓国・ロシア1（Zone 2）、F: 設定なし"
+    verified_at: null
+    verified_by: null
+
+  # ---------------------------------------------------------------- rules (7)
+  - id: rules-01
+    category: rules
+    lang: ja
+    question: "ANAの国際線特典航空券をキャンセルしたら手数料はいくら？マイルは戻る？"
+    expected:
+      reference: >-
+        すべての区間が未使用で、予約便の出発前に手続きすればマイルは口座に戻る。2025年6月24日以降の
+        予約・発券分は、クレジットカード決済の取消手数料か取消手数料マイルを選べる。2025年6月23日までの
+        予約・発券分は取消手数料マイルのみで、1名につき3,000マイル。払い戻し時点で有効期限切れのマイルは戻らない。
+      must_mention: ["全区間未使用であること（一部使用済みは不可）", "取消手数料マイル 1名3,000マイル（または予約時期で選択肢が異なる）"]
+      must_not_say: ["一部使用済みでも払い戻せる", "手数料は無料"]
+    gold_urls: [*ana_refund, *ana_revision]
+    source_note: "変更・払い戻し > 未使用特典の払い戻し / ご注意、改定のお知らせ（3,000マイル）"
+    verified_at: null
+    verified_by: null
+
+  - id: rules-02
+    category: rules
+    lang: zh
+    question: "ANA的国际线奖励机票出票后还能改日期吗？能换舱位或者改目的地吗？"
+    expected:
+      reference: >-
+        可以变更搭乘日期和同一区间的航班（出票后需在已订航班出发前、且新航班出发24小时前办理）。
+        原则上不能变更航空公司、乘客、区间、经停地和舱位，也不能在往返和单程之间互换。
+        （官网列出的例外：出票后若下位舱有空位，可以电话申请降舱，差额里程不退；提到这一点不算错。）
+      must_mention: ["可以改日期/同区间航班", "原则上不能改舱位或区间（目的地）"]
+      must_not_say: ["可以改目的地（区间）", "一般情况下可以自由更改舱位或升舱"]
+    gold_urls: [*ana_refund]
+    source_note: "変更・払い戻し > 変更；例外は 変更手続き の電話対応リスト（下位クラスへの変更）"
+    revision_note: "2026-10-17: 公式に記載のある降格の例外を許容。要人工確認（グレーゾーン）"
+    verified_at: null
+    verified_by: null
+
+  - id: rules-03
+    category: rules
+    lang: ja
+    question: "ANAの提携航空会社の特典航空券も、ANA便と同じチャートで必要マイルが決まる？"
+    expected:
+      reference: >-
+        別のチャート（提携航空会社特典航空券のゾーン・必要マイルチャート）で決まる。出発地と目的地の
+        ゾーン、搭乗クラスによって異なり、シーズンによる変動はない。片道では利用できない。
+      must_mention: ["ANA便とは別のチャート", "シーズンによる変動はない"]
+      must_not_say: ["同じチャート", "距離で決まる"]
+    gold_urls: [*ana_partner]
+    source_note: "提携航空会社特典航空券 ご利用条件 > 必要マイル数"
+    verified_at: null
+    verified_by: null
+
+  - id: rules-04
+    category: rules
+    lang: en
+    question: "If my ANA award flight is cancelled because of a typhoon, can I change or refund it?"
+    expected:
+      reference: >-
+        Yes. For delays or cancellations caused by force majeure such as typhoons or snow, or by ANA
+        (e.g. equipment trouble), ANA offers a change or a refund for the affected ANA-group flight.
+        Changes can be made from the booking details page on the ANA website (or by phone).
+      must_mention: ["change or refund is offered for weather/force-majeure cancellations"]
+      must_not_say: ["no refund for weather"]
+    gold_urls: [*ana_refund]
+    source_note: "変更・払い戻し > 悪天候や機材故障などが理由の変更・払い戻し"
+    verified_at: null
+    verified_by: null
+
+  - id: rules-05
+    category: rules
+    lang: ja
+    question: "特典航空券を払い戻したら、戻ってくるマイルの有効期限はどうなる？"
+    expected:
+      reference: >-
+        通常（お客様都合）の払い戻しでは、特典交換の際と同じ有効期限・マイル口座グループに払い戻される。
+        払い戻し時点で有効期限が切れているマイルは払い戻しできない。（悪天候・機材故障による日付変更で
+        生じる差額マイルは払い戻し時点から36カ月後の月末までの期限が設定される、という例外に触れてもよい）
+      must_mention: ["通常の払い戻しは交換時と同じ有効期限で戻る", "期限切れのマイルは戻らない"]
+      must_not_say: ["通常（お客様都合）の払い戻しで有効期限が延長される・リセットされる"]
+    gold_urls: [*ana_refund]
+    source_note: "変更・払い戻し > 未使用特典の払い戻し > 口座に戻るマイルの有効期間；例外は 悪天候… > 日付変更に伴い…差額マイル"
+    revision_note: "2026-10-17: must_not_say を通常の払い戻しに限定（悪天候時の36カ月は公式に記載あり）"
+    verified_at: null
+    verified_by: null
+
+  - id: rules-06
+    category: rules
+    lang: zh
+    question: "ANA奖励机票如果没有座位，可以排候补吗？候补有什么限制？"
+    expected:
+      reference: >-
+        可以申请候补（空席待ち），每个单程方向只能候补1个航班；已经确保座位的同一区间不能再候补；
+        候补受理截止到第一段出发前14天；有座位时会发邮件通知，没有座位则不通知。
+      must_mention: ["每个方向只能候补1个航班", "出发前14天截止"]
+      must_not_say: ["可以同时候补多个航班"]
+    gold_urls: [*ana_application]
+    source_note: "お申し込み方法 > 空席待ち"
+    verified_at: null
+    verified_by: null
+
+  - id: rules-07
+    category: rules
+    lang: ja
+    question: "2025年6月より前に発券したANA特典航空券を今払い戻すと、手数料はどうなる？"
+    expected:
+      reference: >-
+        2025年6月23日までに予約・発券した特典航空券は、取消手数料マイルのみ選択でき、1名につき
+        3,000マイル（座席不要の幼児は不要）を差し引いて戻る。一部使用済みの場合は払い戻しできない。
+      must_mention: ["取消手数料マイルのみ（クレジットカード不可）", "1名3,000マイル"]
+      must_not_say: ["クレジットカードで支払える"]
+    gold_urls: [*ana_refund, *ana_revision]
+    source_note: "変更・払い戻し > 未使用特典の払い戻し、改定のお知らせ"
+    verified_at: null
+    verified_by: null
+
+  - id: rules-08
+    category: rules
+    lang: ja
+    question: "JALの国際線特典航空券は、発券後に日付を変更できる？"
+    expected:
+      reference: >-
+        マイル引き落とし（発券）後の予約変更はできない（搭乗クラスの変更も不可）。変更したい場合は
+        特典航空券を取り消し・払い戻しのうえ新たに手配する必要があり、払い戻し時は航空券1冊につき
+        3,100円の取消手数料がかかる。
+      must_mention: ["発券後の予約変更はできない", "取り消し・払い戻しして取り直す（3,100円の取消手数料）"]
+      must_not_say: ["発券後も日付変更できる", "ANAと同じく変更可能"]
+    gold_urls: [*jal_refund]
+    source_note: "JAL 変更・払い戻し > 予約の変更 > マイル引き落とし（発券）後の変更（ANAとは逆のルール）"
+    verified_at: null
+    verified_by: null
+
+  - id: rules-09
+    category: rules
+    lang: zh
+    question: "JAL的奖励机票，小孩需要的里程和大人一样吗？不占座的婴儿呢？"
+    expected:
+      reference: >-
+        儿童、婴儿使用特典也需要和大人相同的里程。但JAL国际线特典机票中，不占座的婴儿在同行大人
+        使用同一特典种类时，只需大人所需里程的10%。
+      must_mention: ["儿童与大人所需里程相同", "不占座婴儿为大人的10%（JAL国际线）"]
+      must_not_say: ["儿童半价", "婴儿免费"]
+    gold_urls: [*jal_notes]
+    source_note: "JAL 特典交換における注意事項 > マイルを特典に換える際の注意事項"
+    verified_at: null
+    verified_by: null
+
+  # ---------------------------------------------------------------- both (2)
+  - id: both-01
+    category: both
+    lang: ja
+    question: "ANAで東京からパリのビジネスクラス往復は何マイル？あとでキャンセルするとマイルは戻る？"
+    expected:
+      miles: [110000, 115000, 180000]
+      reference: "全区間未使用で出発前に手続きすればマイルは戻る（手数料あり）。"
+      must_mention: ["全区間未使用ならマイルは戻る"]
+      must_not_say: ["一部使用済みでも払い戻せる"]
+    gold_urls: [*ana_chart, *ana_refund]
+    source_note: "パリは欧州・ロシア2（Zone 7）で東京→ロンドンと同じ欄"
+    verified_at: null
+    verified_by: null
+
+  - id: both-02
+    category: both
+    lang: en
+    question: "ANA business class one way Tokyo to Singapore: how many miles, and can I change the date later?"
+    expected:
+      miles: [40000, 42500, 47500]
+      reference: "Date and same-route flight changes are allowed; route and class changes are not."
+      must_mention: ["date change allowed"]
+      must_not_say: ["class change allowed"]
+    gold_urls: [*ana_chart, *ana_refund]
+    source_note: "片道チャート Zone1-Zone4 C、変更・払い戻し > 変更"
+    verified_at: null
+    verified_by: null
+
+  # ---------------------------------------------------------------- abstain (3)
+  - id: abstain-01
+    category: abstain
+    lang: ja
+    question: "デルタ航空スカイマイルで東京→ロサンゼルスのビジネスは何マイル？"
+    expected:
+      reason: "対象外の航空会社。ANA/JALのチャートの数字を流用してはいけない"
+    gold_urls: []
+    source_note: "対象はANA/JALのみ"
+    verified_at: null
+    verified_by: null
+
+  - id: abstain-02
+    category: abstain
+    lang: zh
+    question: "明天东京飞伦敦的ANA商务舱还有奖励座位吗？"
+    expected:
+      reason: "空席は会員ログインが必要な空席照会でしか分からない。空席があるともないとも言ってはいけない"
+      allow_figures: true   # quoting the (backed) required miles while declining availability is fine
+    gold_urls: []
+    source_note: "Milewise は空席を照会しない"
+    revision_note: "2026-10-17: 必要マイルの提示は許可（根拠付きなら有益）。禁止は空席の有無の断定のみ"
+    verified_at: null
+    verified_by: null
+
+  - id: abstain-03
+    category: abstain
+    lang: ja
+    question: "ANA国内線で羽田から新千歳までの特典航空券は何マイル？"
+    expected:
+      reason: "国内線は第一版の対象外。国際線チャートの数字を答えてはいけない"
+    gold_urls: []
+    source_note: "国内線チャートは未収録（design.md R5）"
+    verified_at: null
+    verified_by: null

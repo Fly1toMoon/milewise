@@ -1,0 +1,17 @@
+.git
+.venv
+.env
+.env.*
+# Raw pages are never shipped (design.md §5.4): neither raw/ nor data/raw/
+raw
+data/raw
+**/*.pdf
+infra
+eval/results
+**/__pycache__
+.pytest_cache
+.ruff_cache
+.mypy_cache
+.claude
+docs
+tests

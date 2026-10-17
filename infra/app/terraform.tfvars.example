@@ -1,0 +1,3 @@
+# Copy to terraform.tfvars (gitignored). `make up` sets image_tag automatically.
+image_tag   = "<git sha pushed to ECR>"
+alert_email = "you@example.com"

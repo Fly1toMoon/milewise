@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Milewise</title>
+<style>
+  :root { --bg:#fbfaf7; --fg:#1d1c1a; --muted:#6b675f; --line:#e4e0d8; --accent:#1f5f8b; --chip:#eef3f7; --warn:#8a5a00; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#171614; --fg:#ece9e3; --muted:#a19c92; --line:#2e2c28; --accent:#7fb6dc; --chip:#22303a; --warn:#e0b25a; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.65 system-ui, -apple-system, "Hiragino Sans", "PingFang SC", sans-serif; }
+  main { max-width:760px; margin:0 auto; padding:32px 16px 64px; }
+  h1 { font-size:22px; margin:0 0 4px; letter-spacing:.02em; }
+  .sub { color:var(--muted); margin:0 0 24px; font-size:14px; }
+  form { display:flex; gap:8px; }
+  textarea { flex:1; min-height:52px; resize:vertical; padding:10px 12px; border:1px solid var(--line); border-radius:8px; background:transparent; color:inherit; font:inherit; }
+  button { padding:0 18px; border:0; border-radius:8px; background:var(--accent); color:#fff; font:inherit; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:default; }
+  .examples { display:flex; flex-wrap:wrap; gap:6px; margin:10px 0 24px; }
+  .examples button { background:var(--chip); color:var(--fg); padding:4px 10px; font-size:13px; }
+  #status { color:var(--muted); font-size:14px; min-height:22px; }
+  #answer { border-top:1px solid var(--line); padding-top:12px; }
+  #answer a { color:var(--accent); }
+  .cite { display:inline-block; font-size:11px; padding:0 5px; border-radius:4px; background:var(--chip); color:var(--accent); vertical-align:1px; }
+  .meta { color:var(--muted); font-size:13px; margin-top:16px; }
+  .warn { color:var(--warn); }
+  details { margin-top:28px; color:var(--muted); font-size:14px; }
+  input { width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:transparent; color:inherit; font:inherit; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Milewise</h1>
+  <p class="sub">ANA / JAL 特典航空券アシスタント — 必要マイルは公式チャートからコードで計算、規則は公式ページを引用して回答します。</p>
+
+  <form id="f">
+    <textarea id="q" placeholder="例：東京→ロンドンのビジネスクラス特典航空券は何マイル必要？" required></textarea>
+    <button id="go" type="submit">質問</button>
+  </form>
+  <div class="examples" id="examples"></div>
+
+  <div id="status"></div>
+  <div id="answer"></div>
+  <div class="meta" id="meta"></div>
+
+  <details id="settings">
+    <summary>アクセストークン</summary>
+    <p>このデモは費用保護のためトークンが必要です（ブラウザ内にのみ保存されます）。</p>
+    <input id="token" type="password" autocomplete="off">
+  </details>
+</main>
+<script>
+const EXAMPLES = [
+  "東京→ロンドンのビジネスクラス特典航空券は何マイル必要？",
+  "特典航空券をキャンセルしたら手数料はいくら？マイルは戻る？",
+  "提携航空会社の特典航空券も同じチャートで計算する？",
+  "我想2026年2月20日从东京去洛杉矶，3月5日回来，ANA经济舱往返要多少里程？",
+];
+const $ = (id) => document.getElementById(id);
+const store = { get(k) { try { return localStorage.getItem(k) || ""; } catch { return ""; } },
+                set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
+$("token").value = store.get("milewise-token");
+if (!$("token").value) $("settings").open = true;
+$("token").addEventListener("change", (e) => store.set("milewise-token", e.target.value.trim()));
+for (const ex of EXAMPLES) {
+  const b = document.createElement("button"); b.type = "button"; b.textContent = ex;
+  b.onclick = () => { $("q").value = ex; $("f").requestSubmit(); };
+  $("examples").append(b);
+}
+
+function esc(s) { return s.replace(/[&<>"]/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c])); }
+function render(md) {
+  const lines = esc(md).split("\n");
+  let html = "", list = false;
+  for (let line of lines) {
+    line = line
+      .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+      .replace(/(^|[\s(（])(https?:\/\/[A-Za-z0-9\-._~:\/?#@!$&*+=%]+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>')
+      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+      .replace(/`([^`]+)`/g, "<code>$1</code>")
+      .replace(/\[([CD]\d+)\]/g, '<span class="cite">$1</span>');
+    const item = line.match(/^\s*[-*]\s+(.*)$/);
+    if (item) { if (!list) { html += "<ul>"; list = true; } html += `<li>${item[1]}</li>`; continue; }
+    if (list) { html += "</ul>"; list = false; }
+    const h = line.match(/^#{1,4}\s+(.*)$/);
+    html += h ? `<h3>${h[1]}</h3>` : (line.trim() ? `<p>${line}</p>` : "");
+  }
+  return html + (list ? "</ul>" : "");
+}
+
+$("f").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const question = $("q").value.trim(); if (!question) return;
+  $("go").disabled = true; $("answer").innerHTML = ""; $("meta").textContent = "";
+  $("status").textContent = "考えています…（データベースが休止中なら最初の質問は20秒ほどかかります）";
+  try {
+    const res = await fetch("/ask", { method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + $("token").value.trim() },
+      body: JSON.stringify({ question }) });
+    if (!res.ok) { $("status").textContent = res.status === 401 ? "トークンが正しくありません。" :
+                   res.status === 429 ? "本日の利用上限に達しました。" : `エラー (${res.status})`;
+                   if (res.status === 401) $("settings").open = true; return; }
+    const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = "";
+    for (;;) {
+      const { value, done } = await reader.read(); if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf("\n\n")) >= 0) {
+        const block = buf.slice(0, i); buf = buf.slice(i + 2);
+        const ev = (block.match(/^event: (.*)$/m) || [])[1]; const data = (block.match(/^data: (.*)$/m) || [])[1];
+        if (!ev || !data) continue;
+        const d = JSON.parse(data);
+        if (ev === "answer") { $("answer").innerHTML = render(d.text); $("status").textContent = ""; }
+        if (ev === "done") $("meta").innerHTML = `${(d.latency_ms/1000).toFixed(1)} s · $${d.cost_usd.toFixed(5)} · ${esc(d.model)}`
+          + (d.postcheck_ok ? "" : ' · <span class="warn">自動チェック警告あり</span>');
+        if (ev === "error") $("status").textContent = "エラーが発生しました（" + d.request_id + "）";
+      }
+    }
+  } catch (err) { $("status").textContent = "通信エラー: " + err; }
+  finally { $("go").disabled = false; }
+});
+</script>
+</body>
+</html>

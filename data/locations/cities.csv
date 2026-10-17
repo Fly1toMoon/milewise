@@ -1,0 +1,58 @@
+city_code,country,name_ja,name_en,name_zh,aliases,airports
+TYO,JP,東京,Tokyo,东京,東京都|羽田|成田|Haneda|Narita|トウキョウ,HND|NRT
+OSA,JP,大阪,Osaka,大阪,関西|伊丹|Kansai|Itami|关西,KIX|ITM
+NGO,JP,名古屋,Nagoya,名古屋,中部|セントレア|Chubu|Centrair,NGO
+SPK,JP,札幌,Sapporo,札幌,新千歳|Chitose|New Chitose,CTS
+FUK,JP,福岡,Fukuoka,福冈,福岡市,FUK
+OKA,JP,沖縄,Okinawa,冲绳,那覇|Naha|沖繩|那霸,OKA
+SEL,KR,ソウル,Seoul,首尔,仁川|金浦|Incheon|Gimpo|首爾|서울,ICN|GMP
+VVO,RU,ウラジオストク,Vladivostok,符拉迪沃斯托克,海参崴|海參崴,VVO
+BJS,CN,北京,Beijing,北京,首都|大興|大兴|Peking,PEK|PKX
+DLC,CN,大連,Dalian,大连,,DLC
+SHE,CN,瀋陽,Shenyang,沈阳,瀋陽市,SHE
+TAO,CN,青島,Qingdao,青岛,,TAO
+SHA,CN,上海,Shanghai,上海,浦東|虹橋|浦东|虹桥|Pudong|Hongqiao,PVG|SHA
+HGH,CN,杭州,Hangzhou,杭州,,HGH
+CAN,CN,広州,Guangzhou,广州,廣州,CAN
+XMN,CN,厦門,Xiamen,厦门,廈門,XMN
+CTU,CN,成都,Chengdu,成都,天府|双流|雙流,TFU|CTU
+WUH,CN,武漢,Wuhan,武汉,,WUH
+SZX,CN,深セン,Shenzhen,深圳,深圳市|深セン市,SZX
+HKG,HK,香港,Hong Kong,香港,ホンコン|Hongkong,HKG
+TPE,TW,台北,Taipei,台北,臺北|桃園|松山|桃园|Taoyuan|Songshan,TPE|TSA
+MNL,PH,マニラ,Manila,马尼拉,馬尼拉,MNL
+SIN,SG,シンガポール,Singapore,新加坡,,SIN
+BKK,TH,バンコク,Bangkok,曼谷,スワンナプーム|ドンムアン|Suvarnabhumi|Don Mueang,BKK|DMK
+SGN,VN,ホーチミン,Ho Chi Minh City,胡志明市,ホーチミンシティ|Saigon|胡志明|西贡|Ho Chi Minh,SGN
+RGN,MM,ヤンゴン,Yangon,仰光,Rangoon,RGN
+JKT,ID,ジャカルタ,Jakarta,雅加达,雅加達|スカルノハッタ|Soekarno-Hatta,CGK
+BOM,IN,ムンバイ,Mumbai,孟买,孟買|Bombay,BOM
+DEL,IN,デリー,Delhi,德里,ニューデリー|New Delhi|新德里,DEL
+HAN,VN,ハノイ,Hanoi,河内,,HAN
+KUL,MY,クアラルンプール,Kuala Lumpur,吉隆坡,,KUL
+PNH,KH,プノンペン,Phnom Penh,金边,金邊|テチョ|Techo,KTI|PNH
+MAA,IN,チェンナイ,Chennai,金奈,Madras,MAA
+HNL,US,ホノルル,Honolulu,檀香山,ハワイ|Hawaii|夏威夷|オアフ|Oahu,HNL
+LAX,US,ロサンゼルス,Los Angeles,洛杉矶,洛杉磯|LA|ロス,LAX
+SFO,US,サンフランシスコ,San Francisco,旧金山,舊金山|三藩市,SFO
+SEA,US,シアトル,Seattle,西雅图,西雅圖,SEA
+SJC,US,サンノゼ,San Jose,圣何塞,聖荷西|San José,SJC
+WAS,US,ワシントン,Washington,华盛顿,華盛頓|Washington D.C.|Washington DC|ワシントンDC,IAD
+NYC,US,ニューヨーク,New York,纽约,紐約|NY,JFK|EWR
+CHI,US,シカゴ,Chicago,芝加哥,,ORD
+HOU,US,ヒューストン,Houston,休斯顿,休斯頓,IAH
+YVR,CA,バンクーバー,Vancouver,温哥华,溫哥華,YVR
+MEX,MX,メキシコシティ,Mexico City,墨西哥城,メキシコ|Ciudad de México,MEX
+LON,GB,ロンドン,London,伦敦,倫敦|ヒースロー|Heathrow,LHR
+PAR,FR,パリ,Paris,巴黎,シャルル・ド・ゴール|Charles de Gaulle,CDG
+FRA,DE,フランクフルト,Frankfurt,法兰克福,法蘭克福,FRA
+MUC,DE,ミュンヘン,Munich,慕尼黑,München,MUC
+DUS,DE,デュッセルドルフ,Düsseldorf,杜塞尔多夫,杜塞爾多夫|Dusseldorf,DUS
+BRU,BE,ブリュッセル,Brussels,布鲁塞尔,布魯塞爾,BRU
+VIE,AT,ウィーン,Vienna,维也纳,維也納|Wien,VIE
+MIL,IT,ミラノ,Milan,米兰,米蘭|Milano|マルペンサ|Malpensa,MXP
+STO,SE,ストックホルム,Stockholm,斯德哥尔摩,斯德哥爾摩|アーランダ|Arlanda,ARN
+MOW,RU,モスクワ,Moscow,莫斯科,,SVO
+IST,TR,イスタンブール,Istanbul,伊斯坦布尔,伊斯坦堡,IST
+SYD,AU,シドニー,Sydney,悉尼,雪梨,SYD
+PER,AU,パース,Perth,珀斯,,PER
