@@ -13,8 +13,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from openai import OpenAI
-
+from milewise import llm
 from milewise.agent import URL_RE, AskResult
 from milewise.config import Settings
 
@@ -102,34 +101,20 @@ def _rubric(case: dict[str, Any]) -> str | None:
 def judge(
     case: dict[str, Any], answer: str, s: Settings, model: str
 ) -> tuple[bool, str, dict[str, int]]:
-    client = OpenAI(api_key=s.openai_api_key or None, max_retries=2, timeout=90)
-    r = client.responses.create(
-        model=model,
+    out, usage = llm.structured(
+        model,
+        name="grade",
         instructions=JUDGE_INSTRUCTIONS,
-        input=f"Question: {case['question']}\n\nRubric:\n{_rubric(case)}\n\nAnswer to grade:\n{answer}",
-        text={
-            "format": {
-                "type": "json_schema",
-                "name": "grade",
-                "schema": JUDGE_SCHEMA,
-                "strict": True,
-            }
-        },
-        reasoning={"effort": "low"},
-        max_output_tokens=2000,
+        prompt=f"Question: {case['question']}\n\nRubric:\n{_rubric(case)}\n\nAnswer to grade:\n{answer}",
+        schema=JUDGE_SCHEMA,
+        s=s,
     )
-    out = json.loads(r.output_text)
-    notes = out["rationale"]
-    if out["missing_points"]:
+    notes = str(out.get("rationale", ""))
+    if out.get("missing_points"):
         notes += f" | missing: {out['missing_points']}"
-    if out["violations"]:
+    if out.get("violations"):
         notes += f" | violations: {out['violations']}"
-    usage = (
-        {"input_tokens": r.usage.input_tokens, "output_tokens": r.usage.output_tokens}
-        if r.usage
-        else {}
-    )
-    return bool(out["passed"]), notes, usage
+    return bool(out.get("passed")), notes, usage
 
 
 def grade(case: dict[str, Any], res: AskResult, s: Settings, judge_model: str) -> Grade:

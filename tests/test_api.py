@@ -9,19 +9,25 @@ from fastapi.testclient import TestClient
 from milewise import api
 from milewise.agent import AskResult, PostCheck
 from milewise.config import get_settings
-from milewise.db import Db
+from milewise.quota import MemoryCounter
 
 
 @pytest.fixture
-def client(db: Db, monkeypatch: pytest.MonkeyPatch) -> TestClient:
+def counter(monkeypatch: pytest.MonkeyPatch) -> MemoryCounter:
+    c = MemoryCounter()
+    monkeypatch.setattr(api, "usage", lambda: c)
+    return c
+
+
+@pytest.fixture
+def client(counter: MemoryCounter, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     monkeypatch.setenv("APP_TOKEN", "t0ken")
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
     monkeypatch.setenv("DAILY_REQUEST_LIMIT", "2")
     get_settings.cache_clear()
-    monkeypatch.setattr(api, "_db", db)
-    db.execute("DELETE FROM ops.daily_usage")
+    monkeypatch.setattr(api, "data_version", lambda: {"rules_index": {"content_sha256": "abc"}})
 
-    def fake_ask(question: str, _db: Any) -> AskResult:
+    def fake_ask(question: str) -> AskResult:
         return AskResult(
             question=question,
             answer="110,000マイル [C1]",
@@ -54,7 +60,7 @@ def sse_events(text: str) -> list[tuple[str, dict[str, Any]]]:
 
 
 def test_healthz_and_index(client: TestClient) -> None:
-    assert client.get("/healthz").json() == {"ok": True}
+    assert client.get("/healthz").json() == {"ok": True, "rules_index": {"content_sha256": "abc"}}
     assert "Milewise" in client.get("/").text
 
 
@@ -66,7 +72,9 @@ def test_ask_requires_token(client: TestClient) -> None:
     assert r.status_code == 401
 
 
-def test_ask_streams_status_answer_done_and_records_cost(client: TestClient, db: Db) -> None:
+def test_ask_streams_status_answer_done_and_records_cost(
+    client: TestClient, counter: MemoryCounter
+) -> None:
     r = client.post(
         "/ask", json={"question": "東京→ロンドン"}, headers={"Authorization": "Bearer t0ken"}
     )
@@ -75,8 +83,9 @@ def test_ask_streams_status_answer_done_and_records_cost(client: TestClient, db:
     assert [e for e, _ in events] == ["status", "answer", "done"]
     assert events[1][1]["text"] == "110,000マイル [C1]"
     assert events[2][1]["sources"] == ["https://www.ana.co.jp/x"]
-    usage = db.query("SELECT requests, cost_usd FROM ops.daily_usage")[0]
-    assert usage["requests"] == 1 and float(usage["cost_usd"]) == pytest.approx(0.0003)
+    assert events[2][1]["data"] == {"rules_index": {"content_sha256": "abc"}}
+    [usage] = counter._days.values()
+    assert usage.requests == 1 and usage.cost_usd == pytest.approx(0.0003)
 
 
 def test_daily_quota(client: TestClient) -> None:
@@ -86,33 +95,16 @@ def test_daily_quota(client: TestClient) -> None:
     assert client.post("/ask", json={"question": "質問その3"}, headers=h).status_code == 429
 
 
-def test_events_reports_partial_batch_failures(
+def test_missing_openai_key_only_matters_for_openai_models(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    def fake_ingest(event: dict[str, Any]) -> None:
-        if event.get("fail"):
-            raise RuntimeError("bad object")
-
-    monkeypatch.setattr(api, "_ingest_s3_event", fake_ingest)
-    batch = {
-        "Records": [
-            {"messageId": "m1", "body": json.dumps({"Records": []})},
-            {"messageId": "m2", "body": json.dumps({"fail": True})},
-        ]
-    }
-    assert client.post("/events", json=batch).json() == {
-        "batchItemFailures": [{"itemIdentifier": "m2"}]
-    }
-
-
-def test_missing_secret_degrades_instead_of_crashing(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.delenv("OPENAI_API_KEY")
+    h = {"Authorization": "Bearer t0ken"}
     monkeypatch.setenv("OPENAI_API_KEY", "")
     get_settings.cache_clear()
-    assert client.get("/healthz").status_code == 200
-    r = client.post(
-        "/ask", json={"question": "東京→ロンドン"}, headers={"Authorization": "Bearer t0ken"}
-    )
-    assert r.status_code == 503
+    # default: everything on Bedrock, so no OpenAI key is needed
+    assert client.post("/ask", json={"question": "東京→ロンドン"}, headers=h).status_code == 200
+
+    monkeypatch.setenv("CHAT_MODEL", "openai:gpt-6-luna")
+    get_settings.cache_clear()
+    assert client.get("/healthz").status_code == 200  # degrades instead of crashing
+    assert client.post("/ask", json={"question": "東京→ロンドン"}, headers=h).status_code == 503

@@ -17,18 +17,21 @@ from langchain.agents import create_agent
 from langchain.agents.middleware import ModelCallLimitMiddleware, ToolCallLimitMiddleware
 from langchain_core.messages import AIMessage
 from langchain_core.tools import StructuredTool
-from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 
+from milewise import llm
+from milewise.charts.store import FareStore, get_fare_store
 from milewise.config import Settings, cost_usd, get_settings
-from milewise.db import Db
 from milewise.locations import resolve_city
+from milewise.rag.index import RulesIndex, get_rules_index
 from milewise.rag.search import search_rules
 from milewise.tools.miles import (
     JAPAN_ZONE,
+    JST,
+    ROUTE_FAMILIES,
     SUPPORTED_FAMILIES,
     get_required_miles,
-    season_for,
+    season_group_for,
     today_jst,
 )
 
@@ -41,14 +44,23 @@ Rules:
 tool results are in Japanese.
 2. Never state a mileage figure from memory. Every required-miles number must come from \
 get_required_miles in this conversation, written with digits and thousands separators \
-(e.g. 110,000), immediately followed by the evidence id it came from, e.g. "110,000マイル [C1]". \
+(e.g. 110,000), immediately followed by the unit and the evidence id it came from, e.g. \
+"110,000マイル [C1]". The unit is exactly マイル in Japanese, 里程 in Chinese, miles in English. \
 Do not write 万 or round numbers.
 3. If the user does not name an airline, call get_required_miles for both NH (ANA) and JL (JAL) \
 and report each, including when one of them is not covered. If the user gives no travel dates, \
 show the L/R/H values. If they do not say round trip \
 or one way, assume round trip and say so. Pass travel dates when the user gives them.
+3a. If the user names travel months or a period, call get_season once for the whole period \
+(a month or month without a year means its next occurrence on or after today). Then group the \
+answer by the returned date ranges: for each range give its dates, its season and the miles of \
+that season, citing both evidence ids. Call get_required_miles once per cabin WITHOUT travel \
+dates (it returns the figure of every season), in parallel; never once per date. If no cabin is \
+named you must cover all three: economy (Y), premium economy (PY) and business (C).
 4. If a tool returns needs_clarification, give what is known and ask one short question. \
-If it returns not_found or unsupported, say clearly that you cannot confirm it, and do not guess.
+If it returns not_found or unsupported, say clearly that you cannot confirm it, and do not guess. \
+Questions about awards on partner airlines (提携航空会社 / 伙伴航空 / Star Alliance / oneworld) \
+must be looked up with award_type "partner" (never as an own-metal award).
 5. For rules, conditions, changes, cancellation/refund fees and similar questions, call \
 search_rules and answer only from the excerpts it returns. Put the evidence id after each \
 statement, e.g. "マイルは口座に戻ります [D1]", and quote only short phrases. If it returns \
@@ -176,7 +188,10 @@ class MilesArgs(BaseModel):
         default=None, description="Flight number if the user gives one (e.g. JL031)"
     )
     award_type: Literal["own", "partner"] = Field(
-        default="own", description="own-metal or partner award"
+        default="own",
+        description="own: flights of the airline itself. partner: an award on a partner "
+        "airline (提携航空会社, 伙伴航空, Star Alliance, oneworld), also when the user only "
+        "says a partner award without naming the airline",
     )
 
 
@@ -188,40 +203,77 @@ class RulesArgs(BaseModel):
 class SeasonArgs(BaseModel):
     airline: Literal["NH", "JL"]
     destination: str = Field(description="Non-Japan end of the trip (city/airport/IATA code)")
-    travel_date: date
+    date_from: date = Field(description="First travel date of the period to look up")
+    date_to: date | None = Field(
+        default=None,
+        description="Last date of the period (inclusive); omit for a single day. "
+        "For a month or several months pass the whole span, e.g. 2027-07-01 to 2027-08-31.",
+    )
 
 
-def build_tools(db: Db, evidence: Evidence) -> list[StructuredTool]:
+def season_periods(
+    fares: FareStore, airline: str, destination: str, date_from: date, date_to: date | None
+) -> dict[str, Any]:
+    """Season segments (L/R/H) of a travel period, from the airline's calendar."""
+    date_to = date_to or date_from
+    family = SUPPORTED_FAMILIES.get((airline, "own"))
+    cities = resolve_city(destination)
+    base = {"airline": airline, "destination": destination}
+    if family is None or len(cities) != 1 or date_to < date_from:
+        return {"status": "not_found", **base}
+    c = cities[0]
+    if family in ROUTE_FAMILIES:
+        # JAL: only first class is seasonal; Y/PY/C have no seasons (基本マイル数 + PLUS).
+        group: str | None = "F"
+        note = "JAL のシーズン（L/R/H）はファーストクラスのみに適用。エコノミー・プレミアムエコノミー・ビジネスはシーズンなし"
+    else:
+        zone = fares.zone_for(family, list(c.airports), c.city_code, c.country)
+        group = season_group_for(fares, family, JAPAN_ZONE, zone) if zone else None
+        note = ""
+    if group is None:
+        return {"status": "not_found", **base}
+    segments = fares.season_segments(family, group, date_from, date_to)
+    covered = sum(
+        (date.fromisoformat(g["date_to"]) - date.fromisoformat(g["date_from"])).days + 1
+        for g in segments
+    )
+    chart = next(iter(fares.family(family).charts.values()))
+    out: dict[str, Any] = {
+        "status": "ok" if segments else "not_found",
+        **base,
+        "season_group": group,
+        "segments": segments,
+        "chart": {
+            "source_url": chart.source_url,
+            "fetched_at": chart.fetched_at.astimezone(JST).isoformat(),
+        },
+    }
+    if covered < (date_to - date_from).days + 1:
+        out["caveat"] = "期間の一部は収録カレンダー外のためシーズンを判定できません"
+    if note:
+        out["note"] = note
+    return out
+
+
+def build_tools(
+    fares: FareStore, index: RulesIndex | None, evidence: Evidence
+) -> list[StructuredTool]:
     def required_miles(**kwargs: Any) -> str:
-        res = get_required_miles(db, **kwargs).to_dict()
+        res = get_required_miles(fares, **kwargs).to_dict()
+        # "Not offered" (設定なし) and other definite answers are facts from the chart too,
+        # and models cite them; only a clarification request carries no evidence.
+        if res["status"] != "needs_clarification":
+            res = {"evidence_id": evidence.add_chart(res), **res}
+        return json.dumps(res, ensure_ascii=False, default=str)
+
+    def season(airline: str, destination: str, date_from: date, date_to: date | None = None) -> str:
+        res = season_periods(fares, airline, destination, date_from, date_to)
         if res["status"] == "ok":
             res = {"evidence_id": evidence.add_chart(res), **res}
         return json.dumps(res, ensure_ascii=False, default=str)
 
-    def season(airline: str, destination: str, travel_date: date) -> str:
-        family = SUPPORTED_FAMILIES.get((airline, "own"))
-        cities = resolve_city(destination)
-        if family is None or len(cities) != 1:
-            return json.dumps(
-                {"status": "not_found", "destination": destination}, ensure_ascii=False
-            )
-        zones = db.query(
-            "SELECT zone_code FROM fare.zone_members WHERE chart_family = :f AND"
-            " ((match_kind = 'city' AND match_value = :c) OR (match_kind = 'country' AND match_value = :n))",
-            {"f": family, "c": cities[0].city_code, "n": cities[0].country},
-        )
-        s = (
-            season_for(db, family, JAPAN_ZONE, zones[0]["zone_code"], travel_date)
-            if zones
-            else None
-        )
-        return json.dumps(
-            {"status": "ok" if s else "not_found", "season": s, "travel_date": str(travel_date)},
-            ensure_ascii=False,
-        )
-
     def rules(question: str, airline: str | None = None) -> str:
-        res = search_rules(db, question, airline=airline)
+        res = search_rules(index or get_rules_index(), question, airline=airline)
         for key in ("input_tokens", "output_tokens"):
             evidence.tool_usage[key] += res.usage.get(key, 0)
         out: dict[str, Any] = {"status": res.status, "chunks": []}
@@ -253,7 +305,11 @@ def build_tools(db: Db, evidence: Evidence) -> list[StructuredTool]:
         StructuredTool.from_function(
             func=season,
             name="get_season",
-            description="Award season (L/R/H) of a travel date for a trip between Japan and a destination.",
+            description=(
+                "Award seasons (L/R/H) for a travel date or a whole period on a trip between "
+                "Japan and a destination: returns each date range with its season, the source "
+                "URL and an evidence_id to cite. Use it whenever the user gives months or dates."
+            ),
             args_schema=SeasonArgs,
         ),
     ]
@@ -287,25 +343,24 @@ def _usage(messages: list[Any]) -> dict[str, int]:
 
 
 def ask(
-    question: str, db: Db, settings: Settings | None = None, model: str | None = None
+    question: str,
+    fares: FareStore | None = None,
+    index: RulesIndex | None = None,
+    settings: Settings | None = None,
+    model: str | None = None,
 ) -> AskResult:
     s = settings or get_settings()
+    agent_model = model or s.chat_model
     evidence = Evidence()
-    llm = ChatOpenAI(
-        model=model or s.openai_model,
-        api_key=s.openai_api_key or None,  # type: ignore[arg-type]
-        use_responses_api=True,
-        reasoning={"effort": s.openai_reasoning_effort},
-        max_tokens=4000,  # type: ignore[call-arg]
-    )
     # Hard caps so a confused model cannot loop and run up cost (design.md R7).
     middleware: list[Any] = [
         ModelCallLimitMiddleware(run_limit=5, exit_behavior="end"),
-        ToolCallLimitMiddleware(run_limit=4, exit_behavior="continue"),
+        # 8: a period question across cabins needs a season lookup plus one call per cabin.
+        ToolCallLimitMiddleware(run_limit=8, exit_behavior="continue"),
     ]
     agent = create_agent(
-        llm,
-        tools=build_tools(db, evidence),
+        llm.chat_model(agent_model, s),
+        tools=build_tools(fares or get_fare_store(), index, evidence),
         system_prompt=SYSTEM_PROMPT.format(
             today=today_jst().isoformat(),
             language=LANGUAGES[detect_language(question)],
@@ -329,14 +384,13 @@ def ask(
         if isinstance(m, AIMessage)
         for tc in m.tool_calls
     ]
-    agent_model = model or s.openai_model
     usage = _usage(messages)
-    # The agent runs on agent_model; the reranker inside search_rules always uses
-    # the default (small) model, so each is priced separately.
+    # The agent runs on agent_model; the reranker inside search_rules runs on rerank_model
+    # (also when an A/B run overrides the agent model), so each is priced separately.
     cost = cost_usd(
         agent_model, usage["input_tokens"], usage["cached_input_tokens"], usage["output_tokens"]
     ) + cost_usd(
-        s.openai_model, evidence.tool_usage["input_tokens"], 0, evidence.tool_usage["output_tokens"]
+        s.rerank_model, evidence.tool_usage["input_tokens"], 0, evidence.tool_usage["output_tokens"]
     )
     usage["input_tokens"] += evidence.tool_usage["input_tokens"]
     usage["output_tokens"] += evidence.tool_usage["output_tokens"]
@@ -349,5 +403,5 @@ def ask(
         usage=usage,
         cost_usd=round(cost, 6),
         latency_ms=latency_ms,
-        model=model or s.openai_model,
+        model=agent_model,
     )

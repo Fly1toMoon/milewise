@@ -153,6 +153,85 @@ cases:
     verified_at: null
     verified_by: null
 
+  # ---------------------------------------------------------------- miles: periods (2026-10-18)
+  # Composite questions: a travel period spanning several seasons, several cabins at once.
+  # The answer must be grouped by the date ranges of the season calendar (get_season).
+  - id: miles-12
+    category: miles
+    lang: zh
+    question: "东京到台湾的ANA里程票，7月和8月需要多少里程？"
+    expected:
+      # Trip type not given → round trip is assumed (system prompt rule 3); cabins Y/PY/C.
+      miles: [20000, 30000, 33000, 47000, 53000, 65000]
+      reference: >-
+        2027年（今天是2026年10月，所以是下一个7、8月）7/1～7/15 和 8/24～8/31 是 Regular season，
+        7/16～8/23 是 High season。往返：经济舱 R 20,000 / H 30,000，超级经济舱 R 33,000 / H 47,000，
+        商务舱 R 53,000 / H 65,000。
+      must_mention:
+        - "指的是2027年的7月和8月"
+        - "7/1～7/15 是 Regular（R）季"
+        - "7/16～8/23 是 High（H）季"
+        - "8/24～8/31 是 Regular（R）季"
+        - "说明按往返计算（或给出单程/往返两种）"
+      must_not_say: ["7月和8月全部是同一个季节"]
+    gold_urls: [*ana_chart]
+    source_note: "台北は韓国・ロシア1/アジア（Zone 3）、カレンダー Zone2-3-4: 2027/7/1～7/15 R, 7/16～8/23 H, 8/24～9/30 R。往復チャート Zone1-Zone3: Y 20,000/30,000, PY 33,000/47,000, C 53,000/65,000（R/H）"
+    verified_at: null
+    verified_by: null
+
+  - id: miles-13
+    category: miles
+    lang: ja
+    question: "東京から台北までANAの片道特典航空券で、7月と8月に行く場合、エコノミー・プレミアムエコノミー・ビジネスはそれぞれ何マイル？"
+    expected:
+      miles: [10000, 15000, 16500, 23500, 26500, 32500]
+      reference: >-
+        2027年7/1～7/15・8/24～8/31 はレギュラーシーズン、7/16～8/23 はハイシーズン。片道：エコノミー
+        R 10,000 / H 15,000、プレミアムエコノミー R 16,500 / H 23,500、ビジネス R 26,500 / H 32,500。
+      must_mention:
+        - "2027年7/1～7/15 と 8/24～8/31 はレギュラー（R）"
+        - "2027年7/16～8/23 はハイ（H）"
+      must_not_say: ["往復のマイル数を片道として答える"]
+    gold_urls: [*ana_chart]
+    source_note: "片道チャート Zone1-Zone3: Y 10,000/15,000, PY 16,500/23,500, C 26,500/32,500（R/H）。カレンダーは miles-12 と同じ"
+    verified_at: null
+    verified_by: null
+
+  - id: miles-14
+    category: miles
+    lang: ja
+    question: "JALのファーストクラスで東京からロンドンへ来年7月に片道で行くと何マイル？"
+    expected:
+      miles: [125000, 140000]
+      reference: "2027/7/1～7/15 はレギュラー 125,000、7/16～7/31 はハイ 140,000（片道）。"
+      must_mention:
+        - "2027年7/1～7/15 はレギュラー（R）で 125,000"
+        - "2027年7/16 以降はハイ（H）で 140,000"
+      must_not_say: ["特典航空券PLUSでファーストクラスのマイル数が増える"]
+    gold_urls: [*jal_chart]
+    source_note: "ファーストクラス シーズンカレンダー 2027/5/10～7/15 R、7/16～8/29 H。ロンドン F: L 110,000 / R 125,000 / H 140,000"
+    verified_at: null
+    verified_by: null
+
+  - id: miles-15
+    category: miles
+    lang: zh
+    question: "东京到伦敦单程商务舱，ANA和JAL各需要多少里程？"
+    expected:
+      miles: [55000, 57500, 90000, 57000, 441000]
+      reference: >-
+        ANA 单程商务舱 L 55,000 / R 57,500 / H 90,000；JAL 单程商务舱基本里程 57,000 起（最少），
+        使用特典航空券PLUS时最多 441,000，具体以 JAL 官网空位查询为准。
+      must_mention:
+        - "ANA 按淡季/平季/旺季分别给出"
+        - "JAL 的 57,000 是最低值（基本里程），不是固定价格"
+        - "JAL 最多可能到 441,000（特典航空券PLUS）"
+      must_not_say: ["JAL 商务舱固定 57,000"]
+    gold_urls: [*ana_chart, *jal_chart]
+    source_note: "ANA 片道 Zone1-Zone7 C: 55,000/57,500/90,000。JAL ロンドン C 基本 57,000、PLUS 最大 441,000"
+    verified_at: null
+    verified_by: null
+
   # ---------------------------------------------------------------- rules (7)
   - id: rules-01
     category: rules
@@ -359,5 +438,18 @@ cases:
       reason: "国内線は第一版の対象外。国際線チャートの数字を答えてはいけない"
     gold_urls: []
     source_note: "国内線チャートは未収録（design.md R5）"
+    verified_at: null
+    verified_by: null
+
+  - id: abstain-04
+    category: abstain
+    lang: zh
+    question: "ANA出伙伴航空商务舱，中国到欧洲需要多少里程？"
+    expected:
+      reason: >-
+        ANA 提携航空会社特典航空券的里程表还没有结构化收录（status.md 待办 4），而且是日本以外出发的行程。
+        可以说明合作航空特典使用另一张里程表、需要查官网，但不能给出具体里程，也不能套用 ANA 自家航班的里程表
+    gold_urls: []
+    source_note: "提携航空会社特典航空券のチャートは未収録。収録後は miles カテゴリに移す（中国＝アジア1、欧州＝欧州）"
     verified_at: null
     verified_by: null

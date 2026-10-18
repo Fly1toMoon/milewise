@@ -1,6 +1,8 @@
-# Eval-gated release on main (design.md M5):
-#   build arm64 image -> update functions -> `candidate` alias -> eval against the candidate URL
-#   -> promote to `live` only if the eval passes. A failing eval leaves users on the old version.
+# Eval-gated release on main (design.md M5, §4.6):
+#   build the rules index from the raw pages in S3 -> build the arm64 image (code + index)
+#   -> `candidate` alias -> eval against the candidate URL -> promote to `live` only if the
+#   eval passes. A failing eval leaves users on the old code AND the old data.
+# After uploading new raw pages (make upload-raw), run this workflow by hand (workflow_dispatch).
 # AWS access is through GitHub OIDC (role created in infra/bootstrap; no stored keys).
 # When the app stack has been destroyed (`make down`), the job skips instead of failing.
 name: deploy
@@ -47,6 +49,10 @@ jobs:
             echo "up=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Build the rules index
+        if: steps.stack.outputs.up == 'true'
+        run: scripts/release.sh index
+
       - name: Build and deploy to the candidate alias
         if: steps.stack.outputs.up == 'true'
         run: scripts/release.sh candidate "${GITHUB_SHA::7}"
@@ -55,11 +61,10 @@ jobs:
         if: steps.stack.outputs.up == 'true'
         run: |
           eval "$(scripts/release.sh eval-env)"
-          echo "::add-mask::$OPENAI_API_KEY"
           uv run milewise eval \
             --target "$(scripts/release.sh candidate-url)" \
             --token-secret-arn milewise/app-token \
-            --trigger ci-deploy --workers 2
+            --trigger ci-deploy --workers 2 --upload "$EVAL_UPLOAD"
 
       - name: Eval report
         if: always() && steps.stack.outputs.up == 'true'

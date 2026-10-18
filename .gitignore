@@ -33,3 +33,6 @@ backend.hcl
 
 # Per-run eval exports (full answers); only eval/results/latest.md is committed
 eval/results/*.jsonl
+
+# Rules index (chunk text derived from raw pages; built by `make index`, shipped in the image)
+build/

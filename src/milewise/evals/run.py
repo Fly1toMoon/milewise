@@ -1,7 +1,8 @@
 """Run the eval set end to end and record the results (design.md §4).
 
-milewise eval                       # all cases, default models, saved to DB + JSONL
+milewise eval                       # all cases, default models, JSONL + latest.md
 milewise eval --model gpt-6.1-sol   # A/B: same cases, stronger answer model
+milewise eval --upload s3://bucket/eval/   # also keep the run in S3 (CI does this)
 """
 
 from __future__ import annotations
@@ -10,7 +11,6 @@ import hashlib
 import json
 import statistics
 import subprocess
-import threading
 import time
 import uuid
 from collections.abc import Callable
@@ -24,7 +24,6 @@ import yaml
 
 from milewise.agent import SYSTEM_PROMPT, AskResult, ask
 from milewise.config import Settings, cost_usd, get_settings
-from milewise.db import Db, connect
 from milewise.evals.grade import Grade, grade
 
 CASES_PATH = Path(__file__).resolve().parents[3] / "eval" / "cases.yaml"
@@ -48,6 +47,7 @@ class CaseResult:
     output_tokens: int
     cost_usd: float
     error: str | None = None
+    first_attempt: str | None = None  # why an unstable case failed the first time
 
 
 def load_cases(path: Path = CASES_PATH) -> list[dict[str, Any]]:
@@ -113,6 +113,11 @@ def run_case(
     second = _attempt(case, asker, s, judge_model)
     second.unstable = second.passed
     second.cost_usd += first.cost_usd
+    second.first_attempt = first.error or (
+        "figures missing or unbacked; " if first.grade and first.grade.miles_ok is False else ""
+    ) + (first.grade.judge_rationale or "" if first.grade else "") + (
+        "" if first.postcheck_ok else " | post-check failed"
+    )
     return second
 
 
@@ -178,86 +183,36 @@ def git_sha() -> str:
         return "uncommitted"
 
 
-def save(
-    db: Db, run: dict[str, Any], cases: list[dict[str, Any]], results: list[CaseResult]
-) -> None:
-    by_id = {c["id"]: c for c in cases}
-    with db.transaction():
-        db.execute_many(
-            "INSERT INTO eval.cases VALUES (:id, :sha, :cat, :lang, :q, CAST(:exp AS jsonb),"
-            " string_to_array(:gold, ' '), CAST(NULLIF(:verified, '') AS date)) ON CONFLICT DO NOTHING",
-            [
-                {
-                    "id": c["id"],
-                    "sha": case_sha(c),
-                    "cat": c["category"],
-                    "lang": c["lang"],
-                    "q": c["question"],
-                    "exp": json.dumps(c["expected"], ensure_ascii=False),
-                    "gold": " ".join(c["gold_urls"]),
-                    "verified": str(c.get("verified_at") or ""),
-                }
-                for c in cases
-            ],
-        )
-        s = run["summary"]
-        db.execute(
-            "INSERT INTO eval.runs VALUES (CAST(:id AS uuid), CAST(:started AS timestamptz),"
-            " CAST(:finished AS timestamptz), :git, :trigger, :target, CAST(:config AS jsonb), :n,"
-            " :unverified, :miles, :rules, :abstain, :citation, :postcheck, :overall, :lat, :p95,"
-            " :cost_avg, :cost_total, CAST(:thresholds AS jsonb), :passed)",
-            {
-                "id": run["run_id"],
-                "started": run["started_at"],
-                "finished": run["finished_at"],
-                "git": run["git_sha"],
-                "trigger": run["trigger"],
-                "target": run["target"],
-                "config": json.dumps(run["config"]),
-                "n": s["n_cases"],
-                "unverified": run["n_unverified"],
-                "miles": s["miles_accuracy"],
-                "rules": s["rules_accuracy"],
-                "abstain": s["abstain_accuracy"],
-                "citation": s["citation_accuracy"],
-                "postcheck": s["postcheck_fail_rate"],
-                "overall": s["overall_accuracy"],
-                "lat": s["latency_ms_avg"],
-                "p95": s["latency_ms_p95"],
-                "cost_avg": s["cost_usd_avg"],
-                "cost_total": s["cost_usd_total"],
-                "thresholds": json.dumps(THRESHOLDS),
-                "passed": run["passed"],
-            },
-        )
-        db.execute_many(
-            "INSERT INTO eval.results VALUES (CAST(:run AS uuid), :case, :sha, :answer,"
-            " CAST(:tools AS jsonb), string_to_array(:urls, ' '), :miles_ok, :judge_ok, :rationale,"
-            " :citation_ok, :postcheck_ok, :passed, :unstable, :lat, :tin, :tout, :cost, :error)",
-            [
-                {
-                    "run": run["run_id"],
-                    "case": r.case_id,
-                    "sha": case_sha(by_id[r.case_id]),
-                    "answer": r.answer,
-                    "tools": json.dumps(r.tool_calls, ensure_ascii=False, default=str),
-                    "urls": " ".join(r.grade.cited_urls) if r.grade else "",
-                    "miles_ok": r.grade.miles_ok if r.grade else None,
-                    "judge_ok": r.grade.judge_ok if r.grade else None,
-                    "rationale": r.grade.judge_rationale if r.grade else None,
-                    "citation_ok": r.grade.citation_ok if r.grade else None,
-                    "postcheck_ok": r.postcheck_ok,
-                    "passed": r.passed,
-                    "unstable": r.unstable,
-                    "lat": r.latency_ms,
-                    "tin": r.input_tokens,
-                    "tout": r.output_tokens,
-                    "cost": r.cost_usd,
-                    "error": r.error,
-                }
-                for r in results
-            ],
-        )
+def upload(prefix: str, jsonl: Path) -> list[str]:
+    """Copy the run's JSONL and report to S3 (the eval history; design.md §4.6)."""
+    import boto3
+
+    bucket, _, key = prefix.removeprefix("s3://").partition("/")
+    key = key.rstrip("/")
+    s3 = boto3.client("s3")
+    out = []
+    for path, name in (
+        (jsonl, f"runs/{jsonl.name}"),
+        (RESULTS_DIR / "latest.md", f"reports/{jsonl.stem}.md"),
+    ):
+        dest = f"{key}/{name}" if key else name
+        s3.upload_file(str(path), bucket, dest)
+        out.append(f"s3://{bucket}/{dest}")
+    return out
+
+
+def data_version(target: str) -> dict[str, Any] | None:
+    """The rules index the answers came from: in-process, or the deployed /healthz."""
+    if target == "local":
+        from milewise.api import data_version as local_version
+
+        return local_version()
+    import httpx
+
+    try:
+        return dict(httpx.get(f"{target.rstrip('/')}/healthz", timeout=30).json())
+    except (httpx.HTTPError, ValueError):
+        return None
 
 
 def write_report(run: dict[str, Any], results: list[CaseResult]) -> Path:
@@ -301,6 +256,8 @@ def write_report(run: dict[str, Any], results: list[CaseResult]) -> Path:
         note = r.error or (r.grade.judge_rationale if r.grade and not r.passed else "") or ""
         if r.grade and r.grade.miles_ok is False:
             note = "missing or unbacked figures; " + note
+        if r.unstable and r.first_attempt:
+            note = f"1st try failed: {r.first_attempt}"
         status = "✅" if r.passed else "❌"
         lines.append(
             f"| {r.case_id} | {r.category} | {r.lang} | {status}{' (unstable)' if r.unstable else ''} "
@@ -321,22 +278,19 @@ def run_eval(
     trigger: str = "local",
     target: str = "local",
     token: str | None = None,
-    save_db: bool = True,
+    upload_to: str | None = None,
 ) -> dict[str, Any]:
     """target "local" runs the agent in-process; an https URL evaluates a deployed endpoint."""
     s = get_settings()
-    model = model or s.openai_model
-    judge_model = judge_model or s.openai_model
+    model = model or s.chat_model
+    judge_model = judge_model or s.judge_model
     cases = [c for c in load_cases() if not only or c["id"] in only]
 
     asker: Asker
     if target == "local":
-        local = threading.local()
 
         def asker(question: str) -> AskResult:
-            if not hasattr(local, "db"):  # psycopg connections are not shared across threads
-                local.db = connect()
-            return ask(question, local.db, s, model=model)
+            return ask(question, settings=s, model=model)
     else:
         from milewise.evals.remote import ask_remote
 
@@ -364,16 +318,17 @@ def run_eval(
         "config": {
             "model": model,
             "judge_model": judge_model,
-            "reasoning_effort": s.openai_reasoning_effort,
-            "embedding_model": s.openai_embedding_model,
-            "embedding_dimensions": s.embedding_dimensions,
+            "rerank_model": s.rerank_model,
+            "reasoning_effort": s.reasoning_effort,
             "system_prompt_sha256": hashlib.sha256(SYSTEM_PROMPT.encode()).hexdigest()[:16],
+            "data": data_version(target),
         },
         "n_unverified": sum(1 for c in cases if not c.get("verified_at")),
         "summary": summary,
         "passed": check_thresholds(summary),
     }
-    if save_db:
-        save(connect(), run, cases, results)
-    run["report"] = str(write_report(run, results))
+    jsonl = write_report(run, results)
+    run["report"] = str(jsonl)
+    if upload_to:
+        run["uploaded"] = upload(upload_to, jsonl)
     return run

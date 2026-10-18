@@ -30,27 +30,16 @@ fmt:  ## Format code (Python + Terraform)
 	uv run ruff check --fix .
 	$(TF) fmt -recursive infra
 
-# ---------- Local DB ----------
-.PHONY: db-up db-down
-db-up:  ## Start local Postgres + pgvector
-	docker compose up -d --wait db
-
-db-down:  ## Stop local Postgres (keeps volume)
-	docker compose down
-
 # ---------- App (local) ----------
-.PHONY: migrate load-charts ingest-local import-raw ask eval parse-ana
-migrate:  ## Apply db/migrations to $$DATABASE_URL
-	uv run $(ENV_FILE) milewise migrate
-
-load-charts:  ## Load data/charts/** into the database (idempotent)
-	uv run $(ENV_FILE) milewise load-charts
+.PHONY: check-charts index import-raw ask eval parse-ana
+check-charts:  ## Parse data/charts/** and print counts (fails on broken files)
+	uv run milewise check-charts
 
 import-raw:  ## Normalize browser-saved bundles (data/raw/*/manifest.json) into raw/<airline>/
 	uv run python scripts/import_raw_bundle.py
 
-ingest-local:  ## Chunk + embed the newest raw/ copy of every rules page into the local DB
-	uv run $(ENV_FILE) milewise ingest-local
+index:  ## Build build/index from the newest raw/ copy of every rules page (reuses unchanged embeddings)
+	uv run $(ENV_FILE) milewise build-index --raw raw --out build/index
 
 ask:  ## Ask a question end to end: make ask Q="東京→ロンドンのビジネスは何マイル？"
 	uv run $(ENV_FILE) milewise ask "$(Q)"
@@ -68,7 +57,7 @@ ENV_FILE := $(if $(wildcard .env),--env-file .env,)
 whoami:  ## Show which AWS account/role you are using
 	aws sts get-caller-identity
 
-check-openai:  ## Verify the OpenAI key: model access, tool calling, structured outputs, embeddings (< $$0.001)
+check-openai:  ## Optional: verify the OpenAI key for A/B runs (< $$0.001)
 	uv run $(ENV_FILE) python scripts/check_openai.py
 
 # ---------- Bootstrap stack (persistent, never destroyed) ----------
@@ -115,28 +104,32 @@ spike-down:  ## Destroy the spike cluster
 # ---------- App stack (destroyable): make up / make down ----------
 IMAGE_TAG ?= $(shell git rev-parse --short HEAD 2>/dev/null || date +dev-%Y%m%d%H%M%S)
 TFOUT      = $(TF) -chdir=$(APP_DIR) output -raw
-CLOUD_DB   = DB_CLUSTER_ARN=$$($(TFOUT) cluster_arn) DB_SECRET_ARN=$$($(TFOUT) db_secret_arn)
 
-.PHONY: image candidate eval-candidate promote release deploy app-init app-plan app-apply put-openai-key upload-raw reingest-cloud restore smoke up down
+.PHONY: image index-cloud candidate eval-candidate promote release deploy app-init app-plan app-apply put-openai-key upload-raw smoke up down
 # Lambda rejects OCI indexes with attestation manifests, so attestations are disabled.
-image:  ## Build the arm64 image and push it to ECR as $(IMAGE_TAG)
+image:  ## Build the arm64 image (code + build/index) and push it to ECR as $(IMAGE_TAG)
+	@test -f build/index/manifest.json || { echo "build/index missing: make index" >&2; exit 1; }
 	@repo=$$($(TF) -chdir=$(BOOTSTRAP_DIR) output -raw ecr_repository_url) && \
 	aws ecr get-login-password | docker login --username AWS --password-stdin $${repo%%/*} && \
 	docker build --platform linux/arm64 --provenance=false --sbom=false -t $$repo:$(IMAGE_TAG) . && \
 	docker push $$repo:$(IMAGE_TAG)
 
-candidate:  ## Push $(IMAGE_TAG), update both functions, point the `candidate` alias at it
+index-cloud:  ## Build build/index from the raw pages in S3, as CI does
+	scripts/release.sh index
+
+candidate:  ## Push $(IMAGE_TAG) with build/index, point the `candidate` alias at it
 	scripts/release.sh candidate $(IMAGE_TAG)
 
-eval-candidate:  ## Run the eval set against the candidate URL (results saved to Aurora)
+eval-candidate:  ## Run the eval set against the candidate URL (results copied to S3)
 	@eval "$$(scripts/release.sh eval-env)" && \
 	uv run milewise eval --target "$$(scripts/release.sh candidate-url)" \
-	  --token-secret-arn milewise/app-token --trigger $(or $(TRIGGER),manual) --workers 2
+	  --token-secret-arn milewise/app-token --trigger $(or $(TRIGGER),manual) --workers 2 \
+	  --upload "$$EVAL_UPLOAD"
 
 promote:  ## Point `live` at the version `candidate` serves
 	scripts/release.sh promote
 
-release: candidate eval-candidate promote  ## Eval-gated release (what CI does on main)
+release: index-cloud candidate eval-candidate promote  ## Eval-gated release (what CI does on main)
 
 deploy: candidate promote  ## Ungated release (no eval): candidate + promote
 
@@ -146,32 +139,20 @@ app-init:
 app-plan: app-init  ## Plan the app stack for $(IMAGE_TAG)
 	$(TF) -chdir=$(APP_DIR) plan -var image_tag=$(IMAGE_TAG)
 
-app-apply: app-init  ## Create/update the app stack (Aurora, Lambda, SQS, alarms)
+app-apply: app-init  ## Create/update the app stack (Lambda, DynamoDB, secrets, alarms)
 	$(TF) -chdir=$(APP_DIR) apply -var image_tag=$(IMAGE_TAG)
 
-put-openai-key:  ## Copy the OpenAI key from .env into Secrets Manager (not via Terraform)
+put-openai-key:  ## Optional (openai:* A/B models only): copy the OpenAI key from .env into Secrets Manager
 	uv run $(ENV_FILE) python scripts/put_openai_secret.py $$($(TFOUT) openai_secret_id)
 
-upload-raw:  ## Upload raw rules pages; S3 events trigger the ingest Lambda
+upload-raw:  ## Upload raw rules pages to S3; the next release (CI or make release) indexes them
 	aws s3 sync raw/ s3://$$($(TF) -chdir=$(BOOTSTRAP_DIR) output -raw raw_docs_bucket)/ \
 	  --exclude "*" --include "nh/*.html" --include "jl/*.html"
-
-reingest-cloud:  ## Re-trigger ingestion of every raw page in S3 (after a chunker change)
-	@bucket=$$($(TF) -chdir=$(BOOTSTRAP_DIR) output -raw raw_docs_bucket) && \
-	for prefix in nh/ jl/; do \
-	  aws s3 cp s3://$$bucket/$$prefix s3://$$bucket/$$prefix --recursive --only-show-errors \
-	    --exclude "*" --include "*.html" --metadata-directive REPLACE --metadata retrigger=$$(date +%s) || exit 1; \
-	done && echo "re-triggered all raw pages in s3://$$bucket"
-
-restore:  ## Rebuild cloud data: migrations, charts, then re-ingest raw pages
-	$(CLOUD_DB) uv run milewise migrate
-	$(CLOUD_DB) uv run milewise load-charts
-	$(MAKE) upload-raw
 
 smoke:  ## Health, auth and one real question against the live URL
 	uv run python scripts/smoke.py $$($(TFOUT) live_url) $$($(TFOUT) app_token_secret_arn)
 
-up: image app-apply put-openai-key restore smoke  ## Everything, from an empty app stack
+up: index image app-apply smoke  ## Everything, from an empty app stack (all models on Bedrock)
 
 down: app-init  ## Destroy the app stack (bootstrap stays: state, buckets, ECR, budgets)
 	$(TF) -chdir=$(APP_DIR) destroy -var image_tag=$(IMAGE_TAG)
