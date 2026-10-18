@@ -1,6 +1,6 @@
 # 进度与待办
 
-最后更新：2026-10-18（去掉 Aurora、模型改为 Bedrock：代码完成，云端还没 apply）。详细记录见 [design.md §9](design.md)。
+最后更新：2026-10-18（去掉 Aurora、模型改为 Bedrock，已上线 live v12）。详细记录见 [design.md §9](design.md)。
 
 ## 现状
 
@@ -11,7 +11,7 @@
 | 规则 RAG | ✅ | ANA 15 页 + JAL 21 页（共 36 页，305 个 chunk）。范围见 `data/sources.yaml`。**2026-10-18 起**：构建时生成索引（`make index`）打进镜像，内存检索（每次 < 3 ms），重复的通知在检索时合并 |
 | Agent / 后置校验 | ✅ | 数字、引用、URL 都只允许来自工具结果。**2026-10-18 起模型全部在 Bedrock**：问答 / 重排 Nova 2 Lite，裁判 Nova Pro，embedding Titan V2（design.md §4.7） |
 | 评测 | 🟡 | 30 题全部通过（Nova 2 Lite，本地，2026-10-18；对照 Luna 97%，见 design.md §9.14）；**标准答案还没有人工核对** |
-| 云端 | 🟡 | 线上（v10）仍是 Aurora 版。新版（Lambda + DynamoDB，无数据库）代码和 Terraform 已完成，**待 apply**：会删除 Aurora、SQS、导入 Lambda |
+| 云端 | ✅ | live v12（`725fb8d`）：Lambda + DynamoDB，无数据库；模型全部在 Bedrock。冒烟测试通过（7.1 s，$0.0063/问）。Aurora、SQS、导入 Lambda 已删除，评测历史导出到 `s3://…artifacts…/eval/aurora-export-2026-10-18/` |
 | CI（GitHub Actions） | ✅ | `ci.yml`（PR：lint / 类型 / 测试 + pgvector / Terraform validate）、`deploy.yml`（main：带评测闸门的发布）。PR #1 合并后首次 deploy：评测 25/25 通过，live → v9（`de6bc95`），评测费用 $0.016 |
 
 ## 待办（按优先级）
@@ -22,8 +22,8 @@
 4. 合作航空价目表的结构化（ANA 提携、JAL ワンワールド / JMB 提携；有 PDF 和页面）
 5. CloudWatch Dashboard
 6. 检索评测（embedding large vs small）
-7. ~~**去掉 Aurora，数据随镜像发布**~~ 🟡 2026-10-18 代码完成（design.md §4.6、§9.13），待云端 apply
-8. ~~**模型改为 Bedrock**~~ 🟡 2026-10-18 代码完成并本地 A/B（design.md §4.7、§9.14），随 7 一起 apply
+7. ~~**去掉 Aurora，数据随镜像发布**~~ ✅ 2026-10-18 上线（design.md §4.6、§9.13）
+8. ~~**模型改为 Bedrock**~~ ✅ 2026-10-18 上线（design.md §4.7、§9.14）
 
 ## 需要人做的事
 
@@ -38,5 +38,4 @@
 - 不支持国内线、升舱特典（v1 范围外）
 - JAL 页面由人工保存（站点屏蔽脚本访问），更新依赖人
 - 不查询空位，不包含燃油附加费、税费的金额
-- 数据库从暂停状态唤醒时，第一个问题要多等约 20 秒（新版 apply 后消失）
 - 规则文档更新后要发布一次才生效（`make upload-raw` → 手动运行 deploy 工作流），这是有意的：数据变更也要过评测
