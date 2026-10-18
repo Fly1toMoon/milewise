@@ -1,6 +1,6 @@
 # Milewise
 
-Award-ticket (mileage) assistant for **ANA Mileage Club** and **JAL Mileage Bank**, running on AWS (Lambda, Aurora Serverless v2 + pgvector) with the OpenAI API.
+Award-ticket (mileage) assistant for **ANA Mileage Club** and **JAL Mileage Bank**, running on AWS Lambda with Amazon Bedrock (Nova 2 Lite; Titan embeddings). Award charts and the rules index ship inside the container image, so data changes go through the same eval gate as code.
 
 - Required miles are **computed by code** from structured award charts (no RAG guessing on numbers).
 - Rules, change and refund conditions are answered with **retrieval + citations** to the airlines' official pages.
@@ -12,10 +12,12 @@ Award-ticket (mileage) assistant for **ANA Mileage Club** and **JAL Mileage Bank
 
 ```
 src/milewise/          application (FastAPI, agent, tools)
-db/migrations/         plain SQL migrations (local Postgres and Aurora via Data API)
-data/charts/           structured award charts (CSV + source URL + fetch date); raw pages are never committed
+data/charts/           structured award charts (CSV + source URL + fetch date), read directly at runtime
+data/sources.yaml      the official pages indexed for rules questions; raw pages are never committed
+build/index/           rules index built from raw pages (gitignored, shipped in the image)
 eval/                  evaluation cases and results
 infra/bootstrap/       persistent Terraform stack: state bucket, budgets, ECR, buckets, GitHub OIDC
+infra/app/             destroyable stack: Lambda + Function URLs, DynamoDB usage table, secrets, alarms
 infra/spikes/          throwaway experiments that validate design assumptions
 scripts/               crawlers, parsers, preflight checks
 ```
@@ -25,26 +27,35 @@ scripts/               crawlers, parsers, preflight checks
 ```bash
 make setup                 # Python 3.12 deps via uv
 cp .env.example .env       # then set OPENAI_API_KEY
-make db-up                 # local Postgres 16 + pgvector
-make migrate load-charts   # schema + committed award charts
-make test                  # 40 tests: parser, city resolution, miles golden values, post-check
+make test                  # unit tests: parsers, miles golden values, index, post-check
+make import-raw index      # saved pages -> raw/ -> build/index (chunks + embeddings)
 make ask Q="東京→ロンドンのビジネスクラス特典航空券は何マイル必要？"
 ```
 
-## Evaluation (baseline, 2026-10-17)
+## How it evolved
 
-20 cases (miles 8 / rules 7 / both 2 / abstain 3; ja 10, zh 6, en 4), gold answers taken from the
+The first version stored everything in Aurora PostgreSQL Serverless v2 with pgvector, reached
+from Lambda through the RDS Data API (no VPC, no NAT). Measured at real size (305 chunks,
+~840 chart rows) that was the wrong tool: a paused cluster took ~20 s to answer the first
+question, an always-on one cost ~$55/month, and the ingest pipeline wrote straight into the
+live database, so new documents bypassed the eval gate. The data now ships in the image and is
+searched in memory (<3 ms per query); see design.md §4.6 for the trade-offs.
+
+## Evaluation (baseline, 2026-10-18)
+
+30 cases (miles 15 / rules 9 / both 2 / abstain 4; ja, zh, en), gold answers taken from the
 airlines' official pages, not from Milewise's own tools. Rules and abstain cases are graded by an
-LLM judge with a key-point rubric; the judge's negative control agrees 24/24.
+LLM judge (Nova Pro, a different model from the answering one) with a key-point rubric; the
+judge's negative control agrees 42/42.
 
 | answer model | miles | rules | abstain | citation | overall | latency avg | cost / question |
 |---|---|---|---|---|---|---|---|
-| `gpt-6-luna` (default) | 100% | 89% | 100% | 100% | 95% | 6.3 s | $0.00087 |
-| `gpt-6.1-sol` | 100% | 100% | 100% | 100% | 100% | 13.1 s | $0.0110 |
+| `bedrock:jp.amazon.nova-2-lite-v1:0` (default) | 100% | 100% | 100% | 100% | 100% | 7.4 s | $0.0092 |
+| `openai:gpt-6-luna` | 94% | 100% | 100% | 96% | 97% | 5.9 s | $0.0021 |
 
 ```bash
-make eval                                              # writes eval/results/latest.md
-uv run --env-file .env milewise eval --model gpt-6.1-sol  # A/B
+make eval                                                     # writes eval/results/latest.md
+uv run --env-file .env milewise eval --model openai:gpt-6-luna  # A/B against OpenAI
 ```
 
 Gold answers are still awaiting human verification (`verified_at` in `eval/cases.yaml`).

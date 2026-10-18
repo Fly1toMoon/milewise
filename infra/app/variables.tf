@@ -13,9 +13,22 @@ variable "alert_email" {
   type        = string
 }
 
-variable "openai_model" {
-  type    = string
-  default = "gpt-6-luna"
+variable "chat_model" {
+  description = "Bedrock model or inference profile for the agent and the reranker (design.md §4.7)."
+  type        = string
+  default     = "jp.amazon.nova-2-lite-v1:0"
+}
+
+variable "judge_model" {
+  description = "Bedrock inference profile for the eval judge (CI deploy role only)."
+  type        = string
+  default     = "apac.amazon.nova-pro-v1:0"
+}
+
+variable "embedding_model" {
+  description = "Bedrock embedding model the rules index is built with (must match the app's EMBEDDING_MODEL)."
+  type        = string
+  default     = "amazon.titan-embed-text-v2:0"
 }
 
 variable "daily_request_limit" {

@@ -51,7 +51,7 @@ def main() -> int:
     ap.add_argument("--judge-model")
     a = ap.parse_args()
     s = get_settings()
-    model = a.judge_model or s.openai_model
+    model = a.judge_model or s.judge_model
     jobs = [(c, kind, ans, want) for c in load_cases() for kind, ans, want in probes(c)]
 
     def run(job: tuple[dict[str, Any], str, str, bool]) -> dict[str, Any]:

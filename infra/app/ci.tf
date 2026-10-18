@@ -1,18 +1,53 @@
 # Extra permissions for the GitHub deploy role (created in bootstrap) that need ARNs
-# from this stack: write eval results through the Data API, read the app token to call
-# the candidate URL, and read the OpenAI key for the eval judge. Removed with the stack.
+# from this stack. Removed with the stack, which is fine: deploys skip when it is down.
+#   * build the rules index: read raw pages, reuse/store the previous index (design.md §4.6)
+#   * evaluate the candidate: app token for its URL, the Bedrock judge model, and the eval
+#     history in the artifacts bucket (s3://…/eval/, granted in bootstrap)
+locals {
+  raw_bucket_arn       = "arn:aws:s3:::${local.bootstrap.raw_docs_bucket}"
+  artifacts_bucket_arn = "arn:aws:s3:::${local.bootstrap.artifacts_bucket}"
+}
+
 data "aws_iam_policy_document" "deploy_eval" {
   statement {
-    actions   = ["rds-data:ExecuteStatement", "rds-data:BatchExecuteStatement", "rds-data:BeginTransaction", "rds-data:CommitTransaction", "rds-data:RollbackTransaction"]
-    resources = [aws_rds_cluster.this.arn]
+    sid       = "Secrets"
+    actions   = ["secretsmanager:GetSecretValue"]
+    resources = [aws_secretsmanager_secret.app_token.arn]
   }
   statement {
-    actions = ["secretsmanager:GetSecretValue"]
-    resources = [
-      aws_rds_cluster.this.master_user_secret[0].secret_arn,
-      aws_secretsmanager_secret.app_token.arn,
-      aws_secretsmanager_secret.openai.arn, # the eval judge (scripts/release.sh eval-env)
-    ]
+    sid       = "Bedrock" # index embeddings + eval judge
+    actions   = ["bedrock:InvokeModel"]
+    resources = concat(local.bedrock_embedding, local.bedrock_judge)
+  }
+  statement {
+    sid       = "RawPagesList"
+    actions   = ["s3:ListBucket"]
+    resources = [local.raw_bucket_arn]
+    condition {
+      test     = "StringLike"
+      variable = "s3:prefix"
+      values   = ["nh/*", "jl/*"]
+    }
+  }
+  statement {
+    sid       = "RawPagesRead"
+    actions   = ["s3:GetObject"]
+    resources = ["${local.raw_bucket_arn}/nh/*", "${local.raw_bucket_arn}/jl/*"]
+  }
+  statement {
+    sid       = "IndexCacheList"
+    actions   = ["s3:ListBucket"]
+    resources = [local.artifacts_bucket_arn]
+    condition {
+      test     = "StringLike"
+      variable = "s3:prefix"
+      values   = ["index/*", "eval/*"]
+    }
+  }
+  statement {
+    sid       = "IndexCacheReadWrite"
+    actions   = ["s3:GetObject", "s3:PutObject"]
+    resources = ["${local.artifacts_bucket_arn}/index/*"]
   }
 }
 

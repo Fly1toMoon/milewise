@@ -1,6 +1,6 @@
-# Eval run 9eb6c64e (2026-10-17T14:09Z)
+# Eval run 65631ea2 (2026-10-18T01:44Z)
 
-model `deployed`, judge `gpt-6-luna`, git `702ad19-dirty`, 25 cases (25 not yet human-verified)
+model `bedrock:jp.amazon.nova-2-lite-v1:0`, judge `bedrock:apac.amazon.nova-pro-v1:0`, git `e6ecf10-dirty`, 30 cases (30 not yet human-verified)
 
 | metric | value | threshold |
 |---|---|---|
@@ -10,10 +10,10 @@ model `deployed`, judge `gpt-6-luna`, git `702ad19-dirty`, 25 cases (25 not yet 
 | citation accuracy | 100% | 80% |
 | post-check failures | 0% | |
 | overall | 100% | |
-| latency avg / p95 | 9040 / 12104 ms | |
-| cost avg / total | $0.00059 / $0.0148 | |
+| latency avg / p95 | 7442 / 10510 ms | |
+| cost avg / total | $0.00924 / $0.2772 | |
 
-**PASSED**
+**PASSED** · unstable: rules-08
 
 | case | cat | lang | result | notes |
 |---|---|---|---|---|
@@ -28,6 +28,10 @@ model `deployed`, judge `gpt-6-luna`, git `702ad19-dirty`, 25 cases (25 not yet 
 | miles-09 | miles | ja | ✅ |  |
 | miles-10 | miles | zh | ✅ |  |
 | miles-11 | miles | en | ✅ |  |
+| miles-12 | miles | zh | ✅ |  |
+| miles-13 | miles | ja | ✅ |  |
+| miles-14 | miles | ja | ✅ |  |
+| miles-15 | miles | zh | ✅ |  |
 | rules-01 | rules | ja | ✅ |  |
 | rules-02 | rules | zh | ✅ |  |
 | rules-03 | rules | ja | ✅ |  |
@@ -35,10 +39,11 @@ model `deployed`, judge `gpt-6-luna`, git `702ad19-dirty`, 25 cases (25 not yet 
 | rules-05 | rules | ja | ✅ |  |
 | rules-06 | rules | zh | ✅ |  |
 | rules-07 | rules | ja | ✅ |  |
-| rules-08 | rules | ja | ✅ |  |
+| rules-08 | rules | ja | ✅ (unstable) | 1st try failed: The answer correctly states that date changes are not possible after issuance and that cancellation and reissuance are required with a fee. Howe |
 | rules-09 | rules | zh | ✅ |  |
 | both-01 | both | ja | ✅ |  |
 | both-02 | both | en | ✅ |  |
 | abstain-01 | abstain | ja | ✅ |  |
 | abstain-02 | abstain | zh | ✅ |  |
 | abstain-03 | abstain | ja | ✅ |  |
+| abstain-04 | abstain | zh | ✅ |  |
