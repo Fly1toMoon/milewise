@@ -1,0 +1,25 @@
+# Retrieval eval (design.md §4.4): does vector recall find the passage that answers the
+# question, before the reranker and the agent see it? Each query has the page that holds the
+# answer and a phrase from that passage (checked against the saved official pages,
+# 2026-10-17). A hit = a retrieved chunk from gold_url that contains the phrase.
+queries:
+  - {id: r01, lang: ja, airline: NH, q: "ANAの国際線特典航空券の払い戻し手数料はいくら？", url: /award/international/refund/, phrase: "3,000マイル"}
+  - {id: r02, lang: zh, airline: NH, q: "ANA国际线奖励机票退票的手续费是多少？", url: /award/international/refund/, phrase: "3,000マイル"}
+  - {id: r03, lang: en, airline: NH, q: "What is the fee to refund an ANA international award ticket?", url: /award/international/refund/, phrase: "3,000マイル"}
+  - {id: r04, lang: ja, airline: NH, q: "ANAの特典航空券は発券後に搭乗日を変更できる？", url: /award/international/refund/, phrase: "同区間での搭乗便の変更が可能"}
+  - {id: r05, lang: zh, airline: NH, q: "ANA奖励机票出票后可以改舱位或目的地吗？", url: /award/international/refund/, phrase: "クラスの変更はできません"}
+  - {id: r06, lang: ja, airline: NH, q: "ANA特典航空券の空席待ちは何便まで申し込める？", url: /award/international/application/, phrase: "片道につき1便"}
+  - {id: r07, lang: zh, airline: NH, q: "ANA奖励机票候补的截止时间是什么时候？", url: /award/international/application/, phrase: "14日前"}
+  - {id: r08, lang: ja, airline: NH, q: "台風で欠航した場合、ANAの特典航空券は払い戻しできる？", url: /award/international/refund/, phrase: "台風・降雪などの不可抗力"}
+  - {id: r09, lang: en, airline: NH, q: "My ANA award flight was cancelled by a typhoon. Can I change it?", url: /award/international/refund/, phrase: "台風・降雪などの不可抗力"}
+  - {id: r10, lang: ja, airline: NH, q: "特典航空券を払い戻したマイルの有効期限はどうなる？", url: /award/international/refund/, phrase: "特典交換の際と同じ有効期限"}
+  - {id: r11, lang: ja, airline: NH, q: "ANAの提携航空会社特典はシーズンで必要マイルが変わる？", url: /award/tk/usage/, phrase: "シーズンによる必要マイル数の変動はありません"}
+  - {id: r12, lang: ja, airline: JL, q: "JALの国際線特典航空券は発券後に予約変更できる？", url: /jal/inter/cancel.html, phrase: "予約変更は承れません"}
+  - {id: r13, lang: zh, airline: JL, q: "JAL奖励机票退票要付多少手续费？", url: /jal/inter/cancel.html, phrase: "3,100円"}
+  - {id: r14, lang: ja, airline: JL, q: "JALの特典で座席を使わない幼児は何マイル必要？", url: /jalmile/use/ticket.html, phrase: "10％"}
+  - {id: r15, lang: zh, airline: JL, q: "JAL奖励机票儿童需要和大人一样的里程吗？", url: /jalmile/use/ticket.html, phrase: "大人と同じマイル数"}
+  - {id: r16, lang: ja, airline: NH, q: "ANAの国際線特典航空券は搭乗日の何日前から予約できる？", url: /award/international/application/, phrase: "355日前"}
+  - {id: r17, lang: ja, airline: JL, q: "JALの国際線特典航空券の予約はいつから受け付ける？", url: /jal/inter/application.html, phrase: "360日前"}
+  - {id: r18, lang: zh, airline: JL, q: "JAL的寰宇一家奖励机票里程是怎么算的？", url: /partner_air/oneworld/mileage.html, phrase: "距離制"}
+  - {id: r19, lang: ja, airline: JL, q: "JMB提携航空会社特典航空券の有効期限は？", url: /partner_air/p_jmb/mileage.html, phrase: "旅行開始日から1年間"}
+  - {id: r20, lang: en, airline: null, q: "How long is an ANA international award ticket valid?", url: /award/international/usage/, phrase: "有効期"}

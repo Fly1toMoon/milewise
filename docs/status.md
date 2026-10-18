@@ -1,6 +1,6 @@
 # 进度与待办
 
-最后更新：2026-10-18（去掉 Aurora、模型改为 Bedrock，已上线 live v12）。详细记录见 [design.md §9](design.md)。
+最后更新：2026-10-18（合作航空价目表、默认单程、Dashboard、检索评测；代码在 `feat/oneway-partner`，未合并）。详细记录见 [design.md §9](design.md)。
 
 ## 现状
 
@@ -8,10 +8,12 @@
 |---|---|---|
 | ANA 国际线价目表（结构化 + 计算） | ✅ | 558 条价格、3 套季节日历、混合季节规则 |
 | JAL 国际线价目表（结构化 + 计算） | ✅ | 284 条价格（基本里程 = 下限 / 头等舱 L·R·H / PLUS 最大 = 上限）；按机场、航班号区分；往返 = 两段单程之和 |
+| 合作航空价目表 | ✅ | ANA 提携航空会社特典：往返 183 + 单程 183 条（Zone 1-A/1-B、无季节，可按国家/地区查询，如"中国→欧洲"）。JAL ワンワールド（30 条）/ JMB 提携（52 条）：按总飞行距离分档；没给距离时用机场坐标（OurAirports）估算直飞大圆距离，靠近档位边界时给出两档 |
 | 规则 RAG | ✅ | ANA 15 页 + JAL 21 页（共 36 页，305 个 chunk）。范围见 `data/sources.yaml`。**2026-10-18 起**：构建时生成索引（`make index`）打进镜像，内存检索（每次 < 3 ms），重复的通知在检索时合并 |
 | Agent / 后置校验 | ✅ | 数字、引用、URL 都只允许来自工具结果。**2026-10-18 起模型全部在 Bedrock**：问答 / 重排 Nova 2 Lite，裁判 Nova Pro，embedding Titan V2（design.md §4.7） |
-| 评测 | 🟡 | 30 题全部通过（Nova 2 Lite，本地，2026-10-18；对照 Luna 97%，见 design.md §9.14）；**标准答案还没有人工核对** |
+| 评测 | 🟡 | 32 题全部通过（Nova 2 Lite，本地，2026-10-18，无不稳定题，$0.0093/问）：含伙伴航空 3 题、默认单程；检索评测另见 design.md §9.16。**标准答案已由出题者复核，但还没有人工核对** |
 | 云端 | ✅ | live v13（`43e3acc`，PR #3 合并后由 GitHub deploy 自动发布：索引从 S3 构建、embedding 全部命中缓存、candidate 评测 30/30、$0.28）。之前 v12（`725fb8d`）：Lambda + DynamoDB，无数据库；模型全部在 Bedrock。冒烟测试通过（7.1 s，$0.0063/问）。Aurora、SQS、导入 Lambda 已删除，评测历史导出到 `s3://…artifacts…/eval/aurora-export-2026-10-18/` |
+| Dashboard | ✅ | CloudWatch `milewise`：提问数/错误、延迟 p50/p95/冷启动、每日费用（对照上限）、token 与后置校验失败、最近 50 次提问 |
 | CI（GitHub Actions） | ✅ | `ci.yml`（PR：lint / 类型 / 测试 + pgvector / Terraform validate）、`deploy.yml`（main：带评测闸门的发布）。PR #1 合并后首次 deploy：评测 25/25 通过，live → v9（`de6bc95`），评测费用 $0.016 |
 
 ## 待办（按优先级）
@@ -19,17 +21,20 @@
 1. ~~**检索时去重**~~ ✅ 2026-10-17（`13bebfb`）：导入时完整保存每一页，检索时按 `body_sha256` 合并重复 → 结果与导入顺序、并行度无关
 2. ~~**JAL 价目表的结构化**~~ ✅ 2026-10-17（`a2278b6`）：路线制解析器 + JL 计算 + 9 个 golden 测试 + 3 道评测题
 3. ~~**CI**~~ ✅ 2026-10-17：`.github/workflows/{ci,deploy}.yml`；`scripts/release.sh` 不依赖 Terraform state，只通过 AWS API 解析资源（deploy 角色保持最小权限）。PR 上的 `terraform plan` 推迟（只读角色读不到 secret 值，需要 `-refresh=false` 等方案）
-4. 合作航空价目表的结构化（ANA 提携、JAL ワンワールド / JMB 提携；有 PDF 和页面）
-5. CloudWatch Dashboard
-6. 检索评测（embedding large vs small）
+4. ~~**合作航空价目表的结构化**~~ ✅ 2026-10-18（design.md §9.15）
+5. ~~**CloudWatch Dashboard**~~ ✅ 2026-10-18（已 apply）
+6. ~~**检索评测**~~ ✅ 2026-10-18：Titan V2 hit@5 70%（中文 33%）、OpenAI large 85%（design.md §9.16）
+9. 改善中文检索：比较 Cohere embed（Bedrock）或在检索前把问题翻成日文
+10. ~~**JAL 合作航空的距离估算**~~ ✅ 2026-10-18（design.md §9.15）
 7. ~~**去掉 Aurora，数据随镜像发布**~~ ✅ 2026-10-18 上线（design.md §4.6、§9.13）
 8. ~~**模型改为 Bedrock**~~ ✅ 2026-10-18 上线（design.md §4.7、§9.14）
 
 ## 需要人做的事
 
-- [ ] 核对评测标准答案（`eval/cases.yaml` 的 `verified_at`），包括新增的 miles-12～15、abstain-04
-- [ ] 决定：没说往返/单程时默认按哪种回答（现在是往返；miles-12 按往返写）
-- [ ] 确认 AWS 发来的 SNS 订阅邮件（否则告警邮件发不到）
+- [ ] 人工核对评测标准答案（`verified_at`）。2026-10-18 已由出题者（Claude）对照保存的官网原文逐条复核（`crosschecked_at`），全部一致；但这不等于第三方核对
+- [x] ~~决定默认往返还是单程~~：默认单程（2026-10-18）
+- [x] ~~确认 SNS 订阅邮件~~（2026-10-18 已确认）
+- [x] ~~是否下载 OurAirports 机场坐标~~：已下载，只提交用到的 77 个机场
 - [x] ~~给云端单独建一个 OpenAI key~~：不再需要（模型都在 Bedrock；OpenAI 只用于本地 A/B）
 - [x] push 到 GitHub 并设置 CI 用的 repo 变量
 

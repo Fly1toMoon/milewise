@@ -83,7 +83,7 @@ sources:
 
   - id: ana-partner-award-chart
     airline: NH
-    kind: chart_later
+    kind: chart
     lang: ja
     fetch: http
     url: https://www.ana.co.jp/ja/jp/guide/amc/award/tk/zone/
@@ -258,7 +258,7 @@ sources:
 
   - id: jal-ow-award-chart
     airline: JL
-    kind: chart_later
+    kind: chart
     lang: ja
     fetch: manual
     url: https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/oneworld/miles.html
@@ -305,7 +305,7 @@ sources:
 
   - id: jal-pjmb-award-chart
     airline: JL
-    kind: chart_later
+    kind: chart
     lang: ja
     fetch: manual
     url: https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/p_jmb/jmb_mile.html

@@ -17,3 +17,4 @@ docs
 tests
 # build/index ships in the image; the embedding cache does not
 build/index-cache
+build/index-*
