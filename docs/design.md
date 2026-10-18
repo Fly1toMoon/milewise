@@ -1096,3 +1096,5 @@ ADR 列表（M1 起逐步补齐，放在 `docs/adr/`）：
 
 结论：Nova 2 Lite 的指令遵循比 Luna 弱，需要把规则写得更明确，但修正后质量相当；输出 token 约是 Luna 的 4 倍（平均 1,400 对 330），加上单价，每问成本约 4.4 倍。按每月 600 问约 $5.5，加上每次发布的评测约 $0.3，**全部由 AWS 抵扣额度支付**，仍在 $15–30 的目标内。
 
+**上线（2026-10-18）**：先把 Aurora 中的评测历史（eval.runs / results / cases、ops.daily_usage）导出为 JSONL 存到 `s3://milewise-artifacts-<account>/eval/aurora-export-2026-10-18/`，再 `terraform apply`（1 新增 / 3 修改 / 18 删除），随后 `make deploy` → live v12（`725fb8d`）。冒烟测试：东京→伦敦商务舱，ANA + JAL 两家都答，7.1 s，$0.0063，后置校验通过；DynamoDB 计数正确写入。中途 OrbStack 的 Docker 引擎无响应（`docker login` 卡住 1 小时），`orb stop && orb start` 后恢复——apply 删掉数据库配置后到新镜像上线之前，线上是不可用的，下次应该先构建并推送镜像，再 apply。
+
