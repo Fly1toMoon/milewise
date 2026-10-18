@@ -1,0 +1,130 @@
+chart_family: NH-INTL-PARTNER
+airline: NH
+award_type: partner_intl
+pricing_basis: zone_pair
+price_kind: fixed
+source_url: https://www.ana.co.jp/ja/jp/guide/amc/award/tk/zone/
+fetched_at: '2026-10-17T01:06:29+00:00'
+source_sha256: bc9e3d4481ce9c11900d5d9505beb45cf7e7cceea4e7dbecade2a56b5a4183fd
+parser_version: ana-partner-1
+charts:
+- chart_id: NH-INTL-PARTNER-RT@2024-04-18
+  trip_type: RT
+  booking_from: '2024-04-18'
+- chart_id: NH-INTL-PARTNER-OW@2025-06-24
+  trip_type: OW
+  booking_from: '2025-06-24'
+notes:
+- Round-trip chart, and a one-way chart for bookings from 2025-06-24 (the partner
+  usage page still says 片道ではご利用になれません; the chart page is followed). No seasons; classes
+  Y / C / F.
+- Rates are symmetric (⇔) and cover pairs outside Japan too.
+- 'Japan: Zone 1-A = only two international segments (+ connections within Japan);
+  Zone 1-B applies when 1-A has no price or the itinerary has more international segments.'
+- Where the page shows 改定前/改定後, only 改定後 (bookings from 2024-04-18) is kept.
+- The page prints 199 tables (round trip, then one way); reversed pairs were checked
+  to agree.
+unmapped_zone_members:
+- 'Zone 2: ロシア沿海地方（極東ロシアの東南端に位置する日本海沿岸にある地方）'
+- 'Zone 4: イギリス領インド洋地域'
+- 'Zone 4: ロシア（ウラル山脈以東'
+- 'Zone 4: 沿海地方を除く）'
+- 'Zone 5: ハワイ'
+- 'Zone 6: アラスカ'
+- 'Zone 7: グリーンランド'
+- 'Zone 7: ジブラルタル'
+- 'Zone 7: スヴァールバルとヤンマイエン島'
+- 'Zone 7: フェロー諸島'
+- 'Zone 7: ロシア（ウラル山脈以西）'
+- 'Zone 8: アラブ共和国'
+- 'Zone 8: エリトレア'
+- 'Zone 8: カボ・ヴェルデ'
+- 'Zone 8: ガボン'
+- 'Zone 8: カメルーン'
+- 'Zone 8: ガンビア'
+- 'Zone 8: ギニア'
+- 'Zone 8: ギニア・ビサウ'
+- 'Zone 8: コートジボアール'
+- 'Zone 8: コモロ'
+- 'Zone 8: コンゴ（キンシャサ）'
+- 'Zone 8: コンゴ（ブラザビル）'
+- 'Zone 8: サントーメ・プリンシペ'
+- 'Zone 8: ザンビア'
+- 'Zone 8: シエラレオネ'
+- 'Zone 8: ジブチ'
+- 'Zone 8: シリア'
+- 'Zone 8: ジンバブエ'
+- 'Zone 8: スーダン'
+- 'Zone 8: エスワティニ王国'
+- 'Zone 8: 赤道ギニア'
+- 'Zone 8: セネガル'
+- 'Zone 8: ソマリア'
+- 'Zone 8: チャド'
+- 'Zone 8: 中央アフリカ共和国'
+- 'Zone 8: トーゴ'
+- 'Zone 8: ナミビア'
+- 'Zone 8: ニジェール'
+- 'Zone 8: パレスチナ占領地'
+- 'Zone 8: ブルキナ・ファソ'
+- 'Zone 8: ブルンジ'
+- 'Zone 8: ベナン'
+- 'Zone 8: ボツワナ'
+- 'Zone 8: マラウイ'
+- 'Zone 8: マリ'
+- 'Zone 8: メイヨット'
+- 'Zone 8: モーリタニア'
+- 'Zone 8: モザンビーク'
+- 'Zone 8: リベリア'
+- 'Zone 8: レソト'
+- 'Zone 8: ルワンダ'
+- 'Zone 9: アメリカ領ヴァージン諸島'
+- 'Zone 9: アルーバ'
+- 'Zone 9: アングイラ'
+- 'Zone 9: アンティグア・バルブダ'
+- 'Zone 9: イギリス領ヴァージン諸島'
+- 'Zone 9: エルサルバドル'
+- 'Zone 9: ガイアナ'
+- 'Zone 9: キュラソー'
+- 'Zone 9: グアドループ'
+- 'Zone 9: グレナダ'
+- 'Zone 9: ケイマン諸島'
+- 'Zone 9: サウスジョージアとサウスサンドウィッチ諸島'
+- 'Zone 9: スリナム'
+- 'Zone 9: セントキッツ・ネヴィス'
+- 'Zone 9: セントビンセントおよびグレナディーン'
+- 'Zone 9: セントヘレナ'
+- 'Zone 9: シントマーティン'
+- 'Zone 9: セントルシア'
+- 'Zone 9: タークス・アンド・ケーコス諸島'
+- 'Zone 9: ドミニカ国'
+- 'Zone 9: トリニダード・トバゴ'
+- 'Zone 9: ニカラグア'
+- 'Zone 9: ハイチ'
+- 'Zone 9: バミューダ'
+- 'Zone 9: ベリーズ'
+- 'Zone 9: バルバドス'
+- 'Zone 9: フォークランド諸島'
+- 'Zone 9: フランス領ギアナ'
+- 'Zone 9: ホンジュラス'
+- 'Zone 9: マルティニク'
+- 'Zone 9: モントセラト'
+- 'Zone 10: アメリカ領サモア'
+- 'Zone 10: ウェーク島'
+- 'Zone 10: カロリン諸島'
+- 'Zone 10: カントン（フェニックス島）'
+- 'Zone 10: ギルバート島'
+- 'Zone 10: クリスマス島'
+- 'Zone 10: ココヤシ島'
+- 'Zone 10: ジョンストン島'
+- 'Zone 10: トゥヴァル'
+- 'Zone 10: トケラウ'
+- 'Zone 10: ニウエ'
+- 'Zone 10: ノーフォーク島'
+- 'Zone 10: ピトケアン'
+- 'Zone 10: マリアナ諸島（グアムを除く）'
+- 'Zone 10: ワリーエフトゥーナ諸島'
+counts:
+  zones: 11
+  members: 153
+  RT: 183
+  OW: 183

@@ -1,0 +1,23 @@
+code,kind,name_ja,name_en,name_zh,aliases
+CN,country,中国,China,中国,中國|中国大陸|中國大陸|中国大陆|mainland china
+US,country,アメリカ,United States,美国,美國|アメリカ合衆国|米国|usa|us|america
+KR,country,韓国,South Korea,韩国,韓國|korea|大韓民国
+TH,country,タイ,Thailand,泰国,泰國
+VN,country,ベトナム,Vietnam,越南,
+IN,country,インド,India,印度,
+ID,country,インドネシア,Indonesia,印度尼西亚,印尼
+MY,country,マレーシア,Malaysia,马来西亚,馬來西亞
+PH,country,フィリピン,Philippines,菲律宾,菲律賓
+DE,country,ドイツ,Germany,德国,德國
+FR,country,フランス,France,法国,法國
+GB,country,イギリス,United Kingdom,英国,英國|uk|britain|great britain
+IT,country,イタリア,Italy,意大利,義大利
+AU,country,オーストラリア,Australia,澳大利亚,澳洲|澳大利亞
+CA,country,カナダ,Canada,加拿大,
+MX,country,メキシコ,Mexico,墨西哥,
+EUROPE,region,ヨーロッパ,Europe,欧洲,欧州|歐洲|歐州
+NORTH_AMERICA,region,北米,North America,北美,北美洲|北アメリカ
+MIDDLE_EAST,region,中東,Middle East,中东,
+AFRICA,region,アフリカ,Africa,非洲,
+LATIN_AMERICA,region,中南米,Latin America,中南美,南米|南美|南美洲|拉丁美洲|拉美|south america
+OCEANIA,region,オセアニア,Oceania,大洋洲,

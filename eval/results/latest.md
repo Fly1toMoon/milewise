@@ -1,6 +1,6 @@
-# Eval run 65631ea2 (2026-10-18T01:44Z)
+# Eval run 37427666 (2026-10-18T14:05Z)
 
-model `bedrock:jp.amazon.nova-2-lite-v1:0`, judge `bedrock:apac.amazon.nova-pro-v1:0`, git `e6ecf10-dirty`, 30 cases (30 not yet human-verified)
+model `bedrock:jp.amazon.nova-2-lite-v1:0`, judge `bedrock:apac.amazon.nova-pro-v1:0`, git `123fcc8-dirty`, 32 cases (32 not yet human-verified)
 
 | metric | value | threshold |
 |---|---|---|
@@ -10,10 +10,10 @@ model `bedrock:jp.amazon.nova-2-lite-v1:0`, judge `bedrock:apac.amazon.nova-pro-
 | citation accuracy | 100% | 80% |
 | post-check failures | 0% | |
 | overall | 100% | |
-| latency avg / p95 | 7442 / 10510 ms | |
-| cost avg / total | $0.00924 / $0.2772 | |
+| latency avg / p95 | 7555 / 12788 ms | |
+| cost avg / total | $0.00933 / $0.2986 | |
 
-**PASSED** · unstable: rules-08
+**PASSED**
 
 | case | cat | lang | result | notes |
 |---|---|---|---|---|
@@ -32,6 +32,9 @@ model `bedrock:jp.amazon.nova-2-lite-v1:0`, judge `bedrock:apac.amazon.nova-pro-
 | miles-13 | miles | ja | ✅ |  |
 | miles-14 | miles | ja | ✅ |  |
 | miles-15 | miles | zh | ✅ |  |
+| miles-16 | miles | zh | ✅ |  |
+| miles-17 | miles | ja | ✅ |  |
+| miles-18 | miles | ja | ✅ |  |
 | rules-01 | rules | ja | ✅ |  |
 | rules-02 | rules | zh | ✅ |  |
 | rules-03 | rules | ja | ✅ |  |
@@ -39,11 +42,10 @@ model `bedrock:jp.amazon.nova-2-lite-v1:0`, judge `bedrock:apac.amazon.nova-pro-
 | rules-05 | rules | ja | ✅ |  |
 | rules-06 | rules | zh | ✅ |  |
 | rules-07 | rules | ja | ✅ |  |
-| rules-08 | rules | ja | ✅ (unstable) | 1st try failed: The answer correctly states that date changes are not possible after issuance and that cancellation and reissuance are required with a fee. Howe |
+| rules-08 | rules | ja | ✅ |  |
 | rules-09 | rules | zh | ✅ |  |
 | both-01 | both | ja | ✅ |  |
 | both-02 | both | en | ✅ |  |
 | abstain-01 | abstain | ja | ✅ |  |
 | abstain-02 | abstain | zh | ✅ |  |
 | abstain-03 | abstain | ja | ✅ |  |
-| abstain-04 | abstain | zh | ✅ |  |

@@ -27,6 +27,13 @@ def main(argv: list[str] | None = None) -> int:
         "--allow-missing", action="store_true", help="do not fail when a rules page has no raw copy"
     )
     sub.add_parser("check-charts", help="parse the committed award charts and print counts")
+    p_ret = sub.add_parser("eval-retrieval", help="hit@k / MRR of vector recall (no LLM)")
+    p_ret.add_argument(
+        "--embedding-model", help="compare another model, e.g. openai:text-embedding-3-large"
+    )
+    p_ret.add_argument(
+        "--raw", default="raw", help="raw pages for re-indexing with --embedding-model"
+    )
     p_ask = sub.add_parser("ask", help="answer a question")
     p_ask.add_argument("question")
     p_ask.add_argument("--model", help="override the chat model (e.g. gpt-6.1-sol)")
@@ -49,6 +56,19 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "build-index":
         return build_index_cmd(args)
+    if args.cmd == "eval-retrieval":
+        from pathlib import Path
+
+        from milewise.evals.retrieval import run as run_retrieval
+
+        print(
+            json.dumps(
+                run_retrieval(args.embedding_model, Path(args.raw))["summary"],
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return 0
     if args.cmd == "check-charts":
         from milewise.charts.store import FareStore
 

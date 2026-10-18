@@ -1,0 +1,24 @@
+chart_family: JL-INTL-OW
+airline: JL
+award_type: partner_intl
+program: oneworld
+name_ja: ワンワールド特典航空券
+pricing_basis: distance
+price_kind: fixed
+source_url: https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/oneworld/miles.html
+fetched_at: '2026-10-17T00:59:17+00:00'
+source_sha256: d14f757dbd216fbbf42add549f8fe9ac55e7650989ddfd96da9dfbb5e0ae6daf
+parser_version: jal-partner-1
+charts:
+- chart_id: JL-INTL-OW-ITIN@2026-10-17
+  trip_type: ITIN
+  booking_from: '2026-10-17'
+notes:
+- 'Distance-based: 総旅程距離 = sum of the actual segment miles of the whole itinerary;
+  one award covers it (round trip or one way).'
+- Japan-resident chart (日本にお住まいの方).
+- The page states no effective date; booking_from is the fetch date.
+counts:
+  Y: 10
+  C: 10
+  F: 10

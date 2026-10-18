@@ -119,3 +119,55 @@ def airport_hint(query: str) -> str | None:
     if len(code) == 3 and any(code in c.airports for c in load_cities()):
         return code
     return None
+
+
+@dataclass(frozen=True)
+class Area:
+    """A country or region a user names instead of a city ("中国到欧洲")."""
+
+    code: str  # ISO country code, or a region code such as EUROPE
+    kind: str  # country | region
+    name_ja: str
+
+
+@cache
+def _areas() -> dict[str, Area]:
+    path = data_dir() / "locations" / "areas.csv"
+    idx: dict[str, Area] = {}
+    with path.open(encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            area = Area(row["code"], row["kind"], row["name_ja"])
+            names = [row["name_ja"], row["name_en"], row["name_zh"], *row["aliases"].split("|")]
+            for n in names:
+                if n:
+                    idx[normalize(n)] = area
+    return idx
+
+
+def resolve_area(query: str) -> Area | None:
+    """Country or region for zone-based charts; cities always win (see resolve_city)."""
+    return _areas().get(normalize(query))
+
+
+@cache
+def airport_coords() -> dict[str, tuple[float, float]]:
+    """IATA code -> (lat, lon) from data/locations/airports.csv (OurAirports, public domain)."""
+    path = data_dir() / "locations" / "airports.csv"
+    with path.open(encoding="utf-8") as f:
+        lines = [line for line in f if not line.startswith("#")]
+    return {r["iata"]: (float(r["lat"]), float(r["lon"])) for r in csv.DictReader(lines)}
+
+
+def great_circle_miles(a: str, b: str) -> int | None:
+    """Great-circle distance in statute miles between two airports, or None if unknown."""
+    from math import asin, cos, radians, sin, sqrt
+
+    coords = airport_coords()
+    if a not in coords or b not in coords:
+        return None
+    (la1, lo1), (la2, lo2) = coords[a], coords[b]
+    h = (
+        sin(radians(la2 - la1) / 2) ** 2
+        + cos(radians(la1)) * cos(radians(la2)) * sin(radians(lo2 - lo1) / 2) ** 2
+    )
+    return round(2 * 3958.8 * asin(sqrt(h)))

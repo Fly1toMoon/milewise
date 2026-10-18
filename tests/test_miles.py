@@ -137,11 +137,3 @@ def test_domestic_is_out_of_scope(fares: FareStore) -> None:
 def test_booking_before_chart_version(fares: FareStore) -> None:
     res = get_required_miles(fares, "NH", "東京", "ロンドン", "C", booking_date=date(2025, 1, 1))
     assert res.status == "not_found"
-
-
-def test_partner_awards_not_loaded_yet(fares: FareStore) -> None:
-    for airline in ("NH", "JL"):
-        res = get_required_miles(
-            fares, airline, "東京", "ロンドン", "C", award_type="partner", booking_date=BOOKING
-        )
-        assert res.status == "unsupported"

@@ -53,6 +53,8 @@ class Rate:
     dest_match: frozenset[str] = frozenset()
     flight_numbers: tuple[str, ...] = ()
     route_label: str | None = None
+    distance_min: int | None = None  # distance-based charts (JAL partners): 総旅程距離 band
+    distance_max: int | None = None
 
 
 @dataclass(frozen=True)
@@ -129,6 +131,8 @@ def load_family(family_dir: Path) -> Family:
                 dest_match=frozenset(_split(r.get("dest_match", ""))),
                 flight_numbers=tuple(_split(r.get("flight_numbers", ""))),
                 route_label=r.get("route_label") or None,
+                distance_min=int(r["distance_min"]) if r.get("distance_min") else None,
+                distance_max=int(r["distance_max"]) if r.get("distance_max") else None,
             )
         )
     _check(fam)
@@ -141,7 +145,8 @@ def _check(fam: Family) -> None:
         assert r.cabin in ("Y", "PY", "C", "F") and r.season in SEASON_ORDER and r.miles > 0, r
         zoned = r.origin_zone is not None and r.dest_zone is not None
         routed = bool(r.origin_match) and bool(r.dest_match)
-        assert zoned != routed, f"rate must be zone pair xor route: {r}"
+        banded = r.distance_min is not None and r.distance_max is not None
+        assert zoned + routed + banded == 1, f"rate must be zone pair, route or distance: {r}"
     by_group: dict[str, list[SeasonRange]] = {}
     for s in fam.seasons:
         assert s.date_to >= s.date_from, s
@@ -166,10 +171,17 @@ class FareStore:
     def family(self, name: str) -> Family:
         return self.families[name]
 
-    def zone_for(self, family: str, airports: list[str], city: str, country: str) -> str | None:
-        """Most specific match wins: airport, then city, then country."""
+    def zone_for(
+        self, family: str, airports: list[str], city: str, country: str, region: str = ""
+    ) -> str | None:
+        """Most specific match wins: airport, then city, then country, then region."""
         members = self.families[family].members
-        for kind, values in (("airport", airports), ("city", [city]), ("country", [country])):
+        for kind, values in (
+            ("airport", airports),
+            ("city", [city]),
+            ("country", [country]),
+            ("region", [region]),
+        ):
             for v in values:
                 if (kind, v) in members:
                     return members[(kind, v)]
