@@ -57,7 +57,7 @@ ENV_FILE := $(if $(wildcard .env),--env-file .env,)
 whoami:  ## Show which AWS account/role you are using
 	aws sts get-caller-identity
 
-check-openai:  ## Verify the OpenAI key: model access, tool calling, structured outputs, embeddings (< $$0.001)
+check-openai:  ## Optional: verify the OpenAI key for A/B runs (< $$0.001)
 	uv run $(ENV_FILE) python scripts/check_openai.py
 
 # ---------- Bootstrap stack (persistent, never destroyed) ----------
@@ -115,7 +115,7 @@ image:  ## Build the arm64 image (code + build/index) and push it to ECR as $(IM
 	docker push $$repo:$(IMAGE_TAG)
 
 index-cloud:  ## Build build/index from the raw pages in S3, as CI does
-	@eval "$$(scripts/release.sh eval-env)" && scripts/release.sh index
+	scripts/release.sh index
 
 candidate:  ## Push $(IMAGE_TAG) with build/index, point the `candidate` alias at it
 	scripts/release.sh candidate $(IMAGE_TAG)
@@ -142,7 +142,7 @@ app-plan: app-init  ## Plan the app stack for $(IMAGE_TAG)
 app-apply: app-init  ## Create/update the app stack (Lambda, DynamoDB, secrets, alarms)
 	$(TF) -chdir=$(APP_DIR) apply -var image_tag=$(IMAGE_TAG)
 
-put-openai-key:  ## Copy the OpenAI key from .env into Secrets Manager (not via Terraform)
+put-openai-key:  ## Optional (openai:* A/B models only): copy the OpenAI key from .env into Secrets Manager
 	uv run $(ENV_FILE) python scripts/put_openai_secret.py $$($(TFOUT) openai_secret_id)
 
 upload-raw:  ## Upload raw rules pages to S3; the next release (CI or make release) indexes them
@@ -152,7 +152,7 @@ upload-raw:  ## Upload raw rules pages to S3; the next release (CI or make relea
 smoke:  ## Health, auth and one real question against the live URL
 	uv run python scripts/smoke.py $$($(TFOUT) live_url) $$($(TFOUT) app_token_secret_arn)
 
-up: index image app-apply put-openai-key smoke  ## Everything, from an empty app stack
+up: index image app-apply smoke  ## Everything, from an empty app stack (all models on Bedrock)
 
 down: app-init  ## Destroy the app stack (bootstrap stays: state, buckets, ECR, budgets)
 	$(TF) -chdir=$(APP_DIR) destroy -var image_tag=$(IMAGE_TAG)

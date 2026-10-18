@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
 from typing import Any
 
-from openai import OpenAI
-
+from milewise import llm
 from milewise.config import Settings, get_settings
 from milewise.rag.embeddings import embed
 from milewise.rag.index import RulesIndex
@@ -38,36 +36,25 @@ class RulesResult:
 def recall(
     index: RulesIndex, query: str, airline: str | None, settings: Settings, k: int = RECALL_K
 ) -> list[dict[str, Any]]:
-    [vec] = embed([query], settings)
+    # Embed the query with the model the index was built with, whatever the settings say.
+    [vec] = embed([query], settings, model=index.manifest["embedding_model"])
     return index.recall(vec, airline, k)
 
 
 def rerank(
     question: str, rows: list[dict[str, Any]], settings: Settings
 ) -> tuple[list[int], dict[str, int]]:
-    client = OpenAI(api_key=settings.openai_api_key or None, max_retries=2, timeout=60)
     excerpts = "\n\n".join(f"[{i}] {r['text'][:SNIPPET_CHARS]}" for i, r in enumerate(rows))
-    r = client.responses.create(
-        model=settings.openai_model,
+    out, usage = llm.structured(
+        settings.rerank_model,
+        name="rerank",
         instructions=RERANK_INSTRUCTIONS,
-        input=f"Question: {question}\n\nExcerpts:\n{excerpts}",
-        text={
-            "format": {
-                "type": "json_schema",
-                "name": "rerank",
-                "schema": RERANK_SCHEMA,
-                "strict": True,
-            }
-        },
-        reasoning={"effort": "low"},
-        max_output_tokens=1000,
+        prompt=f"Question: {question}\n\nExcerpts:\n{excerpts}",
+        schema=RERANK_SCHEMA,
+        s=settings,
+        max_tokens=1000,
     )
-    picked = [i for i in json.loads(r.output_text)["relevant"] if 0 <= i < len(rows)]
-    usage = (
-        {"input_tokens": r.usage.input_tokens, "output_tokens": r.usage.output_tokens}
-        if r.usage
-        else {}
-    )
+    picked = [i for i in out.get("relevant", []) if isinstance(i, int) and 0 <= i < len(rows)]
     return list(dict.fromkeys(picked)), usage
 
 

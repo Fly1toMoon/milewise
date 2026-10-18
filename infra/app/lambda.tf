@@ -1,14 +1,28 @@
 # The api function runs the image (FastAPI + Lambda Web Adapter) outside any VPC. Charts
-# and the rules index are inside the image (design.md §4.6), so its only dependencies are
-# OpenAI (internet), Secrets Manager and the DynamoDB usage table.
+# and the rules index are inside the image (design.md §4.6); models are on Amazon Bedrock
+# (§4.7), reached over its public endpoint with IAM, so no NAT is involved.
 
 locals {
-  image_uri = "${local.bootstrap.ecr_repository_url}:${var.image_tag}"
+  image_uri  = "${local.bootstrap.ecr_repository_url}:${var.image_tag}"
+  account_id = data.aws_caller_identity.current.account_id
   common_env = {
-    USAGE_TABLE               = aws_dynamodb_table.usage.name
+    USAGE_TABLE  = aws_dynamodb_table.usage.name
+    CHAT_MODEL   = "bedrock:${var.chat_model}"
+    RERANK_MODEL = "bedrock:${var.chat_model}"
+    # Only read when a model is switched to openai:* for an A/B run (milewise.api).
     OPENAI_API_KEY_SECRET_ARN = aws_secretsmanager_secret.openai.arn
-    OPENAI_MODEL              = var.openai_model
   }
+  # A geo inference profile (jp. / apac.) routes to the foundation model in any of its
+  # regions, so the model ARN is allowed in every region and the profile in this one.
+  bedrock_chat = [
+    "arn:aws:bedrock:${var.region}:${local.account_id}:inference-profile/${var.chat_model}",
+    "arn:aws:bedrock:*::foundation-model/${replace(var.chat_model, "/^(jp|apac|global)\\./", "")}",
+  ]
+  bedrock_judge = [
+    "arn:aws:bedrock:${var.region}:${local.account_id}:inference-profile/${var.judge_model}",
+    "arn:aws:bedrock:*::foundation-model/${replace(var.judge_model, "/^(jp|apac|global)\\./", "")}",
+  ]
+  bedrock_embedding = ["arn:aws:bedrock:${var.region}::foundation-model/${var.embedding_model}"]
 }
 
 data "aws_iam_policy_document" "lambda_trust" {
@@ -22,6 +36,11 @@ data "aws_iam_policy_document" "lambda_trust" {
 }
 
 data "aws_iam_policy_document" "app_common" {
+  statement {
+    sid       = "Bedrock"
+    actions   = ["bedrock:InvokeModel"]
+    resources = concat(local.bedrock_chat, local.bedrock_embedding)
+  }
   statement {
     sid       = "Usage"
     actions   = ["dynamodb:UpdateItem"]

@@ -29,6 +29,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
+from milewise import llm
 from milewise.charts.store import get_fare_store
 from milewise.config import get_settings
 from milewise.obs import emit
@@ -39,14 +40,21 @@ from milewise.tools.miles import today_jst
 STATIC = Path(__file__).parent / "static"
 
 
-def load_secrets() -> bool:
-    """Resolve Secrets Manager ARNs into env vars; True when everything is available.
+def needs_openai() -> bool:
+    s = get_settings()
+    return llm.uses_openai(s.chat_model, s.rerank_model, s.embedding_model)
 
-    Never raises: a secret without a value (e.g. the OpenAI key before `make
-    put-openai-key`) must not crash the function at init, which would also take down
-    /healthz. Callers retry on the next request.
+
+def load_secrets() -> bool:
+    """Resolve Secrets Manager ARNs into env vars; True when everything needed is available.
+
+    Never raises: a secret without a value must not crash the function at init, which
+    would also take down /healthz. Callers retry on the next request. The OpenAI key is
+    fetched only when some model is configured as openai:* (default: all on Bedrock).
     """
-    pairs = {"OPENAI_API_KEY": "OPENAI_API_KEY_SECRET_ARN", "APP_TOKEN": "APP_TOKEN_SECRET_ARN"}
+    pairs = {"APP_TOKEN": "APP_TOKEN_SECRET_ARN"}
+    if needs_openai():
+        pairs["OPENAI_API_KEY"] = "OPENAI_API_KEY_SECRET_ARN"
     todo = {
         env: os.environ[arn]
         for env, arn in pairs.items()
@@ -70,7 +78,7 @@ def load_secrets() -> bool:
 
 
 def require_secrets() -> None:
-    if not load_secrets() or not get_settings().openai_api_key:
+    if not load_secrets() or (needs_openai() and not get_settings().openai_api_key):
         raise HTTPException(503, "service not configured yet")
 
 

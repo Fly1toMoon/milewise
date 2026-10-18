@@ -1,8 +1,8 @@
 # Extra permissions for the GitHub deploy role (created in bootstrap) that need ARNs
 # from this stack. Removed with the stack, which is fine: deploys skip when it is down.
 #   * build the rules index: read raw pages, reuse/store the previous index (design.md §4.6)
-#   * evaluate the candidate: app token for its URL, OpenAI key for the judge,
-#     and the eval history in the artifacts bucket (s3://…/eval/, granted in bootstrap)
+#   * evaluate the candidate: app token for its URL, the Bedrock judge model, and the eval
+#     history in the artifacts bucket (s3://…/eval/, granted in bootstrap)
 locals {
   raw_bucket_arn       = "arn:aws:s3:::${local.bootstrap.raw_docs_bucket}"
   artifacts_bucket_arn = "arn:aws:s3:::${local.bootstrap.artifacts_bucket}"
@@ -12,7 +12,12 @@ data "aws_iam_policy_document" "deploy_eval" {
   statement {
     sid       = "Secrets"
     actions   = ["secretsmanager:GetSecretValue"]
-    resources = [aws_secretsmanager_secret.app_token.arn, aws_secretsmanager_secret.openai.arn]
+    resources = [aws_secretsmanager_secret.app_token.arn]
+  }
+  statement {
+    sid       = "Bedrock" # index embeddings + eval judge
+    actions   = ["bedrock:InvokeModel"]
+    resources = concat(local.bedrock_embedding, local.bedrock_judge)
   }
   statement {
     sid       = "RawPagesList"

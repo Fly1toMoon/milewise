@@ -95,14 +95,16 @@ def test_daily_quota(client: TestClient) -> None:
     assert client.post("/ask", json={"question": "質問その3"}, headers=h).status_code == 429
 
 
-def test_missing_secret_degrades_instead_of_crashing(
+def test_missing_openai_key_only_matters_for_openai_models(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.delenv("OPENAI_API_KEY")
+    h = {"Authorization": "Bearer t0ken"}
     monkeypatch.setenv("OPENAI_API_KEY", "")
     get_settings.cache_clear()
-    assert client.get("/healthz").status_code == 200
-    r = client.post(
-        "/ask", json={"question": "東京→ロンドン"}, headers={"Authorization": "Bearer t0ken"}
-    )
-    assert r.status_code == 503
+    # default: everything on Bedrock, so no OpenAI key is needed
+    assert client.post("/ask", json={"question": "東京→ロンドン"}, headers=h).status_code == 200
+
+    monkeypatch.setenv("CHAT_MODEL", "openai:gpt-6-luna")
+    get_settings.cache_clear()
+    assert client.get("/healthz").status_code == 200  # degrades instead of crashing
+    assert client.post("/ask", json={"question": "東京→ロンドン"}, headers=h).status_code == 503

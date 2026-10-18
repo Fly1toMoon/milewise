@@ -51,10 +51,7 @@ jobs:
 
       - name: Build the rules index
         if: steps.stack.outputs.up == 'true'
-        run: |
-          eval "$(scripts/release.sh eval-env)"
-          echo "::add-mask::$OPENAI_API_KEY"
-          scripts/release.sh index
+        run: scripts/release.sh index
 
       - name: Build and deploy to the candidate alias
         if: steps.stack.outputs.up == 'true'
@@ -64,7 +61,6 @@ jobs:
         if: steps.stack.outputs.up == 'true'
         run: |
           eval "$(scripts/release.sh eval-env)"
-          echo "::add-mask::$OPENAI_API_KEY"
           uv run milewise eval \
             --target "$(scripts/release.sh candidate-url)" \
             --token-secret-arn milewise/app-token \
