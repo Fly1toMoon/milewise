@@ -2,7 +2,7 @@
 # Eval-gated release of the api function (design.md M5). Used by `make` and by CI.
 #
 #   scripts/release.sh up?                 exit 0 if the app stack exists (CI skips otherwise)
-#   scripts/release.sh eval-env            print OPENAI_API_KEY / EVAL_UPLOAD exports (index build + judge)
+#   scripts/release.sh eval-env            print the EVAL_UPLOAD export (where eval runs are kept)
 #   scripts/release.sh index               sync raw pages from S3, build build/index reusing the
 #                                          embeddings of the last released index
 #   scripts/release.sh candidate <tag>     build + push the image (code + build/index), publish a
@@ -53,8 +53,7 @@ case "$cmd" in
     aws lambda get-function-url-config --function-name "$API" --qualifier candidate --query FunctionUrl --output text
     ;;
   eval-env)
-    # Embeddings and the judge call OpenAI; reuse the key stored for Lambda (no copy in CI).
-    echo "export OPENAI_API_KEY=$(aws secretsmanager get-secret-value --secret-id milewise/openai-api-key --query SecretString --output text)"
+    # Embeddings and the judge run on Bedrock with the caller's IAM role: no API key in CI.
     echo "export EVAL_UPLOAD=$(artifacts)/eval/"
     ;;
   promote)

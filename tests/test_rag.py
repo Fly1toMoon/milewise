@@ -73,7 +73,7 @@ def write_site(tmp: Path, pages: dict[str, tuple[dict[str, str], str]]) -> Path:
     return tmp / "sources.yaml"
 
 
-SETTINGS = Settings(openai_api_key="x", openai_embedding_model="fake", embedding_dimensions=1024)
+SETTINGS = Settings(embedding_model="bedrock:fake", embedding_dimensions=1024)
 
 
 def build(tmp: Path, sources: Path, embed: CountingEmbed, cache: Path | None = None) -> RulesIndex:

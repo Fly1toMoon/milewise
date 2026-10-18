@@ -16,6 +16,7 @@
 | 2026-10-17 | **AWS 账户从 Free plan 升级为 Paid plan**。原因：spike 发现 Free plan 下 Aurora 只能用 express configuration（不能放进 VPC、只能 IAM 认证、存储 ≤ 1 GB），且 Terraform AWS provider 6.69.1 尚不支持该参数（[issue #47117](https://github.com/hashicorp/terraform-provider-aws/issues/47117)） | 原设计（VPC 私有 Aurora + Data API + 全部 Terraform）不用改；剩余抵扣额度 $140 保留；R21 降为低风险 |
 | 2026-10-17 | **spike 实测完成**（R1 已验证）、**M1 完成**（本地端到端） | 结果见 §9 |
 | 2026-10-18 | **去掉 Aurora：数据随镜像发布**（§4.6）。价目表直接读 repo 里的 CSV，规则索引（chunk + 向量）在构建时生成并打进镜像，内存检索；每日配额改用 DynamoDB，评测结果改存 S3 | 冷启动的约 20 秒唤醒等待消失；数据变更也要通过评测闸门，回滚 `live` 时数据一起回滚；Aurora、Data API、SQS/导入 Lambda 全部删除。§2、§4.3 中关于 Aurora 的内容保留为历史记录 |
+| 2026-10-18 | **模型改为 Amazon Bedrock**（§4.7）：问答和重排用 Nova 2 Lite（`jp.` 日本跨区域推理），评测裁判用 Nova Pro，embedding 用 Titan Text Embeddings V2（1024 维）。OpenAI 保留为可选项，用于 A/B 对照 | 费用回到 AWS 账单，可用 AWS 抵扣额度，AWS Budgets 能看到（R20 大部分消失）；运行时和 CI 都不再需要 OpenAI key；裁判和答题不再是同一个模型（R10 缓解） |
 
 ---
 
@@ -609,6 +610,26 @@ Data API 的代价（会如实写进 README 的已知局限）：
 
 **不选的备选**：EC2 自建 Postgres（约 $13/月，数据库端口要暴露到公网或者 Lambda 进 VPC，还要自己运维）；Neon 等外部 serverless Postgres（冷启动亚秒级，但多一个 AWS 外的供应商）。两者都解决不了"数据变更绕过评测"的问题。
 
+### 4.7 模型改为 Amazon Bedrock（2026-10-18）
+
+**原因**：Bedrock 的费用走 AWS 账单，可以用 AWS 抵扣额度；OpenAI 需要另外预付充值。
+
+| 用途 | 之前 | 之后 | 东京区价格（每 1M token，输入 / 缓存 / 输出） |
+|---|---|---|---|
+| agent + 最终回答 | `gpt-6-luna` | `jp.amazon.nova-2-lite-v1:0` | $0.396 / $0.099 / $3.311 |
+| 检索重排（相关性过滤） | `gpt-6-luna` | 同上 | 同上 |
+| 评测裁判 | `gpt-6-luna` | `apac.amazon.nova-pro-v1:0` | $0.96 / $0.24 / $3.84 |
+| embedding | `text-embedding-3-large`（1024 维） | `amazon.titan-embed-text-v2:0`（1024 维，归一化） | $0.029 |
+
+价格来自 AWS Price List API（ap-northeast-1，on-demand，2026-10-18 查询）。`jp.` 是日本地理推理配置文件，请求只在东京、大阪之间路由，按东京区单价计费（比 `global.` 贵约 10%，换来数据留在日本）。
+
+- **模型命名**：统一写成 `<provider>:<id>`（`bedrock:…` / `openai:…`），由 `milewise.llm` 分发：`chat_model()`（LangChain `ChatBedrockConverse`，推理强度 low）、`structured()`（Bedrock 用"强制调用一个工具"拿结构化输出，OpenAI 用 structured outputs）、`embed()`。A/B 时 `milewise eval --model openai:gpt-6-luna` 即可。
+- **网络**：Bedrock 和 OpenAI 一样走公网 HTTPS，Lambda 仍然不进 VPC，不需要 NAT；认证改为 IAM（Lambda 角色只允许调用上面这几个模型）。
+- **OpenAI key**：只在某个模型配置成 `openai:*` 时才读取；默认配置下运行时和 CI 都不需要它。Secrets Manager 里的容器保留，供 A/B 使用。
+- **裁判换成另一个模型族**：Nova Pro 判 Nova 2 Lite 的回答，避免"自己给自己打分"（R10）。负对照 42/42 一致（正确答案 21/21 通过，错误答案 21/21 被抓出）。
+- **embedding 换模型 = 重建索引**：索引的 `manifest.json` 记录了 embedding 模型，查询时始终用索引的那个模型来 embed，不会出现两边不一致。
+- **代价**：Nova 2 Lite 的单价约是 Luna 的 4 倍（输入）/ 6.6 倍（输出）；另外 Bedrock 在带工具的请求里会附加约 900 token 的系统开销。实测每问成本见 §9.14。
+
 ## 5. 对象航司的数据调研
 
 调研日期 2026-10-16。以下 URL 都是公开页面，不需要登录。
@@ -1054,4 +1075,24 @@ ADR 列表（M1 起逐步补齐，放在 `docs/adr/`）：
 - **评测记录**：JSONL + 报告上传到 `s3://milewise-artifacts-<account>/eval/`（`runs/`、`reports/`），每次运行记录所用索引的 `content_sha256`。
 - **发布**：`release.sh index`（从 raw 桶同步原文，以 `artifacts/index/live/` 为 embedding 缓存构建索引）→ `candidate`（镜像 = 代码 + 索引，版本描述里带索引哈希）→ 评测 → `promote`（同时把这份索引写回 `index/live/` 作为下次的缓存）。
 - **删除**：Aurora 集群、VPC / 子网、Data API 权限、SQS + DLQ、导入 Lambda、DLQ 告警、`db/migrations`、本地 docker compose 的 Postgres。CI 不再需要 pgvector service。
+
+### 9.14 Bedrock 切换的 A/B（2026-10-18，设计见 §4.7）
+
+本地 in-process，30 题，裁判统一用 Nova Pro（负对照 42/42），索引用 Titan V2 重建（305 chunk）。
+
+| 回答模型 | miles | rules | abstain | citation | overall | 后置校验失败 | 延迟 avg | 每问成本（不含重试） |
+|---|---|---|---|---|---|---|---|---|
+| `gpt-6-luna`（OpenAI） | 94% | 100% | 100% | 96% | 97%（miles-15 失败） | 0% | 5.9 s | $0.0021 |
+| `nova-2-lite` 第一轮 | 100% | 100% | 100% | 100% | 100%，但 5 题靠重试才过 | 3.3% | 7.6 s | $0.0090 |
+| **`nova-2-lite` 修正 prompt 后（采用）** | **100%** | **100%** | **100%** | **100%** | **100%**（1 题不稳定） | 0% | 7.4 s（p95 10.5 s） | **$0.0092** |
+
+第一轮暴露的 Nova 问题和修正：
+
+1. **中文单位写错**："20,000马尔"。评分和后置校验都只认 マイル / 里程 / miles，这样的数字既不算分、也逃过了校验 → prompt 明确规定三种语言的单位。
+2. **合作航空问题没走 partner**：把"ANA 出伙伴航空"当成自家航班，反问具体城市 → 工具参数 `award_type` 的说明写清楚何时用 partner，prompt 加一条规则。
+3. **期间题只答经济舱、按日期逐个查**：没遵守"未指定舱位时答三个舱位" → 规则改成"每个舱位调用一次、不带日期（返回所有季节）"，miles-12 连续 3 次通过。
+4. **"设定なし"的结果没有证据 id**，模型照样写 [C1] → 后置校验报未知引用。改为除 needs_clarification 外的结果都分配证据 id。
+5. 评测报告现在记录不稳定题第一次失败的原因（`first_attempt`），以前只能看到重试后的结果。
+
+结论：Nova 2 Lite 的指令遵循比 Luna 弱，需要把规则写得更明确，但修正后质量相当；输出 token 约是 Luna 的 4 倍（平均 1,400 对 330），加上单价，每问成本约 4.4 倍。按每月 600 问约 $5.5，加上每次发布的评测约 $0.3，**全部由 AWS 抵扣额度支付**，仍在 $15–30 的目标内。
 

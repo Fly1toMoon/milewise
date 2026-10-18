@@ -97,7 +97,7 @@ def build_index(
     from milewise.rag.embeddings import embed
 
     s = settings or get_settings()
-    model, dims = s.openai_embedding_model, s.embedding_dimensions
+    model, dims = s.embedding_model, s.embedding_dimensions
     cfg = yaml.safe_load((sources_path or data_dir() / "sources.yaml").read_text(encoding="utf-8"))
     records: list[dict[str, Any]] = []
     docs: list[dict[str, Any]] = []

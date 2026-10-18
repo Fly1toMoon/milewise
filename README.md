@@ -1,6 +1,6 @@
 # Milewise
 
-Award-ticket (mileage) assistant for **ANA Mileage Club** and **JAL Mileage Bank**, running on AWS Lambda with the OpenAI API. Award charts and the rules index ship inside the container image, so data changes go through the same eval gate as code.
+Award-ticket (mileage) assistant for **ANA Mileage Club** and **JAL Mileage Bank**, running on AWS Lambda with Amazon Bedrock (Nova 2 Lite; Titan embeddings). Award charts and the rules index ship inside the container image, so data changes go through the same eval gate as code.
 
 - Required miles are **computed by code** from structured award charts (no RAG guessing on numbers).
 - Rules, change and refund conditions are answered with **retrieval + citations** to the airlines' official pages.
@@ -41,20 +41,21 @@ question, an always-on one cost ~$55/month, and the ingest pipeline wrote straig
 live database, so new documents bypassed the eval gate. The data now ships in the image and is
 searched in memory (<3 ms per query); see design.md §4.6 for the trade-offs.
 
-## Evaluation (baseline, 2026-10-17)
+## Evaluation (baseline, 2026-10-18)
 
-20 cases (miles 8 / rules 7 / both 2 / abstain 3; ja 10, zh 6, en 4), gold answers taken from the
+30 cases (miles 15 / rules 9 / both 2 / abstain 4; ja, zh, en), gold answers taken from the
 airlines' official pages, not from Milewise's own tools. Rules and abstain cases are graded by an
-LLM judge with a key-point rubric; the judge's negative control agrees 24/24.
+LLM judge (Nova Pro, a different model from the answering one) with a key-point rubric; the
+judge's negative control agrees 42/42.
 
 | answer model | miles | rules | abstain | citation | overall | latency avg | cost / question |
 |---|---|---|---|---|---|---|---|
-| `gpt-6-luna` (default) | 100% | 89% | 100% | 100% | 95% | 6.3 s | $0.00087 |
-| `gpt-6.1-sol` | 100% | 100% | 100% | 100% | 100% | 13.1 s | $0.0110 |
+| `bedrock:jp.amazon.nova-2-lite-v1:0` (default) | 100% | 100% | 100% | 100% | 100% | 7.4 s | $0.0092 |
+| `openai:gpt-6-luna` | 94% | 100% | 100% | 96% | 97% | 5.9 s | $0.0021 |
 
 ```bash
-make eval                                              # writes eval/results/latest.md
-uv run --env-file .env milewise eval --model gpt-6.1-sol  # A/B
+make eval                                                     # writes eval/results/latest.md
+uv run --env-file .env milewise eval --model openai:gpt-6-luna  # A/B against OpenAI
 ```
 
 Gold answers are still awaiting human verification (`verified_at` in `eval/cases.yaml`).

@@ -32,8 +32,10 @@ def main(argv: list[str] | None = None) -> int:
     p_ask.add_argument("--model", help="override the chat model (e.g. gpt-6.1-sol)")
     p_ask.add_argument("--json", action="store_true", help="print the full result as JSON")
     p_eval = sub.add_parser("eval", help="run the evaluation set")
-    p_eval.add_argument("--model", help="answer model (A/B), default OPENAI_MODEL")
-    p_eval.add_argument("--judge-model", help="judge model, default OPENAI_MODEL")
+    p_eval.add_argument(
+        "--model", help="answer model for A/B, e.g. openai:gpt-6-luna (default CHAT_MODEL)"
+    )
+    p_eval.add_argument("--judge-model", help="judge model (default JUDGE_MODEL)")
     p_eval.add_argument("--only", action="append", help="case id (repeatable)")
     p_eval.add_argument("--workers", type=int, default=4)
     p_eval.add_argument("--no-retry", action="store_true", help="do not re-run failed cases once")

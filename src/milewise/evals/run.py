@@ -47,6 +47,7 @@ class CaseResult:
     output_tokens: int
     cost_usd: float
     error: str | None = None
+    first_attempt: str | None = None  # why an unstable case failed the first time
 
 
 def load_cases(path: Path = CASES_PATH) -> list[dict[str, Any]]:
@@ -112,6 +113,11 @@ def run_case(
     second = _attempt(case, asker, s, judge_model)
     second.unstable = second.passed
     second.cost_usd += first.cost_usd
+    second.first_attempt = first.error or (
+        "figures missing or unbacked; " if first.grade and first.grade.miles_ok is False else ""
+    ) + (first.grade.judge_rationale or "" if first.grade else "") + (
+        "" if first.postcheck_ok else " | post-check failed"
+    )
     return second
 
 
@@ -250,6 +256,8 @@ def write_report(run: dict[str, Any], results: list[CaseResult]) -> Path:
         note = r.error or (r.grade.judge_rationale if r.grade and not r.passed else "") or ""
         if r.grade and r.grade.miles_ok is False:
             note = "missing or unbacked figures; " + note
+        if r.unstable and r.first_attempt:
+            note = f"1st try failed: {r.first_attempt}"
         status = "✅" if r.passed else "❌"
         lines.append(
             f"| {r.case_id} | {r.category} | {r.lang} | {status}{' (unstable)' if r.unstable else ''} "
@@ -274,8 +282,8 @@ def run_eval(
 ) -> dict[str, Any]:
     """target "local" runs the agent in-process; an https URL evaluates a deployed endpoint."""
     s = get_settings()
-    model = model or s.openai_model
-    judge_model = judge_model or s.openai_model
+    model = model or s.chat_model
+    judge_model = judge_model or s.judge_model
     cases = [c for c in load_cases() if not only or c["id"] in only]
 
     asker: Asker
@@ -310,9 +318,8 @@ def run_eval(
         "config": {
             "model": model,
             "judge_model": judge_model,
-            "reasoning_effort": s.openai_reasoning_effort,
-            "embedding_model": s.openai_embedding_model,
-            "embedding_dimensions": s.embedding_dimensions,
+            "rerank_model": s.rerank_model,
+            "reasoning_effort": s.reasoning_effort,
             "system_prompt_sha256": hashlib.sha256(SYSTEM_PROMPT.encode()).hexdigest()[:16],
             "data": data_version(target),
         },

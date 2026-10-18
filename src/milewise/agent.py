@@ -17,9 +17,9 @@ from langchain.agents import create_agent
 from langchain.agents.middleware import ModelCallLimitMiddleware, ToolCallLimitMiddleware
 from langchain_core.messages import AIMessage
 from langchain_core.tools import StructuredTool
-from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 
+from milewise import llm
 from milewise.charts.store import FareStore, get_fare_store
 from milewise.config import Settings, cost_usd, get_settings
 from milewise.locations import resolve_city
@@ -44,7 +44,8 @@ Rules:
 tool results are in Japanese.
 2. Never state a mileage figure from memory. Every required-miles number must come from \
 get_required_miles in this conversation, written with digits and thousands separators \
-(e.g. 110,000), immediately followed by the evidence id it came from, e.g. "110,000マイル [C1]". \
+(e.g. 110,000), immediately followed by the unit and the evidence id it came from, e.g. \
+"110,000マイル [C1]". The unit is exactly マイル in Japanese, 里程 in Chinese, miles in English. \
 Do not write 万 or round numbers.
 3. If the user does not name an airline, call get_required_miles for both NH (ANA) and JL (JAL) \
 and report each, including when one of them is not covered. If the user gives no travel dates, \
@@ -53,10 +54,13 @@ or one way, assume round trip and say so. Pass travel dates when the user gives 
 3a. If the user names travel months or a period, call get_season once for the whole period \
 (a month or month without a year means its next occurrence on or after today). Then group the \
 answer by the returned date ranges: for each range give its dates, its season and the miles of \
-that season, citing both evidence ids. If no cabin is named, cover economy (Y), premium economy \
-(PY) and business (C); call get_required_miles once per cabin, in parallel.
+that season, citing both evidence ids. Call get_required_miles once per cabin WITHOUT travel \
+dates (it returns the figure of every season), in parallel; never once per date. If no cabin is \
+named you must cover all three: economy (Y), premium economy (PY) and business (C).
 4. If a tool returns needs_clarification, give what is known and ask one short question. \
-If it returns not_found or unsupported, say clearly that you cannot confirm it, and do not guess.
+If it returns not_found or unsupported, say clearly that you cannot confirm it, and do not guess. \
+Questions about awards on partner airlines (提携航空会社 / 伙伴航空 / Star Alliance / oneworld) \
+must be looked up with award_type "partner" (never as an own-metal award).
 5. For rules, conditions, changes, cancellation/refund fees and similar questions, call \
 search_rules and answer only from the excerpts it returns. Put the evidence id after each \
 statement, e.g. "マイルは口座に戻ります [D1]", and quote only short phrases. If it returns \
@@ -184,7 +188,10 @@ class MilesArgs(BaseModel):
         default=None, description="Flight number if the user gives one (e.g. JL031)"
     )
     award_type: Literal["own", "partner"] = Field(
-        default="own", description="own-metal or partner award"
+        default="own",
+        description="own: flights of the airline itself. partner: an award on a partner "
+        "airline (提携航空会社, 伙伴航空, Star Alliance, oneworld), also when the user only "
+        "says a partner award without naming the airline",
     )
 
 
@@ -253,7 +260,9 @@ def build_tools(
 ) -> list[StructuredTool]:
     def required_miles(**kwargs: Any) -> str:
         res = get_required_miles(fares, **kwargs).to_dict()
-        if res["status"] == "ok":
+        # "Not offered" (設定なし) and other definite answers are facts from the chart too,
+        # and models cite them; only a clarification request carries no evidence.
+        if res["status"] != "needs_clarification":
             res = {"evidence_id": evidence.add_chart(res), **res}
         return json.dumps(res, ensure_ascii=False, default=str)
 
@@ -341,14 +350,8 @@ def ask(
     model: str | None = None,
 ) -> AskResult:
     s = settings or get_settings()
+    agent_model = model or s.chat_model
     evidence = Evidence()
-    llm = ChatOpenAI(
-        model=model or s.openai_model,
-        api_key=s.openai_api_key or None,  # type: ignore[arg-type]
-        use_responses_api=True,
-        reasoning={"effort": s.openai_reasoning_effort},
-        max_tokens=4000,  # type: ignore[call-arg]
-    )
     # Hard caps so a confused model cannot loop and run up cost (design.md R7).
     middleware: list[Any] = [
         ModelCallLimitMiddleware(run_limit=5, exit_behavior="end"),
@@ -356,7 +359,7 @@ def ask(
         ToolCallLimitMiddleware(run_limit=8, exit_behavior="continue"),
     ]
     agent = create_agent(
-        llm,
+        llm.chat_model(agent_model, s),
         tools=build_tools(fares or get_fare_store(), index, evidence),
         system_prompt=SYSTEM_PROMPT.format(
             today=today_jst().isoformat(),
@@ -381,14 +384,13 @@ def ask(
         if isinstance(m, AIMessage)
         for tc in m.tool_calls
     ]
-    agent_model = model or s.openai_model
     usage = _usage(messages)
-    # The agent runs on agent_model; the reranker inside search_rules always uses
-    # the default (small) model, so each is priced separately.
+    # The agent runs on agent_model; the reranker inside search_rules runs on rerank_model
+    # (also when an A/B run overrides the agent model), so each is priced separately.
     cost = cost_usd(
         agent_model, usage["input_tokens"], usage["cached_input_tokens"], usage["output_tokens"]
     ) + cost_usd(
-        s.openai_model, evidence.tool_usage["input_tokens"], 0, evidence.tool_usage["output_tokens"]
+        s.rerank_model, evidence.tool_usage["input_tokens"], 0, evidence.tool_usage["output_tokens"]
     )
     usage["input_tokens"] += evidence.tool_usage["input_tokens"]
     usage["output_tokens"] += evidence.tool_usage["output_tokens"]
@@ -401,5 +403,5 @@ def ask(
         usage=usage,
         cost_usd=round(cost, 6),
         latency_ms=latency_ms,
-        model=model or s.openai_model,
+        model=agent_model,
     )
