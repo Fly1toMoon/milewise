@@ -11,12 +11,22 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Any, Literal
 
 from milewise.charts.store import SEASON_ORDER, FareStore
-from milewise.locations import City, airport_hint, resolve_city
+from milewise.locations import (
+    City,
+    airport_hint,
+    great_circle_miles,
+    resolve_area,
+    resolve_city,
+)
 
 JST = timezone(timedelta(hours=9))
 JAPAN_ZONE = "1"
 SUPPORTED_FAMILIES = {("NH", "own"): "NH-INTL-OWN", ("JL", "own"): "JL-INTL-OWN"}
 ROUTE_FAMILIES = {"JL-INTL-OWN"}  # priced by route label, not by zone pair
+NH_PARTNER = "NH-INTL-PARTNER"  # zone pairs, Japan split into Zone 1-A / 1-B, no seasons
+# JAL partner awards are distance-based (総旅程距離); which chart applies depends on the
+# operating airline: oneworld members or other JMB partners.
+JL_PARTNER = {"oneworld": "JL-INTL-OW", "jmb_partner": "JL-INTL-JMBP"}
 
 Status = Literal["ok", "needs_clarification", "not_found", "unsupported"]
 
@@ -101,6 +111,8 @@ def get_required_miles(
     booking_date: date | None = None,
     award_type: str = "own",
     flight_number: str | None = None,
+    partner_program: str | None = None,
+    total_distance_miles: int | None = None,
 ) -> MilesResult:
     base: dict[str, Any] = {
         "airline": airline,
@@ -108,6 +120,14 @@ def get_required_miles(
         "trip_type": trip_type,
         "cabin": cabin,
     }
+    if award_type == "partner" and airline == "NH":
+        return _nh_partner(
+            fares, base, origin, destination, cabin, trip_type, booking_date or today_jst()
+        )
+    if award_type == "partner" and airline == "JL":
+        return _jl_partner(
+            fares, base, origin, destination, cabin, partner_program, total_distance_miles
+        )
     family = SUPPORTED_FAMILIES.get((airline, award_type))
     if family is None:
         return MilesResult(
@@ -380,3 +400,231 @@ def _route_required_miles(
                 )
                 res.calculation += f" = {res.total_miles:,}"
     return res
+
+
+# ---------------------------------------------------------------- partner awards
+
+PARTNER_CAVEATS = [
+    "提携航空会社特典航空券は ANA 便とは別のチャート。シーズンによる変動はない",
+    "提携航空会社の空席は別途確認が必要",
+]
+ZONE_1_LABELS = {
+    "1A": "Zone 1-A（国際線往復2区間のみ、または日本国内のみで乗り継ぎ）",
+    "1B": "Zone 1-B（Zone 1-A の設定がない場合、または国際線で乗り継ぐ旅程）",
+}
+
+
+def _zone_endpoint(
+    fares: FareStore, family: str, query: str
+) -> tuple[Endpoint, list[City], str | None]:
+    """City first; a country or region name ("中国", "欧洲") works for zone charts."""
+    cities = resolve_city(query)
+    ep = Endpoint(input=query)
+    if len(cities) > 1:
+        return ep, cities, None
+    if cities:
+        c = cities[0]
+        ep.city_code, ep.name_ja, ep.airports = c.city_code, c.name_ja, list(c.airports)
+        zone = fares.zone_for(family, list(c.airports), c.city_code, c.country)
+        ep.zone = "1A" if zone == "1A" else zone
+        return ep, cities, None if zone else f"{c.name_ja} はゾーン表で判定できません。"
+    area = resolve_area(query)
+    if area is None:
+        return ep, [], f"「{query}」を都市・国・地域として認識できません。"
+    ep.name_ja = area.name_ja
+    if area.kind == "country":
+        ep.zone = fares.zone_for(family, [], "", area.code)
+    else:
+        ep.zone = fares.zone_for(family, [], "", "", area.code)
+    msg = None if ep.zone else f"{area.name_ja} は複数ゾーンにまたがるため、都市名が必要です。"
+    return ep, [], msg
+
+
+def _nh_partner(
+    fares: FareStore,
+    base: dict[str, Any],
+    origin: str,
+    destination: str,
+    cabin: str,
+    trip_type: str,
+    booking: date,
+) -> MilesResult:
+    o, o_cands, o_err = _zone_endpoint(fares, NH_PARTNER, origin)
+    d, d_cands, d_err = _zone_endpoint(fares, NH_PARTNER, destination)
+    res = MilesResult("ok", origin=o, destination=d, **base)
+    for label, cands in (("origin", o_cands), ("destination", d_cands)):
+        if len(cands) > 1:
+            res.status = "needs_clarification"
+            res.candidates[label] = [f"{c.name_ja} ({c.city_code})" for c in cands]
+    if res.status != "ok":
+        return res
+    if o_err or d_err:
+        res.status, res.message = "not_found", (o_err or "") + (d_err or "")
+        return res
+    assert o.zone is not None and d.zone is not None
+    if o.zone == d.zone == "1A":
+        res.status = "not_found"
+        res.message = "日本国内のみの旅程は提携航空会社特典航空券（国際線）の対象外です。"
+        return res
+    charts = fares.charts_for(NH_PARTNER, booking, trip_type)
+    if not charts:
+        res.status = "not_found"
+        res.message = (
+            f"予約・発券日 {booking} に適用される提携航空会社特典の"
+            f"{'片道' if trip_type == 'OW' else '往復'}チャートは収録されていません。"
+        )
+        return res
+    chart = charts[0]
+    res.price_kind = chart.price_kind
+    res.chart = {
+        "chart_id": chart.chart_id,
+        "booking_from": chart.booking_from.isoformat(),
+        "source_url": chart.source_url,
+        "fetched_at": chart.fetched_at.astimezone(JST).isoformat(),
+    }
+    abroad = d.zone if o.zone == "1A" else o.zone
+    pairs: list[tuple[str | None, set[tuple[str, str]]]]
+    if "1A" in (o.zone, d.zone):
+        pairs = [(z, {(z, abroad), (abroad, z)}) for z in ("1A", "1B")]
+    else:
+        pairs = [(None, {(o.zone, d.zone), (d.zone, o.zone)})]
+    rows: list[dict[str, Any]] = []
+    for japan_zone, pair in pairs:
+        for r in fares.family(NH_PARTNER).rates:
+            if (
+                r.chart_id == chart.chart_id
+                and r.cabin == cabin
+                and (r.origin_zone, r.dest_zone) in pair
+            ):
+                rows.append(
+                    {
+                        **({"variant": ZONE_1_LABELS[japan_zone]} if japan_zone else {}),
+                        "season": "ANY",
+                        "miles": r.miles,
+                        "source_ref": r.source_ref,
+                    }
+                )
+    if not rows:
+        res.status = "not_found"
+        res.message = (
+            f"この区間の {cabin} クラスは提携航空会社特典航空券の設定がありません（設定なし）。"
+        )
+        return res
+    res.results = [{k: v for k, v in r.items() if k != "source_ref"} for r in rows]
+    res.chart["source_refs"] = [r["source_ref"] for r in rows]
+    res.caveats = list(STANDARD_CAVEATS) + PARTNER_CAVEATS
+    if len(rows) == 1:
+        res.total_miles = rows[0]["miles"]
+        if "1A" in (o.zone, d.zone):
+            res.caveats.append("Zone 1-A の設定がないため Zone 1-B が適用される")
+    else:
+        res.caveats.append("日本発着は旅程により Zone 1-A と Zone 1-B のどちらかが適用される")
+    if trip_type == "OW":
+        res.caveats.append(
+            "片道の提携航空会社特典航空券は、必要マイルチャートでは2025年6月24日以降の予約・発券分から"
+            "利用可能と記載（ご利用条件ページには「片道ではご利用になれません」の記載が残っている）"
+        )
+    return res
+
+
+def _jl_partner(
+    fares: FareStore,
+    base: dict[str, Any],
+    origin: str,
+    destination: str,
+    cabin: str,
+    program: str | None,
+    total_distance: int | None,
+) -> MilesResult:
+    res = MilesResult("ok", origin=Endpoint(origin), destination=Endpoint(destination), **base)
+    programs = [program] if program in JL_PARTNER else list(JL_PARTNER)
+    estimate = (
+        _estimate_distance(origin, destination, base["trip_type"])
+        if total_distance is None
+        else None
+    )
+    lookup = total_distance if total_distance is not None else (estimate or {}).get("miles")
+    rows: list[dict[str, Any]] = []
+    for prog in programs:
+        family = fares.family(JL_PARTNER[prog])
+        chart = next(iter(family.charts.values()))
+        for r in sorted(
+            (r for r in family.rates if r.cabin == cabin), key=lambda r: r.distance_min or 0
+        ):
+            assert r.distance_min is not None and r.distance_max is not None
+            if lookup is not None and not _band_matches(
+                r.distance_min, r.distance_max, lookup, estimate
+            ):
+                continue
+            rows.append(
+                {
+                    "variant": f"{prog}: 総旅程距離 {r.distance_min:,}–{r.distance_max:,} マイル",
+                    "season": "ANY",
+                    "miles": r.miles,
+                    "source_url": chart.source_url,
+                }
+            )
+    if not rows:
+        res.status = "not_found"
+        res.message = (
+            f"{cabin} クラスは該当する JAL 提携社特典のチャートに設定がありません"
+            if total_distance is None
+            else f"総旅程距離 {total_distance:,} マイルは収録チャートの範囲外です"
+        )
+        return res
+    res.results = [{k: v for k, v in r.items() if k != "source_url"} for r in rows]
+    first = fares.family(JL_PARTNER[programs[0]])
+    chart = next(iter(first.charts.values()))
+    res.price_kind = "fixed"
+    res.chart = {
+        "chart_ids": [next(iter(fares.family(JL_PARTNER[p]).charts)) for p in programs],
+        "booking_from": chart.booking_from.isoformat(),
+        "source_url": chart.source_url,
+        "source_urls": sorted({r["source_url"] for r in rows}),
+        "fetched_at": chart.fetched_at.astimezone(JST).isoformat(),
+    }
+    res.caveats = [
+        *list(STANDARD_CAVEATS),
+        "JAL の提携社特典は距離制: 必要マイル数は旅程全体の各区間の実マイル数の合計（総旅程距離）で決まる",
+        "ワンワールド加盟社の便はワンワールド特典航空券、それ以外の提携社は JMB提携航空会社特典航空券のチャート",
+    ]
+    if estimate:
+        res.calculation = f"推定総旅程距離 {estimate['miles']:,} マイル（{estimate['basis']}）"
+        res.caveats.append(
+            "総旅程距離は直行便の大圏距離からの推定値。実際の区間マイル数や乗り継ぎ経路で変わり、"
+            "距離帯の境界に近い場合は隣の距離帯も示している"
+        )
+    elif total_distance is None:
+        res.message = "総旅程距離が未指定のため、距離帯ごとの表を返す。経路（乗り継ぎを含む）か総旅程距離が分かれば1つに絞れる"
+    if lookup is not None and len(rows) == 1:
+        res.total_miles = rows[0]["miles"]
+    return res
+
+
+BOUNDARY_MARGIN = 0.03  # an estimate this close to a band edge also returns the next band
+
+
+def _estimate_distance(origin: str, destination: str, trip_type: str) -> dict[str, Any] | None:
+    """Nonstop great-circle distance between the main airports (x2 for a round trip)."""
+    ends = []
+    for q in (origin, destination):
+        cities = resolve_city(q)
+        if len(cities) != 1:
+            return None
+        hint = airport_hint(q)
+        ends.append(hint if hint and hint in cities[0].airports else cities[0].airports[0])
+    one_way = great_circle_miles(ends[0], ends[1])
+    if not one_way:
+        return None
+    legs = 2 if trip_type == "RT" else 1
+    basis = f"{ends[0]}–{ends[1]} 大圏距離 {one_way:,} マイル" + (
+        " × 2（往復）" if legs == 2 else ""
+    )
+    return {"miles": one_way * legs, "basis": basis}
+
+
+def _band_matches(lo: int, hi: int, miles: int, estimate: dict[str, Any] | None) -> bool:
+    if estimate is None:
+        return lo <= miles <= hi
+    margin = miles * BOUNDARY_MARGIN
+    return lo - margin <= miles <= hi + margin

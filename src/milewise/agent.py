@@ -50,7 +50,8 @@ Do not write 万 or round numbers.
 3. If the user does not name an airline, call get_required_miles for both NH (ANA) and JL (JAL) \
 and report each, including when one of them is not covered. If the user gives no travel dates, \
 show the L/R/H values. If they do not say round trip \
-or one way, assume round trip and say so. Pass travel dates when the user gives them.
+or one way, answer for one way (片道) and say so in one short line. Pass travel dates when the user \
+gives them.
 3a. If the user names travel months or a period, call get_season once for the whole period \
 (a month or month without a year means its next occurrence on or after today). Then group the \
 answer by the returned date ranges: for each range give its dates, its season and the miles of \
@@ -60,7 +61,17 @@ named you must cover all three: economy (Y), premium economy (PY) and business (
 4. If a tool returns needs_clarification, give what is known and ask one short question. \
 If it returns not_found or unsupported, say clearly that you cannot confirm it, and do not guess. \
 Questions about awards on partner airlines (提携航空会社 / 伙伴航空 / Star Alliance / oneworld) \
-must be looked up with award_type "partner" (never as an own-metal award).
+must be looked up with award_type "partner" (never as an own-metal award). Country or region \
+names (中国, 欧洲) are fine as origin/destination for partner awards. ANA partner results \
+from Japan come as Zone 1-A and Zone 1-B variants: show both with their conditions. JAL \
+partner awards are distance-based: pass total_distance_miles only if the user gives it. \
+Without it the tool estimates the distance from a nonstop great-circle route ("calculation"): \
+present that figure as an estimate with its basis, show every band returned (two when the \
+estimate is near a band edge), and say the exact figure depends on the actual flown distance \
+and connections. Never estimate a distance yourself.
+4b. Milewise covers only ANA Mileage Club and JAL Mileage Bank miles. For another airline's \
+own program (e.g. Delta SkyMiles, United MileagePlus, Asia Miles) say it is not covered and \
+give no figures; do not substitute ANA or JAL charts.
 5. For rules, conditions, changes, cancellation/refund fees and similar questions, call \
 search_rules and answer only from the excerpts it returns. Put the evidence id after each \
 statement, e.g. "マイルは口座に戻ります [D1]", and quote only short phrases. If it returns \
@@ -127,8 +138,17 @@ class Evidence:
         self.items[eid] = result
         for r in result.get("results", []):
             self.allowed_miles.update({r["miles"], r["miles"] // 2})
+            # distance-band labels ("総旅程距離 10,001–12,000 マイル") are citable too
+            self.allowed_miles.update(
+                int(re.sub(r"[,，]", "", n)) for n in _ANY_NUMBER.findall(r.get("variant", ""))
+            )
         if result.get("total_miles"):
             self.allowed_miles.add(result["total_miles"])
+        # figures inside the tool's own calculation text (e.g. an estimated distance)
+        self.allowed_miles.update(
+            int(re.sub(r"[,，]", "", n))
+            for n in _ANY_NUMBER.findall(result.get("calculation") or "")
+        )
         self.allowed_miles.update(result.get("totals", {}).values())
         if result.get("chart", {}).get("source_url"):
             self.allowed_urls.add(result["chart"]["source_url"])
@@ -178,7 +198,9 @@ class MilesArgs(BaseModel):
     cabin: Literal["Y", "PY", "C", "F"] = Field(
         description="Y economy, PY premium economy, C business, F first"
     )
-    trip_type: Literal["RT", "OW"] = Field(default="RT", description="RT round trip, OW one way")
+    trip_type: Literal["RT", "OW"] = Field(
+        default="OW", description="OW one way (default when the user does not say), RT round trip"
+    )
     outbound_date: date | None = Field(default=None, description="Outbound travel date, if known")
     return_date: date | None = Field(default=None, description="Return travel date (RT), if known")
     booking_date: date | None = Field(
@@ -186,6 +208,16 @@ class MilesArgs(BaseModel):
     )
     flight_number: str | None = Field(
         default=None, description="Flight number if the user gives one (e.g. JL031)"
+    )
+    partner_program: Literal["oneworld", "jmb_partner"] | None = Field(
+        default=None,
+        description="JAL partner awards only: oneworld member airline, or another JMB "
+        "partner airline. Omit if unsure (both charts are returned)",
+    )
+    total_distance_miles: int | None = Field(
+        default=None,
+        description="JAL partner awards only: total flown distance of the itinerary in "
+        "miles, if the user states it",
     )
     award_type: Literal["own", "partner"] = Field(
         default="own",

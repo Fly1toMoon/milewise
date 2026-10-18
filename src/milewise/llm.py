@@ -46,7 +46,9 @@ def _bedrock(region: str) -> Any:
     return boto3.client(
         "bedrock-runtime",
         region_name=region,
-        config=Config(retries={"max_attempts": 6, "mode": "adaptive"}, read_timeout=120),
+        # Bounded: a stuck call must fail fast, not stall a request or an eval run for
+        # minutes (6 attempts x 120 s once hung a local eval for an hour, §9.15).
+        config=Config(retries={"max_attempts": 3, "mode": "standard"}, read_timeout=60),
     )
 
 

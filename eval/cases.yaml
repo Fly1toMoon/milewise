@@ -5,6 +5,10 @@
 # Each case starts with verified_at: null. A person checks it against the official page
 # (source_note says where) and sets verified_at / verified_by. The runner reports how many
 # cases are still unverified.
+# crosschecked_at: the author of the cases (Claude) re-read every expected figure, season
+# range and rubric point in the saved official pages (raw/…, 2026-10-17), independently of
+# data/charts and of the tools. That is a second pass by the same author, not the human
+# verification above, so verified_at stays null until a person signs it off.
 #
 # Categories and how they are graded:
 #   miles    every expected figure must appear in the answer; no unbacked figure may appear
@@ -19,6 +23,9 @@ defaults:
   ana_usage: &ana_usage https://www.ana.co.jp/ja/jp/guide/amc/award/international/usage/
   ana_application: &ana_application https://www.ana.co.jp/ja/jp/guide/amc/award/international/application/
   ana_partner: &ana_partner https://www.ana.co.jp/ja/jp/guide/amc/award/tk/usage/
+  ana_partner_chart: &ana_partner_chart https://www.ana.co.jp/ja/jp/guide/amc/award/tk/zone/
+  jal_ow_chart: &jal_ow_chart https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/oneworld/miles.html
+  jal_jmbp_chart: &jal_jmbp_chart https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/p_jmb/jmb_mile.html
   ana_revision: &ana_revision https://www.ana.co.jp/ja/jp/guide/amc/award/tk/zone/info/250415/
   jal_chart: &jal_chart https://www.jal.co.jp/jp/ja/jalmile/use/jal/inter/routemiles.html
   jal_refund: &jal_refund https://www.jal.co.jp/jp/ja/jalmile/use/jal/inter/cancel.html
@@ -35,6 +42,7 @@ cases:
     gold_urls: [*ana_chart]
     source_note: "往復チャート 日本（Zone 1）発着 欧州・ロシア2（Zone 7）、C: L 110,000 / R 115,000 / H 改定後 180,000"
     verified_at: null
+    crosschecked_at: 2026-10-18
     verified_by: null
 
   - id: miles-02
@@ -46,6 +54,7 @@ cases:
     gold_urls: [*ana_chart]
     source_note: "片道チャート 日本（Zone 1）発着 アジア2（Zone 4）、C: 40,000 / 42,500 / 47,500"
     verified_at: null
+    crosschecked_at: 2026-10-18
     verified_by: null
 
   - id: miles-03
@@ -57,6 +66,7 @@ cases:
     gold_urls: [*ana_chart]
     source_note: "往復チャート 日本（Zone 1）発着 ハワイ（Zone 5）、Y: 35,000 / 40,000 / 改定後 65,000"
     verified_at: null
+    crosschecked_at: 2026-10-18
     verified_by: null
 
   - id: miles-04
@@ -68,6 +78,7 @@ cases:
     gold_urls: [*ana_chart]
     source_note: "ANA公式の確認例（往路L・復路R）: 40,000÷2 + 50,000÷2 = 45,000。2/20は日本・北米/欧州カレンダーでL、3/5はR"
     verified_at: null
+    crosschecked_at: 2026-10-18
     verified_by: null
 
   - id: miles-05
@@ -79,6 +90,7 @@ cases:
     gold_urls: [*ana_chart]
     source_note: "往復チャート 日本（Zone 1）発着 北米（Zone 6）、F: 150,000 / 170,000 / 改定後 300,000"
     verified_at: null
+    crosschecked_at: 2026-10-18
     verified_by: null
 
   - id: miles-06
@@ -90,6 +102,7 @@ cases:
     gold_urls: [*ana_chart]
     source_note: "片道チャート 日本（Zone 1）発着 オセアニア（Zone 10）、PY H 44,000。8/10 は日本・ハワイ/オセアニアカレンダーで H（7/16～8/23）"
     verified_at: null
+    crosschecked_at: 2026-10-18
     verified_by: null
 
   - id: miles-07
@@ -101,6 +114,7 @@ cases:
     gold_urls: [*ana_chart]
     source_note: "往復チャート 日本（Zone 1）発着 アジア2（Zone 4）、C H 改定後 95,000（札幌は日本 Zone 1）"
     verified_at: null
+    crosschecked_at: 2026-10-18
     verified_by: null
 
   - id: miles-08
@@ -112,6 +126,7 @@ cases:
     gold_urls: [*ana_chart]
     source_note: "往復・片道チャート 日本（Zone 1）発着 韓国・ロシア1（Zone 2）、F: 設定なし"
     verified_at: null
+    crosschecked_at: 2026-10-18
     verified_by: null
 
   - id: miles-09
@@ -126,6 +141,7 @@ cases:
     gold_urls: [*jal_chart]
     source_note: "日本発着（片道）基本マイル数 ヨーロッパ ロンドン C 57,000；PLUS利用時 ロンドン C 441,000"
     verified_at: null
+    crosschecked_at: 2026-10-18
     verified_by: null
 
   - id: miles-10
@@ -140,6 +156,7 @@ cases:
     gold_urls: [*jal_chart]
     source_note: "基本マイル数 東アジア 台北－東京（羽田）便 Y 11,000 / 台北－東京（成田）、大阪（関西）、名古屋（中部）便 Y 9,000"
     verified_at: null
+    crosschecked_at: 2026-10-18
     verified_by: null
 
   - id: miles-11
@@ -151,6 +168,7 @@ cases:
     gold_urls: [*jal_chart]
     source_note: "ファーストクラス ロンドン H 140,000（8/1 は H: 7/9～8/25）+ R 125,000（10/1 は R: 8/26～12/12）= 265,000（往復は片道の合算）"
     verified_at: null
+    crosschecked_at: 2026-10-18
     verified_by: null
 
   # ---------------------------------------------------------------- miles: periods (2026-10-18)
@@ -161,40 +179,44 @@ cases:
     lang: zh
     question: "东京到台湾的ANA里程票，7月和8月需要多少里程？"
     expected:
-      # Trip type not given → round trip is assumed (system prompt rule 3); cabins Y/PY/C.
-      miles: [20000, 30000, 33000, 47000, 53000, 65000]
+      # Trip type not given → one way is assumed (system prompt rule 3, decided 2026-10-18); cabins Y/PY/C.
+      miles: [10000, 15000, 16500, 23500, 26500, 32500]
       reference: >-
         2027年（今天是2026年10月，所以是下一个7、8月）7/1～7/15 和 8/24～8/31 是 Regular season，
-        7/16～8/23 是 High season。往返：经济舱 R 20,000 / H 30,000，超级经济舱 R 33,000 / H 47,000，
-        商务舱 R 53,000 / H 65,000。
+        7/16～8/23 是 High season。单程：经济舱 R 10,000 / H 15,000，超级经济舱 R 16,500 / H 23,500，
+        商务舱 R 26,500 / H 32,500。
       must_mention:
         - "指的是2027年的7月和8月"
         - "7/1～7/15 是 Regular（R）季"
         - "7/16～8/23 是 High（H）季"
         - "8/24～8/31 是 Regular（R）季"
-        - "说明按往返计算（或给出单程/往返两种）"
+        - "说明按单程计算"
       must_not_say: ["7月和8月全部是同一个季节"]
     gold_urls: [*ana_chart]
-    source_note: "台北は韓国・ロシア1/アジア（Zone 3）、カレンダー Zone2-3-4: 2027/7/1～7/15 R, 7/16～8/23 H, 8/24～9/30 R。往復チャート Zone1-Zone3: Y 20,000/30,000, PY 33,000/47,000, C 53,000/65,000（R/H）"
+    source_note: "台北は Zone 3、カレンダー Zone2-3-4: 2027/7/1～7/15 R, 7/16～8/23 H, 8/24～9/30 R。片道チャート Zone1-Zone3: Y 10,000/15,000, PY 16,500/23,500, C 26,500/32,500（R/H）"
+    revision_note: "2026-10-18: 往復/片道の指定がないときの既定を片道に変更（ユーザー決定）。期待値を片道に"
     verified_at: null
+    crosschecked_at: 2026-10-18
     verified_by: null
 
   - id: miles-13
     category: miles
     lang: ja
-    question: "東京から台北までANAの片道特典航空券で、7月と8月に行く場合、エコノミー・プレミアムエコノミー・ビジネスはそれぞれ何マイル？"
+    question: "東京から台北までANAの往復特典航空券で、7月と8月に行く場合、エコノミー・プレミアムエコノミー・ビジネスはそれぞれ何マイル？"
     expected:
-      miles: [10000, 15000, 16500, 23500, 26500, 32500]
+      miles: [20000, 30000, 33000, 47000, 53000, 65000]
       reference: >-
-        2027年7/1～7/15・8/24～8/31 はレギュラーシーズン、7/16～8/23 はハイシーズン。片道：エコノミー
-        R 10,000 / H 15,000、プレミアムエコノミー R 16,500 / H 23,500、ビジネス R 26,500 / H 32,500。
+        2027年7/1～7/15・8/24～8/31 はレギュラーシーズン、7/16～8/23 はハイシーズン。往復：エコノミー
+        R 20,000 / H 30,000、プレミアムエコノミー R 33,000 / H 47,000、ビジネス R 53,000 / H 65,000。
       must_mention:
         - "2027年7/1～7/15 と 8/24～8/31 はレギュラー（R）"
         - "2027年7/16～8/23 はハイ（H）"
-      must_not_say: ["往復のマイル数を片道として答える"]
+      must_not_say: ["片道のマイル数を往復として答える"]
     gold_urls: [*ana_chart]
-    source_note: "片道チャート Zone1-Zone3: Y 10,000/15,000, PY 16,500/23,500, C 26,500/32,500（R/H）。カレンダーは miles-12 と同じ"
+    source_note: "往復チャート Zone1-Zone3: Y 20,000/30,000, PY 33,000/47,000, C 53,000/65,000（R/H）。カレンダーは miles-12 と同じ"
+    revision_note: "2026-10-18: miles-12 が片道既定になったため、こちらを往復の明示ケースに変更"
     verified_at: null
+    crosschecked_at: 2026-10-18
     verified_by: null
 
   - id: miles-14
@@ -211,6 +233,7 @@ cases:
     gold_urls: [*jal_chart]
     source_note: "ファーストクラス シーズンカレンダー 2027/5/10～7/15 R、7/16～8/29 H。ロンドン F: L 110,000 / R 125,000 / H 140,000"
     verified_at: null
+    crosschecked_at: 2026-10-18
     verified_by: null
 
   - id: miles-15
@@ -230,7 +253,65 @@ cases:
     gold_urls: [*ana_chart, *jal_chart]
     source_note: "ANA 片道 Zone1-Zone7 C: 55,000/57,500/90,000。JAL ロンドン C 基本 57,000、PLUS 最大 441,000"
     verified_at: null
+    crosschecked_at: 2026-10-18
     verified_by: null
+
+  # ---------------------------------------------------------------- miles: partner awards (2026-10-18)
+  - id: miles-16
+    category: miles
+    lang: zh
+    question: "ANA出伙伴航空商务舱，中国到欧洲需要多少里程？"
+    expected:
+      # No trip type → one way (rule 3). Partner chart: 中国大陸 = アジア1 (Zone 3), 欧州 = Zone 7.
+      miles: [59000]
+      reference: >-
+        ANA 提携航空会社特典航空券使用另一张里程表（没有季节）。中国大陆属于亚洲1（Zone 3），欧洲属于
+        欧州・ロシア2（Zone 7）。单程商务舱 59,000 里程（往返 118,000）。单程需 2025-06-24 以后预约发券。
+      must_mention:
+        - "使用合作航空（提携航空会社）专用的里程表，不是 ANA 自家航班的表"
+        - "中国属于 Zone 3（亚洲1），欧洲属于 Zone 7"
+      must_not_say: ["按 ANA 自家航班的季节（L/R/H）给出不同里程"]
+    gold_urls: [*ana_partner_chart]
+    source_note: "提携航空会社特典航空券 必要マイルチャート アジア1（Zone 3）⇔欧州・ロシア2（Zone 7）: 往復 C 改定後 118,000、片道 C 59,000（2025年6月24日以降の予約・発券分）"
+    revision_note: "2026-10-18: 提携チャート収録により abstain-04 から miles に移行"
+    verified_at: null
+    crosschecked_at: 2026-10-18
+
+  - id: miles-17
+    category: miles
+    lang: ja
+    question: "JALのマイルでブリティッシュ・エアウェイズのビジネスクラスに乗る場合、必要マイル数はどう決まる？"
+    expected:
+      reference: >-
+        ワンワールド特典航空券（距離制）。必要マイル数は旅程全体の各区間の実マイル数の合計（総旅程距離）と
+        クラスで決まり、距離帯ごとの表（例: 10,001～12,000 マイルならビジネス 110,000）を参照する。
+      must_mention:
+        - "距離制で、総旅程距離（各区間の実マイル数の合計）とクラスで決まる"
+        - "ワンワールド特典航空券のチャートを使う"
+      must_not_say: ["シーズンによって必要マイル数が変わる", "JAL 国際線特典航空券と同じチャート"]
+    gold_urls: [*jal_ow_chart]
+    source_note: "ワンワールド特典航空券 マイル早見表（日本にお住まいの方）: 総旅程距離の帯ごと。ご利用条件「本特典は距離制です」"
+    verified_at: null
+    crosschecked_at: 2026-10-18
+
+  - id: miles-18
+    category: miles
+    lang: ja
+    question: "JALのマイルでキャセイパシフィック航空のビジネスクラス、東京⇔香港の往復は何マイル？"
+    expected:
+      miles: [48000]
+      reference: >-
+        キャセイパシフィックはワンワールド加盟社なのでワンワールド特典航空券（距離制）。東京⇔香港往復の
+        総旅程距離は約3,600マイル（推定）で 1～4,000マイルの距離帯、ビジネスクラス 48,000マイル。
+        実際の区間マイル数・経路で変わる。
+      must_mention:
+        - "ワンワールド特典航空券（距離制）の表を使う"
+        - "総旅程距離が約3,600マイル前後（推定）で 1～4,000マイルの距離帯"
+      must_not_say: ["シーズンによって必要マイル数が変わる"]
+    gold_urls: [*jal_ow_chart]
+    source_note: "ワンワールド特典航空券 マイル早見表: 1-4,000 マイル ビジネス 48,000。HND–HKG 大圏距離 約1,800マイル（OurAirports 座標）"
+    verified_at: null
+    crosschecked_at: 2026-10-18
 
   # ---------------------------------------------------------------- rules (7)
   - id: rules-01
@@ -247,6 +328,7 @@ cases:
     gold_urls: [*ana_refund, *ana_revision]
     source_note: "変更・払い戻し > 未使用特典の払い戻し / ご注意、改定のお知らせ（3,000マイル）"
     verified_at: null
+    crosschecked_at: 2026-10-18
     verified_by: null
 
   - id: rules-02
@@ -265,6 +347,7 @@ cases:
     source_note: "変更・払い戻し > 変更；例外は 変更手続き の電話対応リスト（下位クラスへの変更）"
     revision_note: "2026-10-17: 公式に記載のある例外2件（下位クラスへの変更／上位クラスのマイルで発券済み区間の上位クラスへの変更）を許容。要人工確認"
     verified_at: null
+    crosschecked_at: 2026-10-18
     verified_by: null
 
   - id: rules-03
@@ -274,12 +357,15 @@ cases:
     expected:
       reference: >-
         別のチャート（提携航空会社特典航空券のゾーン・必要マイルチャート）で決まる。出発地と目的地の
-        ゾーン、搭乗クラスによって異なり、シーズンによる変動はない。片道では利用できない。
+        ゾーン、搭乗クラスによって異なり、シーズンによる変動はない。片道については公式ページ間で
+        記載が食い違う（ご利用条件ページは「片道ではご利用になれません」、必要マイルチャートは2025年6月24日以降の
+        予約・発券分から片道チャートあり）ので、どちらに触れても誤りとしない。
       must_mention: ["ANA便とは別のチャート", "シーズンによる変動はない"]
       must_not_say: ["同じチャート", "距離で決まる"]
     gold_urls: [*ana_partner]
     source_note: "提携航空会社特典航空券 ご利用条件 > 必要マイル数"
     verified_at: null
+    crosschecked_at: 2026-10-18
     verified_by: null
 
   - id: rules-04
@@ -296,6 +382,7 @@ cases:
     gold_urls: [*ana_refund]
     source_note: "変更・払い戻し > 悪天候や機材故障などが理由の変更・払い戻し"
     verified_at: null
+    crosschecked_at: 2026-10-18
     verified_by: null
 
   - id: rules-05
@@ -313,6 +400,7 @@ cases:
     source_note: "変更・払い戻し > 未使用特典の払い戻し > 口座に戻るマイルの有効期間；例外は 悪天候… > 日付変更に伴い…差額マイル"
     revision_note: "2026-10-17: must_not_say を通常の払い戻しに限定（悪天候時の36カ月は公式に記載あり）"
     verified_at: null
+    crosschecked_at: 2026-10-18
     verified_by: null
 
   - id: rules-06
@@ -328,6 +416,7 @@ cases:
     gold_urls: [*ana_application]
     source_note: "お申し込み方法 > 空席待ち"
     verified_at: null
+    crosschecked_at: 2026-10-18
     verified_by: null
 
   - id: rules-07
@@ -343,6 +432,7 @@ cases:
     gold_urls: [*ana_refund, *ana_revision]
     source_note: "変更・払い戻し > 未使用特典の払い戻し、改定のお知らせ"
     verified_at: null
+    crosschecked_at: 2026-10-18
     verified_by: null
 
   - id: rules-08
@@ -359,6 +449,7 @@ cases:
     gold_urls: [*jal_refund]
     source_note: "JAL 変更・払い戻し > 予約の変更 > マイル引き落とし（発券）後の変更（ANAとは逆のルール）"
     verified_at: null
+    crosschecked_at: 2026-10-18
     verified_by: null
 
   - id: rules-09
@@ -374,6 +465,7 @@ cases:
     gold_urls: [*jal_notes]
     source_note: "JAL 特典交換における注意事項 > マイルを特典に換える際の注意事項"
     verified_at: null
+    crosschecked_at: 2026-10-18
     verified_by: null
 
   # ---------------------------------------------------------------- both (2)
@@ -389,6 +481,7 @@ cases:
     gold_urls: [*ana_chart, *ana_refund]
     source_note: "パリは欧州・ロシア2（Zone 7）で東京→ロンドンと同じ欄"
     verified_at: null
+    crosschecked_at: 2026-10-18
     verified_by: null
 
   - id: both-02
@@ -403,6 +496,7 @@ cases:
     gold_urls: [*ana_chart, *ana_refund]
     source_note: "片道チャート Zone1-Zone4 C、変更・払い戻し > 変更"
     verified_at: null
+    crosschecked_at: 2026-10-18
     verified_by: null
 
   # ---------------------------------------------------------------- abstain (3)
@@ -415,6 +509,7 @@ cases:
     gold_urls: []
     source_note: "対象はANA/JALのみ"
     verified_at: null
+    crosschecked_at: 2026-10-18
     verified_by: null
 
   - id: abstain-02
@@ -428,6 +523,7 @@ cases:
     source_note: "Milewise は空席を照会しない"
     revision_note: "2026-10-17: 必要マイルの提示は許可（根拠付きなら有益）。禁止は空席の有無の断定のみ"
     verified_at: null
+    crosschecked_at: 2026-10-18
     verified_by: null
 
   - id: abstain-03
@@ -439,17 +535,5 @@ cases:
     gold_urls: []
     source_note: "国内線チャートは未収録（design.md R5）"
     verified_at: null
-    verified_by: null
-
-  - id: abstain-04
-    category: abstain
-    lang: zh
-    question: "ANA出伙伴航空商务舱，中国到欧洲需要多少里程？"
-    expected:
-      reason: >-
-        ANA 提携航空会社特典航空券的里程表还没有结构化收录（status.md 待办 4），而且是日本以外出发的行程。
-        可以说明合作航空特典使用另一张里程表、需要查官网，但不能给出具体里程，也不能套用 ANA 自家航班的里程表
-    gold_urls: []
-    source_note: "提携航空会社特典航空券のチャートは未収録。収録後は miles カテゴリに移す（中国＝アジア1、欧州＝欧州）"
-    verified_at: null
+    crosschecked_at: 2026-10-18
     verified_by: null
