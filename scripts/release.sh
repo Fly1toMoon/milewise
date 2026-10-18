@@ -29,7 +29,10 @@ case "$cmd" in
     aws lambda get-function --function-name "$API" --query 'Configuration.FunctionName' --output text >/dev/null 2>&1
     ;;
   index)
-    aws s3 sync "s3://$(raw_bucket)/" raw/ --only-show-errors --exclude "*" --include "nh/*.html" --include "jl/*.html"
+    # One sync per prefix: the deploy role may list the raw bucket only under nh/ and jl/.
+    for p in nh jl; do
+      aws s3 sync "s3://$(raw_bucket)/$p/" "raw/$p/" --only-show-errors --exclude "*" --include "*.html"
+    done
     rm -rf build/index-cache
     aws s3 sync "$(artifacts)/index/live/" build/index-cache/ --only-show-errors
     uv run milewise build-index --raw raw --out build/index --cache build/index-cache
