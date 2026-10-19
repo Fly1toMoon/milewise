@@ -31,15 +31,24 @@ class Settings(BaseSettings):
     bedrock_region: str = "ap-northeast-1"
     openai_api_key: str = ""  # only needed when a model above is openai:*
 
-    # DynamoDB table for the daily quota (set in Lambda); empty = in-process counter.
-    usage_table: str = ""
+    # Public-endpoint guards (milewise.guard, design.md §4.8). QUOTA_TABLE empty = in-process.
+    quota_table: str = ""
+    public_daily_request_limit: int = 1000  # all public users together, per JST day
+    public_daily_cost_limit_usd: float = 2.0  # whichever is reached first closes the day
+    ip_window_limit: int = 5  # per IP (IPv6 /64) per 10 minutes
+    ip_daily_limit: int = 20  # per IP per JST day
+    alert_topic_arn: str = ""  # SNS topic: one email when the public budget closes a day
+    turnstile_site_key: str = ""  # Cloudflare Turnstile; empty = bot check off
+    turnstile_secret: str = ""
+    turnstile_secret_arn: str = ""
 
     # Public endpoint guards (design.md R7). In Lambda the secrets come from Secrets
     # Manager ARNs and are resolved once at start-up (milewise.api.load_secrets).
     app_token: str = ""
     app_token_secret_arn: str = ""
     openai_api_key_secret_arn: str = ""
-    daily_request_limit: int = 100
+    # Owner pool: requests with APP_TOKEN (you and CI evals), separate from the public budget.
+    daily_request_limit: int = 300
     daily_cost_limit_usd: float = 1.0
 
 

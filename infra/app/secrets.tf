@@ -23,3 +23,12 @@ resource "aws_secretsmanager_secret_version" "app_token" {
   secret_id     = aws_secretsmanager_secret.app_token.id
   secret_string = random_password.app_token.result
 }
+
+# Cloudflare Turnstile secret key (bot check, design.md §4.8). Container only: the value is
+# written with `make put-turnstile-secret`, like the OpenAI key. Unused while
+# turnstile_site_key is empty.
+resource "aws_secretsmanager_secret" "turnstile" {
+  name                    = "${local.name}/turnstile-secret"
+  description             = "Cloudflare Turnstile secret key for the public page"
+  recovery_window_in_days = 0
+}

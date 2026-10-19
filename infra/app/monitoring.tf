@@ -35,7 +35,7 @@ resource "aws_cloudwatch_metric_alarm" "daily_llm_cost" {
   statistic           = "Sum"
   period              = 86400
   evaluation_periods  = 1
-  threshold           = var.daily_cost_limit_usd
+  threshold           = var.daily_cost_limit_usd + var.public_daily_cost_limit_usd
   comparison_operator = "GreaterThanThreshold"
   treat_missing_data  = "notBreaching"
   alarm_actions       = [aws_sns_topic.alerts.arn]

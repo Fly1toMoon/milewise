@@ -105,7 +105,7 @@ spike-down:  ## Destroy the spike cluster
 IMAGE_TAG ?= $(shell git rev-parse --short HEAD 2>/dev/null || date +dev-%Y%m%d%H%M%S)
 TFOUT      = $(TF) -chdir=$(APP_DIR) output -raw
 
-.PHONY: image index-cloud candidate eval-candidate promote release deploy app-init app-plan app-apply put-openai-key upload-raw smoke up down
+.PHONY: image index-cloud candidate eval-candidate promote release deploy app-init app-plan app-apply put-openai-key upload-raw smoke up down public-off public-on public-status put-turnstile-secret
 # Lambda rejects OCI indexes with attestation manifests, so attestations are disabled.
 image:  ## Build the arm64 image (code + build/index) and push it to ECR as $(IMAGE_TAG)
 	@test -f build/index/manifest.json || { echo "build/index missing: make index" >&2; exit 1; }
@@ -148,6 +148,26 @@ put-openai-key:  ## Optional (openai:* A/B models only): copy the OpenAI key fro
 upload-raw:  ## Upload raw rules pages to S3; the next release (CI or make release) indexes them
 	aws s3 sync raw/ s3://$$($(TF) -chdir=$(BOOTSTRAP_DIR) output -raw raw_docs_bucket)/ \
 	  --exclude "*" --include "nh/*.html" --include "jl/*.html"
+
+QUOTA_TABLE := milewise-quota
+public-off:  ## Close the public (token-free) endpoint now; the owner token keeps working
+	aws dynamodb put-item --table-name $(QUOTA_TABLE) --item \
+	  '{"pk":{"S":"config#public"},"enabled":{"BOOL":false},"expires_at":{"N":"4102444800"}}'
+	@echo "public endpoint closed (takes effect within 30 s)"
+
+public-on:  ## Reopen the public endpoint
+	aws dynamodb put-item --table-name $(QUOTA_TABLE) --item \
+	  '{"pk":{"S":"config#public"},"enabled":{"BOOL":true},"expires_at":{"N":"4102444800"}}'
+	@echo "public endpoint open (takes effect within 30 s)"
+
+public-status:  ## Kill switch and today's public / owner usage
+	@day=$$(TZ=Asia/Tokyo date +%F); for pk in config#public public#$$day owner#$$day alert#public#$$day; do \
+	  printf '%-26s ' $$pk; aws dynamodb get-item --table-name $(QUOTA_TABLE) --key "{\"pk\":{\"S\":\"$$pk\"}}" \
+	    --query 'Item.[enabled.BOOL, requests.N, cost_usd.N]' --output text; done
+
+put-turnstile-secret:  ## Store TURNSTILE_SECRET (from .env) in Secrets Manager; set turnstile_site_key in tfvars
+	@set -a; [ -f .env ] && . ./.env; set +a; test -n "$$TURNSTILE_SECRET" || { echo "TURNSTILE_SECRET is not set" >&2; exit 1; }; \
+	aws secretsmanager put-secret-value --secret-id milewise/turnstile-secret --secret-string "$$TURNSTILE_SECRET" --query Name --output text
 
 smoke:  ## Health, auth and one real question against the live URL
 	uv run python scripts/smoke.py $$($(TFOUT) live_url) $$($(TFOUT) app_token_secret_arn)
