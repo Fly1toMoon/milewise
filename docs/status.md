@@ -1,6 +1,6 @@
 # 进度与待办
 
-最后更新：2026-10-18（合作航空价目表、默认单程、Dashboard、检索评测；代码在 `feat/oneway-partner`，未合并）。详细记录见 [design.md §9](design.md)。
+最后更新：2026-10-19（网页公开访问上线：live v17）。详细记录见 [design.md §9](design.md)。
 
 ## 现状
 
@@ -13,6 +13,7 @@
 | Agent / 后置校验 | ✅ | 数字、引用、URL 都只允许来自工具结果。**2026-10-18 起模型全部在 Bedrock**：问答 / 重排 Nova 2 Lite，裁判 Nova Pro，embedding Titan V2（design.md §4.7） |
 | 评测 | 🟡 | 32 题全部通过（Nova 2 Lite，本地，2026-10-18，无不稳定题，$0.0093/问）：含伙伴航空 3 题、默认单程；检索评测另见 design.md §9.16。**标准答案已由出题者复核，但还没有人工核对** |
 | 云端 | ✅ | live v13（`43e3acc`，PR #3 合并后由 GitHub deploy 自动发布：索引从 S3 构建、embedding 全部命中缓存、candidate 评测 30/30、$0.28）。之前 v12（`725fb8d`）：Lambda + DynamoDB，无数据库；模型全部在 Bedrock。冒烟测试通过（7.1 s，$0.0063/问）。Aurora、SQS、导入 Lambda 已删除，评测历史导出到 `s3://…artifacts…/eval/aurora-export-2026-10-18/` |
+| 公开访问 | ✅ | live v17（`1ba8baa`）已上线并实测：不带 token 可以提问、同一问题第二次命中缓存（$0）、伪造 `x-amzn-request-context` / `X-Forwarded-For` 无法绕过按 IP 限流（第 6 次返回 `ip_window`）。网页不再需要 token：按 IP 限流（10 分钟 5 次 / 每天 20 次）、回答缓存、全站每日 1000 次或 $2（先到先停，触发时发邮件）、`make public-off` 开关；Turnstile 已支持，**等你在 Cloudflare 创建 site key 后启用**（design.md §4.8） |
 | Dashboard | ✅ | CloudWatch `milewise`：提问数/错误、延迟 p50/p95/冷启动、每日费用（对照上限）、token 与后置校验失败、最近 50 次提问 |
 | CI（GitHub Actions） | ✅ | `ci.yml`（PR：lint / 类型 / 测试 + pgvector / Terraform validate）、`deploy.yml`（main：带评测闸门的发布）。PR #1 合并后首次 deploy：评测 25/25 通过，live → v9（`de6bc95`），评测费用 $0.016 |
 
@@ -35,6 +36,7 @@
 - [x] ~~决定默认往返还是单程~~：默认单程（2026-10-18）
 - [x] ~~确认 SNS 订阅邮件~~（2026-10-18 已确认）
 - [x] ~~是否下载 OurAirports 机场坐标~~：已下载，只提交用到的 77 个机场
+- [ ] （可选）在 Cloudflare 创建 Turnstile 小组件，把 site key 告诉我、secret 放进 `.env` 的 `TURNSTILE_SECRET`，然后 `make put-turnstile-secret`
 - [x] ~~给云端单独建一个 OpenAI key~~：不再需要（模型都在 Bedrock；OpenAI 只用于本地 A/B）
 - [x] push 到 GitHub 并设置 CI 用的 repo 变量
 
