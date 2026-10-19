@@ -16,6 +16,7 @@
 | 2026-10-17 | **AWS 账户从 Free plan 升级为 Paid plan**。原因：spike 发现 Free plan 下 Aurora 只能用 express configuration（不能放进 VPC、只能 IAM 认证、存储 ≤ 1 GB），且 Terraform AWS provider 6.69.1 尚不支持该参数（[issue #47117](https://github.com/hashicorp/terraform-provider-aws/issues/47117)） | 原设计（VPC 私有 Aurora + Data API + 全部 Terraform）不用改；剩余抵扣额度 $140 保留；R21 降为低风险 |
 | 2026-10-17 | **spike 实测完成**（R1 已验证）、**M1 完成**（本地端到端） | 结果见 §9 |
 | 2026-10-18 | **去掉 Aurora：数据随镜像发布**（§4.6）。价目表直接读 repo 里的 CSV，规则索引（chunk + 向量）在构建时生成并打进镜像，内存检索；每日配额改用 DynamoDB，评测结果改存 S3 | 冷启动的约 20 秒唤醒等待消失；数据变更也要通过评测闸门，回滚 `live` 时数据一起回滚；Aurora、Data API、SQS/导入 Lambda 全部删除。§2、§4.3 中关于 Aurora 的内容保留为历史记录 |
+| 2026-10-19 | **网页公开、不再需要 token**（§4.8）：按 IP 限流、回答缓存、全站每日预算（1000 次 / $2，先到先停，触发时发邮件）、开关、可选的 Turnstile；运营者 token 单独计额 | R7 的防护从"token"改为"硬预算 + 限流"：最坏情况每天 $2 |
 | 2026-10-18 | **模型改为 Amazon Bedrock**（§4.7）：问答和重排用 Nova 2 Lite（`jp.` 日本跨区域推理），评测裁判用 Nova Pro，embedding 用 Titan Text Embeddings V2（1024 维）。OpenAI 保留为可选项，用于 A/B 对照 | 费用回到 AWS 账单，可用 AWS 抵扣额度，AWS Budgets 能看到（R20 大部分消失）；运行时和 CI 都不再需要 OpenAI key；裁判和答题不再是同一个模型（R10 缓解） |
 
 ---
@@ -630,6 +631,23 @@ Data API 的代价（会如实写进 README 的已知局限）：
 - **embedding 换模型 = 重建索引**：索引的 `manifest.json` 记录了 embedding 模型，查询时始终用索引的那个模型来 embed，不会出现两边不一致。
 - **代价**：Nova 2 Lite 的单价约是 Luna 的 4 倍（输入）/ 6.6 倍（输出）；另外 Bedrock 在带工具的请求里会附加约 900 token 的系统开销。实测每问成本见 §9.14。
 
+### 4.8 公开访问：不需要 token，靠限流和硬预算防滥用（2026-10-19）
+
+**目标**：打开网页就能用；就算被恶意刷，每天的模型费用也有确定的上限，而且运营者自己始终能用。
+
+| 顺序 | 措施 | 设定 | 说明 |
+|---|---|---|---|
+| 1 | 开关 | `make public-off` / `public-on` | 存在 DynamoDB 里，30 秒内生效，不用重新部署 |
+| 2 | 人机验证 | Cloudflare Turnstile（配置了 site key 才启用） | 每个问题一个 token，服务端调用 siteverify 校验 |
+| 3 | 按 IP 限流 | 每 10 分钟 5 次、每天 20 次 | IPv6 按 /64 合并；IP 取自 Lambda Web Adapter 传来的 Function URL 请求上下文（`x-amzn-request-context`），不信任客户端自带的 `X-Forwarded-For` |
+| 4 | 回答缓存 | 同一天、同一问题（规范化后）、同一数据版本、同一模型和 prompt | 命中缓存不花钱，也不计入全站预算；只缓存通过后置校验的回答 |
+| 5 | 全站每日预算 | 1000 次或 $2（日本时间按天），先到先停 | 当天第一次触发时通过 SNS 发一封邮件（用 DynamoDB 条件写入去重） |
+
+- **运营者额度**：带私有 token 的请求（你自己、CI 评测）跳过 1–5，单独计算每天 300 次 / $1。公开额度被刷光时，你和发布评测照常可用。
+- **最坏情况**：公开额度每天 $2 → 每月 $60，加上运营者额度（每天最多 $1，只有持有 token 才能用）。正常使用远低于此；告警阈值是两者之和（每天 $3）。
+- **状态存储**：新表 `milewise-quota`，以 `pk` 为键（`ip#…#w#…`、`ip#…#d#…`、`public#日期`、`owner#日期`、`cache#…`、`config#public`、`alert#public#日期`），全部带 TTL。旧表 `milewise-usage` 保留一个版本，让上线过程中仍在服务的旧版本继续可用。
+- **不做的事**：缩短回答长度、缩短问题长度（会影响回答质量，用户决定不做）。
+
 ## 5. 对象航司的数据调研
 
 调研日期 2026-10-16。以下 URL 都是公开页面，不需要登录。
@@ -1125,4 +1143,11 @@ ADR 列表（M1 起逐步补齐，放在 `docs/adr/`）：
 - 下一步候选：Bedrock 上的 Cohere embed（需要确认 AWS 抵扣额度是否覆盖第三方模型），或在检索前固定把问题翻成日文。
 
 **CloudWatch Dashboard**（`infra/app/dashboard.tf`，免费额度内）：提问数与错误、延迟 p50/p95 与冷启动、每日模型费用（附每日上限线）、token 与后置校验失败、最近 50 次提问的日志表。
+
+### 9.17 公开访问上线（2026-10-19，设计见 §4.8）
+
+- 部署顺序：先 `terraform apply`（新表 `milewise-quota`、Turnstile secret 容器、环境变量、IAM；不删除任何资源，正在服务的 v15 用的是旧表和旧环境变量，不受影响），再 `make release` → candidate 评测 32/32（$0.33）→ live v17。整个过程没有中断。
+- 线上实测：不带 token 的提问 200（$0.0057）；同一问题再问 4 次全部命中缓存（$0）；这 4 次和之后的请求都带着伪造的 `x-amzn-request-context` / `X-Forwarded-For`，第 6 次仍返回 `ip_window`——计数用的是 DynamoDB 里记录的真实客户端 IPv6 /64，伪造的请求头无效。
+- 顺带修正：SSE 循环原来每 3 秒才检查一次回答是否完成，平均给每个回答多加约 1.5 秒；改为回答一完成就返回。
+- 待清理：旧表 `milewise-usage` 在下一次发布后删除。
 
