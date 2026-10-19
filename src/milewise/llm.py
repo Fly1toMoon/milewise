@@ -149,10 +149,17 @@ def structured(
 
 
 def embed(
-    texts: Sequence[str], model: str | None = None, s: Settings | None = None
+    texts: Sequence[str],
+    model: str | None = None,
+    s: Settings | None = None,
+    kind: str = "document",
 ) -> list[list[float]]:
+    """kind: "document" for indexed chunks, "query" for questions (Cohere embeds them
+    differently; Titan and OpenAI ignore it)."""
     s = s or get_settings()
     provider, mid = parse(model or s.embedding_model)
+    if provider == "bedrock" and mid.startswith("cohere."):
+        return _embed_cohere(texts, mid, s, kind)
     if provider == "bedrock":
         client = _bedrock(s.bedrock_region)
         out = []
@@ -173,3 +180,24 @@ def embed(
         )
         result.extend(d.embedding for d in sorted(r.data, key=lambda d: d.index))
     return result
+
+
+COHERE_BATCH = 96  # Cohere on Bedrock: up to 96 texts per request
+
+
+def _embed_cohere(texts: Sequence[str], mid: str, s: Settings, kind: str) -> list[list[float]]:
+    client = _bedrock(s.bedrock_region)
+    out: list[list[float]] = []
+    for i in range(0, len(texts), COHERE_BATCH):
+        body: dict[str, Any] = {
+            "texts": list(texts[i : i + COHERE_BATCH]),
+            "input_type": "search_query" if kind == "query" else "search_document",
+            "embedding_types": ["float"],
+            "truncate": "END",
+        }
+        if "v4" in mid:
+            body["output_dimension"] = s.embedding_dimensions
+        r = client.invoke_model(modelId=mid, body=json.dumps(body))
+        emb = json.loads(r["body"].read())["embeddings"]
+        out.extend(emb["float"] if isinstance(emb, dict) else emb)
+    return out

@@ -28,7 +28,7 @@ variable "judge_model" {
 variable "embedding_model" {
   description = "Bedrock embedding model the rules index is built with (must match the app's EMBEDDING_MODEL)."
   type        = string
-  default     = "amazon.titan-embed-text-v2:0"
+  default     = "cohere.embed-multilingual-v3"
 }
 
 variable "public_daily_request_limit" {
