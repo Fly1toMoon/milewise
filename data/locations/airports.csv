@@ -1,23 +1,41 @@
-# OurAirports (public domain), extracted 2026-10-18
+# OurAirports (public domain), extracted 2026-10-20
 iata,name,iso_country,lat,lon
+AKL,Auckland International Airport,NZ,-37.0120,174.7863
+AMM,Queen Alia International Airport,JO,31.7226,35.9932
+AMS,Amsterdam Airport Schiphol,NL,52.3086,4.7639
 ARN,Stockholm-Arlanda Airport,SE,59.6485,17.9288
+ATH,Athens Eleftherios Venizelos International Airport,GR,37.9364,23.9445
+AUH,Zayed International Airport,AE,24.4410,54.6492
+BCN,Josep Tarradellas Barcelona-El Prat Airport,ES,41.2971,2.0785
 BKK,Suvarnabhumi Airport,TH,13.6811,100.7470
 BLR,Kempegowda International Airport Bengaluru,IN,13.1979,77.7063
+BNE,Brisbane International Airport,AU,-27.3842,153.1170
 BOM,Chhatrapati Shivaji Maharaj International Airport,IN,19.0887,72.8679
 BOS,Boston Logan International Airport,US,42.3620,-71.0079
 BRU,Brussels Airport,BE,50.9014,4.4844
+BUD,Budapest Liszt Ferenc International Airport,HU,47.4302,19.2624
+CAI,Cairo International Airport,EG,30.1115,31.3967
 CAN,Guangzhou Baiyun International Airport,CN,23.3924,113.2990
 CDG,Charles de Gaulle International Airport,FR,49.0090,2.5541
+CEB,Mactan Cebu International Airport,PH,10.3093,123.9797
 CGK,Soekarno-Hatta International Airport,ID,-6.1256,106.6560
+CMB,Bandaranaike International Colombo Airport,LK,7.1808,79.8841
+CPH,Copenhagen Kastrup Airport,DK,55.6179,12.6560
 CTS,New Chitose Airport,JP,42.7748,141.6904
 CTU,Chengdu Shuangliu International Airport,CN,30.5583,103.9460
+CUN,Cancún International Airport,MX,21.0408,-86.8735
 DEL,Indira Gandhi International Airport,IN,28.5556,77.0952
 DFW,Dallas Fort Worth International Airport,US,32.8968,-97.0380
 DLC,Dalian Zhoushuizi International Airport,CN,38.9657,121.5385
 DMK,Don Mueang International Airport,TH,13.9126,100.6070
 DOH,Hamad International Airport,QA,25.2731,51.6081
+DPS,Denpasar I Gusti Ngurah Rai International Airport,ID,-8.7484,115.1671
+DUB,Dublin Airport,IE,53.4287,-6.2621
 DUS,Düsseldorf Airport,DE,51.2895,6.7668
+DXB,Dubai International Airport,AE,25.2498,55.3710
+EDI,Edinburgh Airport,GB,55.9501,-3.3723
 EWR,Newark Liberty International Airport,US,40.6894,-74.1705
+FCO,Rome–Fiumicino Leonardo da Vinci International Airport,IT,41.8045,12.2520
 FRA,Frankfurt Main Airport,DE,50.0267,8.5584
 FUK,Fukuoka Airport,JP,33.5859,130.4510
 GMP,Seoul Gimpo International Airport,KR,37.5583,126.7910
@@ -34,15 +52,24 @@ ICN,Incheon International Airport,KR,37.4691,126.4510
 IST,İstanbul Airport,TR,41.2749,28.7321
 ITM,Osaka Itami International Airport,JP,34.7809,135.4408
 JFK,John F. Kennedy International Airport,US,40.6394,-73.7793
+JNB,O.R. Tambo International Airport,ZA,-26.1401,28.2468
 KIX,Kansai International Airport,JP,34.4273,135.2440
 KOA,Ellison Onizuka Kona International Airport at Keāhole,US,19.7388,-156.0456
 KTI,Techo International Airport,KH,11.3600,104.9213
+KTM,Tribhuvan International Airport,NP,27.6966,85.3591
 KUL,Kuala Lumpur International Airport,MY,2.7456,101.7100
+LAS,Harry Reid International Airport,US,36.0834,-115.1518
 LAX,Los Angeles International Airport,US,33.9425,-118.4080
 LHR,London Heathrow Airport,GB,51.4707,-0.4599
+LIM,Jorge Chávez International Airport,PE,-12.0219,-77.1143
+LIS,Lisbon Humberto Delgado Airport,PT,38.7813,-9.1359
 MAA,Chennai International Airport,IN,12.9900,80.1693
+MAD,Adolfo Suárez Madrid–Barajas Airport,ES,40.4934,-3.5722
+MAN,Manchester Airport,GB,53.3494,-2.2795
 MEL,Melbourne Airport,AU,-37.6707,144.8379
 MEX,Mexico City Benito Juárez International Airport,MX,19.4358,-99.0703
+MIA,Miami International Airport,US,25.7960,-80.2898
+MLE,Velana International Airport,MV,4.1918,73.5291
 MNL,Ninoy Aquino International Airport,PH,14.5086,121.0200
 MUC,Munich Airport,DE,48.3538,11.7861
 MXP,Milan Malpensa International Airport,IT,45.6306,8.7281
@@ -50,10 +77,13 @@ NGO,Chubu Centrair International Airport,JP,34.8584,136.8050
 NRT,Narita International Airport,JP,35.7686,140.3887
 OKA,Naha International Airport,JP,26.1924,127.6398
 ORD,Chicago O'Hare International Airport,US,41.9786,-87.9048
+OSL,Oslo-Gardermoen International Airport,NO,60.1939,11.1004
 PEK,Beijing Capital International Airport,CN,40.0773,116.5967
 PER,Perth International Airport,AU,-31.9403,115.9670
+PHX,Phoenix Sky Harbor International Airport,US,33.4353,-112.0059
 PKX,Beijing Daxing International Airport,CN,39.5013,116.4140
 PNH,Phnom Penh International Airport,KH,11.5472,104.8447
+PRG,Václav Havel Airport Prague,CZ,50.1009,14.2599
 PVG,Shanghai Pudong International Airport,CN,31.1434,121.8050
 RGN,Yangon International Airport,MM,16.9073,96.1332
 SAN,San Diego International Airport,US,32.7336,-117.1900
@@ -74,6 +104,9 @@ TSA,Taipei Songshan International Airport,TW,25.0672,121.5528
 TSN,Tianjin Binhai International Airport,CN,39.1244,117.3460
 VIE,Vienna International Airport,AT,48.1103,16.5697
 VVO,Vladivostok International Airport,RU,43.3963,132.1482
+WAW,Warsaw Chopin Airport,PL,52.1657,20.9671
 WUH,Wuhan Tianhe International Airport,CN,30.7748,114.2137
 XMN,Xiamen Gaoqi International Airport,CN,24.5439,118.1275
 YVR,Vancouver International Airport,CA,49.1939,-123.1840
+YYZ,Toronto Pearson International Airport,CA,43.6759,-79.6294
+ZRH,Zürich Airport,CH,47.4581,8.5481

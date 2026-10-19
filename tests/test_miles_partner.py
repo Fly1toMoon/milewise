@@ -107,3 +107,74 @@ def test_jal_partner_distance_is_estimated_from_airports(fares: FareStore) -> No
     lon = partner(fares, "JL", "東京", "ロンドン", "C", trip_type="RT", partner_program="oneworld")
     # ~11,900 miles is within 3% of the 12,000 edge: both bands, no single total
     assert [r["miles"] for r in lon.results] == [110_000, 115_000] and lon.total_miles is None
+
+
+def test_jal_partner_itinerary_adds_up_every_leg(fares: FareStore) -> None:
+    # The session that found the gap: Tokyo-Hong Kong-London round trip is 15,576, not 11,920.
+    res = partner(
+        fares,
+        "JL",
+        "東京",
+        "ロンドン",
+        "C",
+        trip_type="RT",
+        itinerary=[["东京", "香港", "伦敦", "香港", "东京"]],
+    )
+    assert res.route == "HND→HKG→LHR→HKG→HND"
+    assert "15,576" in (res.calculation or "")
+    assert "HND–HKG 1,804 + HKG–LHR 5,984" in (res.calculation or "")
+    by_prog = {r["variant"].split(":")[0]: r["miles"] for r in res.results}
+    assert by_prog == {"oneworld": 120_000, "jmb_partner": 130_000}
+
+
+def test_jal_partner_open_jaw_does_not_count_the_land_part(fares: FareStore) -> None:
+    res = partner(
+        fares,
+        "JL",
+        "東京",
+        "ロンドン",
+        "Y",
+        itinerary=[["東京", "ロンドン"], ["パリ", "東京"]],
+        partner_program="oneworld",
+    )
+    assert res.route == "HND→LHR ／ 地上移動 LHR–CDG ／ CDG→HND"
+    assert "地上移動 LHR–CDG は距離に含めない" in (res.calculation or "")
+    assert "LHR–CDG" not in (res.calculation or "").split("。")[0]  # not in the sum
+
+
+def test_jal_partner_many_connections_and_segment_limit(fares: FareStore) -> None:
+    trip = ["東京", "香港", "ドーハ", "マドリード", "ロンドン", "ヘルシンキ", "東京"]
+    res = partner(fares, "JL", "東京", "ロンドン", "C", itinerary=[trip])
+    assert res.route == "HND→HKG→DOH→MAD→LHR→HEL→HND"
+    assert not any("上限" in c for c in res.caveats)  # 6 segments: within both limits
+    longer = partner(
+        fares, "JL", "東京", "ロンドン", "C", itinerary=[[*trip[:-1], "ドバイ", "東京"]]
+    )
+    assert any("jmb_partner: 飛行区間 7 は1特典の上限 6 区間を超える" in c for c in longer.caveats)
+    assert not any(c.startswith("oneworld:") for c in longer.caveats)
+
+
+def test_jal_partner_unknown_place_asks(fares: FareStore) -> None:
+    res = partner(
+        fares, "JL", "東京", "ロンドン", "C", itinerary=[["東京", "アトランティス", "ロンドン"]]
+    )
+    assert res.status == "needs_clarification" and "アトランティス" in res.message
+
+
+def test_jal_partner_round_trip_given_as_outbound_goes_back_the_same_way(fares: FareStore) -> None:
+    res = partner(
+        fares, "JL", "東京", "ロンドン", "C", trip_type="RT", itinerary=[["东京", "香港", "伦敦"]]
+    )
+    assert res.route == "HND→HKG→LHR→HKG→HND" and "15,576" in (res.calculation or "")
+
+
+def test_jal_partner_stretches_that_meet_are_one_journey(fares: FareStore) -> None:
+    res = partner(
+        fares,
+        "JL",
+        "東京",
+        "ロンドン",
+        "C",
+        itinerary=[["東京", "香港", "倫敦"], ["倫敦", "香港", "東京"]],
+    )
+    assert res.route == "HND→HKG→LHR→HKG→HND" and "地上移動" not in (res.calculation or "")
