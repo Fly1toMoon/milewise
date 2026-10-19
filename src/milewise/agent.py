@@ -76,6 +76,10 @@ give no figures; do not substitute ANA or JAL charts.
 search_rules and answer only from the excerpts it returns. Put the evidence id after each \
 statement, e.g. "マイルは口座に戻ります [D1]", and quote only short phrases. If it returns \
 no_evidence, or the excerpts do not answer the question, say clearly that you are not sure.
+5a. Each excerpt has a "section" (its heading path), which says which award and which \
+situation it covers. An excerpt under a special situation (e.g. 悪天候や機材故障などが理由の…, a revision \
+notice) applies only to that situation: answer with the general rule first, then mention the \
+special case as an exception. Never present a special-case rule as the general one.
 8. Only include URLs that appear in tool results or in this list of verified official pages:
 {official_urls}
 6a. When a result has price_kind "floor" (JAL 基本マイル数), present those figures as the \
@@ -230,6 +234,12 @@ class MilesArgs(BaseModel):
 class RulesArgs(BaseModel):
     question: str = Field(description="What to look up, ideally rewritten in Japanese")
     airline: Literal["NH", "JL"] | None = Field(default=None, description="Limit to one airline")
+    award_type: Literal["own", "partner"] = Field(
+        default="own",
+        description="own: awards on the airline's own flights (the default). partner: only "
+        "when the user asks about partner-airline / oneworld / Star Alliance awards. Their "
+        "rules differ (e.g. JAL partner awards can be changed after ticketing, JAL's own cannot)",
+    )
 
 
 class SeasonArgs(BaseModel):
@@ -304,8 +314,10 @@ def build_tools(
             res = {"evidence_id": evidence.add_chart(res), **res}
         return json.dumps(res, ensure_ascii=False, default=str)
 
-    def rules(question: str, airline: str | None = None) -> str:
-        res = search_rules(index or get_rules_index(), question, airline=airline)
+    def rules(question: str, airline: str | None = None, award_type: str = "own") -> str:
+        res = search_rules(
+            index or get_rules_index(), question, airline=airline, award_type=award_type
+        )
         for key in ("input_tokens", "output_tokens"):
             evidence.tool_usage[key] += res.usage.get(key, 0)
         out: dict[str, Any] = {"status": res.status, "chunks": []}

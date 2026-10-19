@@ -49,6 +49,20 @@ def _body(chunk: Chunk) -> str:
     return chunk.text.split("\n", 1)[1] if "\n" in chunk.text else chunk.text
 
 
+def award_of(source: dict[str, Any]) -> str:
+    """own | partner | general: which award type a page's rules are about (§9.18).
+
+    The oneworld / JMB-partner / ANA-partner pages reuse the own-award pages' wording
+    almost verbatim, with opposite rules (JAL partner awards can be changed after
+    ticketing, JAL's own cannot), so retrieval must not mix them up.
+    """
+    if source.get("doc_type") == "partner":
+        return "partner"
+    if "-intl-award-" in source["id"]:
+        return "own"
+    return "general"
+
+
 def embedding_key(model: str, dims: int, text: str) -> str:
     return _sha(f"{model}|{dims}|{text}")
 
@@ -131,6 +145,7 @@ def build_index(
                     "url": src["url"],
                     "title": title,
                     "doc_type": src.get("doc_type", "rules"),
+                    "award": award_of(src),
                     "lang": src.get("lang", "ja"),
                     "fetched_date": docs[-1]["fetched_date"],
                     "ord": c.ord,
@@ -183,6 +198,7 @@ class RulesIndex:
         assert len(chunks) == vectors.shape[0], "chunks.jsonl and embeddings.npy disagree"
         self.chunks, self.vectors, self.manifest = chunks, vectors, manifest
         self._airline = np.array([c["airline"] for c in chunks])
+        self._award = np.array([c.get("award", "general") for c in chunks])
         self._url = np.array([c["url"] for c in chunks])
 
     @classmethod
@@ -201,7 +217,9 @@ class RulesIndex:
         m = self.manifest
         return {k: m.get(k) for k in ("content_sha256", "built_at", "n_chunks", "embedding_model")}
 
-    def recall(self, vec: Sequence[float], airline: str | None, k: int) -> list[dict[str, Any]]:
+    def recall(
+        self, vec: Sequence[float], airline: str | None, k: int, award: str | None = None
+    ) -> list[dict[str, Any]]:
         """Nearest chunks by cosine similarity, one per distinct body text.
 
         The same notice is printed on many pages; without the de-duplication its copies
@@ -213,6 +231,8 @@ class RulesIndex:
         q = q / (np.linalg.norm(q) or 1.0)
         scores = self.vectors @ q
         mask = np.ones(len(self.chunks), bool) if not airline else self._airline == airline
+        if award in ("own", "partner"):  # the other award type's pages are left out
+            mask &= self._award != ("partner" if award == "own" else "own")
         idx = np.flatnonzero(mask)
         order = idx[np.lexsort((self._url[idx], -scores[idx]))]
         out, seen = [], set()
@@ -229,6 +249,8 @@ class RulesIndex:
                     "source_url": c["url"],
                     "airline": c["airline"],
                     "doc_type": c["doc_type"],
+                    "award": c.get("award", "general"),
+                    "section": " > ".join(c.get("section_path", [])[1:]),
                     "fetched_date": c["fetched_date"],
                     "score": float(scores[i]),
                 }
