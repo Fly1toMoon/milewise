@@ -201,3 +201,35 @@ def test_notice_repeated_across_pages_is_stored_whole_but_retrieved_once(
     }
     assert all(r["airline"] == "JL" for r in rows)
     assert rows[0]["score"] == pytest.approx(1.0, abs=1e-5)
+
+
+def test_award_type_keeps_partner_rules_out_of_own_award_answers(tmp_path: Path) -> None:
+    from milewise.rag.index import award_of
+
+    own = {"airline": "JL", "url": "https://example.test/jal/inter/cancel", "lang": "ja"}
+    partner = {
+        "airline": "JL",
+        "url": "https://example.test/partner/cancel",
+        "lang": "ja",
+        "doc_type": "partner",
+    }
+    sources = write_site(
+        tmp_path,
+        {
+            "jal-intl-award-refund": (
+                own,
+                _page("JAL国際線特典航空券", "予約の変更", "発券後の予約変更は承れません。"),
+            ),
+            "jal-ow-award-refund": (
+                partner,
+                _page("ワンワールド特典航空券", "予約の変更", "発券後も予約変更が可能です。"),
+            ),
+        },
+    )
+    index = build(tmp_path, sources, CountingEmbed())
+    assert {c["award"] for c in index.chunks} == {"own", "partner"}
+    [q] = fake_embed(["ワンワールド特典航空券 > 予約の変更\n発券後も予約変更が可能です。"])
+    own_rows = index.recall(q, "JL", k=20, award="own")
+    assert own_rows and all(r["source_url"].endswith("/jal/inter/cancel") for r in own_rows)
+    assert {r["award"] for r in index.recall(q, "JL", k=20, award="partner")} == {"partner"}
+    assert award_of({"id": "ana-fuel-surcharge", "doc_type": "fees"}) == "general"

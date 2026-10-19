@@ -25,7 +25,8 @@ class Settings(BaseSettings):
     rerank_model: str = "bedrock:jp.amazon.nova-2-lite-v1:0"  # search_rules relevance filter
     # A different model family from the answering one, so the judge is not grading itself (R10).
     judge_model: str = "bedrock:apac.amazon.nova-pro-v1:0"
-    embedding_model: str = "bedrock:amazon.titan-embed-text-v2:0"
+    # Cohere multilingual: best cross-lingual recall (zh/en questions, ja pages; §9.18)
+    embedding_model: str = "bedrock:cohere.embed-multilingual-v3"
     embedding_dimensions: int = 1024
     reasoning_effort: str = "low"
     bedrock_region: str = "ap-northeast-1"

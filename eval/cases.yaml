@@ -25,6 +25,7 @@ defaults:
   ana_partner: &ana_partner https://www.ana.co.jp/ja/jp/guide/amc/award/tk/usage/
   ana_partner_chart: &ana_partner_chart https://www.ana.co.jp/ja/jp/guide/amc/award/tk/zone/
   jal_ow_chart: &jal_ow_chart https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/oneworld/miles.html
+  jal_ow_refund: &jal_ow_refund https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/oneworld/cancel.html
   jal_jmbp_chart: &jal_jmbp_chart https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/p_jmb/jmb_mile.html
   ana_revision: &ana_revision https://www.ana.co.jp/ja/jp/guide/amc/award/tk/zone/info/250415/
   jal_chart: &jal_chart https://www.jal.co.jp/jp/ja/jalmile/use/jal/inter/routemiles.html
@@ -467,6 +468,22 @@ cases:
     verified_at: null
     crosschecked_at: 2026-10-18
     verified_by: null
+
+  - id: rules-10
+    category: rules
+    lang: ja
+    question: "JALのワンワールド特典航空券は、発券後に日付を変更できる？"
+    expected:
+      reference: >-
+        ワンワールド特典航空券は、マイル引き落とし（発券）後も条件付きで日付と便の変更ができる
+        （旅行開始前は特典発行日から1年以内の旅程、Web は第一区間出発の48時間前まで等）。
+        搭乗者名・航空会社・区間・クラス・経路の変更はできない。JAL国際線特典航空券（自社便）は逆に発券後の変更不可。
+      must_mention: ["発券後も条件付きで日付・便の変更ができる"]
+      must_not_say: ["発券後は変更できない（取り消して取り直す必要がある）"]
+    gold_urls: [*jal_ow_refund]
+    source_note: "ワンワールド特典航空券 変更・払い戻し > マイル引き落とし（発券）後の変更 > 変更いただけるもの / 変更いただけないもの。rules-08（自社便は変更不可）と対になるケース"
+    verified_at: null
+    crosschecked_at: 2026-10-19
 
   # ---------------------------------------------------------------- both (2)
   - id: both-01

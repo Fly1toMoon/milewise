@@ -34,6 +34,9 @@ def main(argv: list[str] | None = None) -> int:
     p_ret.add_argument(
         "--raw", default="raw", help="raw pages for re-indexing with --embedding-model"
     )
+    p_ret.add_argument(
+        "--translate", action="store_true", help="translate non-Japanese queries to Japanese first"
+    )
     p_ask = sub.add_parser("ask", help="answer a question")
     p_ask.add_argument("question")
     p_ask.add_argument("--model", help="override the chat model (e.g. gpt-6.1-sol)")
@@ -63,7 +66,9 @@ def main(argv: list[str] | None = None) -> int:
 
         print(
             json.dumps(
-                run_retrieval(args.embedding_model, Path(args.raw))["summary"],
+                run_retrieval(args.embedding_model, Path(args.raw), translate=args.translate)[
+                    "summary"
+                ],
                 ensure_ascii=False,
                 indent=2,
             )
