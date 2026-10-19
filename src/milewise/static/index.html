@@ -43,9 +43,12 @@
   <div id="answer"></div>
   <div class="meta" id="meta"></div>
 
+  <div id="turnstile"></div>
+  <p class="meta">無料デモ：1つのネットワークにつき10分間に5回・1日20回まで。全体の1日の上限に達すると翌日0時（日本時間）まで停止します。同じ質問は当日中キャッシュから回答します。</p>
+
   <details id="settings">
-    <summary>アクセストークン</summary>
-    <p>このデモは費用保護のためトークンが必要です（ブラウザ内にのみ保存されます）。</p>
+    <summary>オーナートークン（任意）</summary>
+    <p>運営者用です。入力すると公開デモの上限とは別枠で利用できます（ブラウザ内にのみ保存）。</p>
     <input id="token" type="password" autocomplete="off">
   </details>
 </main>
@@ -60,8 +63,27 @@ const $ = (id) => document.getElementById(id);
 const store = { get(k) { try { return localStorage.getItem(k) || ""; } catch { return ""; } },
                 set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
 $("token").value = store.get("milewise-token");
-if (!$("token").value) $("settings").open = true;
 $("token").addEventListener("change", (e) => store.set("milewise-token", e.target.value.trim()));
+
+// Cloudflare Turnstile, only when the server has a site key configured.
+let turnstileWidget = null;
+fetch("/config").then((r) => r.json()).then((cfg) => {
+  if (!cfg.turnstile_site_key) return;
+  window.onTurnstileLoad = () => {
+    turnstileWidget = turnstile.render("#turnstile", { sitekey: cfg.turnstile_site_key, size: "flexible" });
+  };
+  const sc = document.createElement("script");
+  sc.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoad&render=explicit";
+  sc.async = true; document.head.append(sc);
+}).catch(() => {});
+const DENIED = {
+  ip_window: "短時間に質問が多すぎます。数分後にもう一度お試しください。",
+  ip_daily: "このネットワークからの本日の質問回数の上限に達しました。明日またお試しください。",
+  public_budget: "本日の無料デモの上限に達しました。日本時間の0時に再開します。",
+  owner_budget: "オーナー枠の本日の上限に達しました。",
+  public_off: "公開デモは一時停止中です。しばらくしてからお試しください。",
+  bot_check: "確認が完了していません。チェックを済ませてからもう一度送信してください。",
+};
 for (const ex of EXAMPLES) {
   const b = document.createElement("button"); b.type = "button"; b.textContent = ex;
   b.onclick = () => { $("q").value = ex; $("f").requestSubmit(); };
@@ -92,14 +114,21 @@ $("f").addEventListener("submit", async (e) => {
   e.preventDefault();
   const question = $("q").value.trim(); if (!question) return;
   $("go").disabled = true; $("answer").innerHTML = ""; $("meta").textContent = "";
-  $("status").textContent = "考えています…（データベースが休止中なら最初の質問は20秒ほどかかります）";
+  $("status").textContent = "考えています…（10秒ほどかかります）";
   try {
-    const res = await fetch("/ask", { method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + $("token").value.trim() },
-      body: JSON.stringify({ question }) });
-    if (!res.ok) { $("status").textContent = res.status === 401 ? "トークンが正しくありません。" :
-                   res.status === 429 ? "本日の利用上限に達しました。" : `エラー (${res.status})`;
-                   if (res.status === 401) $("settings").open = true; return; }
+    const headers = { "Content-Type": "application/json" };
+    const token = $("token").value.trim();
+    if (token) headers["Authorization"] = "Bearer " + token;
+    if (window.turnstile && turnstileWidget !== null) {
+      headers["X-Turnstile-Token"] = turnstile.getResponse(turnstileWidget) || "";
+      turnstile.reset(turnstileWidget);  // one token per question
+    }
+    const res = await fetch("/ask", { method: "POST", headers, body: JSON.stringify({ question }) });
+    if (!res.ok) {
+      let code = ""; try { code = (await res.json()).code || ""; } catch {}
+      $("status").textContent = DENIED[code] || `エラー (${res.status})`;
+      return;
+    }
     const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = "";
     for (;;) {
       const { value, done } = await reader.read(); if (done) break;
@@ -111,7 +140,7 @@ $("f").addEventListener("submit", async (e) => {
         if (!ev || !data) continue;
         const d = JSON.parse(data);
         if (ev === "answer") { $("answer").innerHTML = render(d.text); $("status").textContent = ""; }
-        if (ev === "done") $("meta").innerHTML = `${(d.latency_ms/1000).toFixed(1)} s · $${d.cost_usd.toFixed(5)} · ${esc(d.model)}`
+        if (ev === "done") $("meta").innerHTML = (d.cached ? "キャッシュから回答 · " : `${(d.latency_ms/1000).toFixed(1)} s · $${d.cost_usd.toFixed(5)} · `) + esc(d.model)
           + (d.postcheck_ok ? "" : ' · <span class="warn">自動チェック警告あり</span>');
         if (ev === "error") $("status").textContent = "エラーが発生しました（" + d.request_id + "）";
       }

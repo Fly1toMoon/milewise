@@ -31,8 +31,38 @@ variable "embedding_model" {
   default     = "amazon.titan-embed-text-v2:0"
 }
 
+variable "public_daily_request_limit" {
+  description = "Public (token-free) questions per JST day for all users together."
+  type        = number
+  default     = 1000
+}
+
+variable "public_daily_cost_limit_usd" {
+  description = "Public model spend per JST day; with the request limit, whichever is reached first closes the day."
+  type        = number
+  default     = 2
+}
+
+variable "ip_window_limit" {
+  description = "Public questions per IP (IPv6 /64) per 10 minutes."
+  type        = number
+  default     = 5
+}
+
+variable "ip_daily_limit" {
+  description = "Public questions per IP per JST day."
+  type        = number
+  default     = 20
+}
+
+variable "turnstile_site_key" {
+  description = "Cloudflare Turnstile site key; empty disables the bot check."
+  type        = string
+  default     = ""
+}
+
 variable "daily_request_limit" {
-  description = "Requests/day to POST /ask, CI evals included (25 cases + retries per release)."
+  description = "Owner-token requests/day (you and CI evals: ~32-64 per release), separate from the public budget."
   type        = number
   default     = 300
 }
