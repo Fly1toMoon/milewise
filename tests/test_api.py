@@ -54,12 +54,30 @@ def client(
     g = make_guard(store, calls)
     monkeypatch.setattr(api, "guard", lambda: g)
 
-    def fake_ask(question: str) -> AskResult:
+    def fake_ask(question: str, on_event: Any = None) -> AskResult:
         calls.asked.append(question)
+        if on_event:
+            on_event("delta", {"text": "調べます"})  # a preamble, discarded by the tool call
+            on_event("tool", {"name": "get_required_miles"})
+            on_event("delta", {"text": "110,000"})
+            on_event("delta", {"text": "マイル [C1]"})
         return AskResult(
             question=question,
             answer="110,000マイル [C1]",
-            evidence={"C1": {"chart": {"source_url": "https://www.ana.co.jp/x"}}},
+            evidence={
+                "C1": {
+                    "origin": {"input": "東京", "city_code": "TYO"},
+                    "destination": {"input": "ロンドン", "city_code": "LON"},
+                    "cabin": "C",
+                    "trip_type": "RT",
+                    "chart": {
+                        "chart_ids": ["NH-INTL-OWN-RT@2025-06-24"],
+                        "booking_from": "2025-06-24",
+                        "source_url": "https://www.ana.co.jp/x",
+                        "fetched_at": "2026-10-17T00:33:45+09:00",
+                    },
+                }
+            },
             postcheck=PostCheck(True, [], [], []),
             tool_calls=[{"name": "get_required_miles", "args": {}}],
             usage={
@@ -111,12 +129,55 @@ def test_public_question_needs_no_token_and_is_counted(
     r = ask(client, "東京→ロンドン")
     assert r.status_code == 200 and r.headers["content-type"].startswith("text/event-stream")
     events = sse_events(r.text)
-    assert [e for e, _ in events] == ["status", "answer", "done"]
-    assert events[2][1]["cached"] is False and events[2][1]["sources"] == [
+    assert [e for e, _ in events] == [
+        "status",
+        "delta",
+        "progress",
+        "delta",
+        "delta",
+        "answer",
+        "done",
+    ]
+    assert events[2][1]["name"] == "get_required_miles"
+    assert "".join(d["text"] for e, d in events[3:5]) == events[5][1]["text"]
+    assert events[-1][1]["cached"] is False and events[-1][1]["sources"] == [
         "https://www.ana.co.jp/x"
     ]
     [day] = [v for k, v in store.items.items() if k.startswith("public#")]
     assert day["requests"] == 1 and day["cost_usd"] == pytest.approx(0.0003)
+
+
+def test_done_describes_each_citation(client: TestClient) -> None:
+    done = sse_events(ask(client, "東京→ロンドン").text)[-1][1]
+    assert done["evidence"] == {"C1": "https://www.ana.co.jp/x"}  # evaluator contract
+    assert done["evidence_detail"]["C1"] == {
+        "kind": "chart",
+        "url": "https://www.ana.co.jp/x",
+        "charts": ["NH-INTL-OWN-RT@2025-06-24"],
+        "booking_from": "2025-06-24",
+        "fetched": "2026-10-17",
+        "route": ["TYO", "LON"],
+        "cabin": "C",
+        "trip_type": "RT",
+    }
+
+
+def test_rule_evidence_card() -> None:
+    card = api.evidence_card(
+        {
+            "title": "払い戻し",
+            "url": "https://www.jal.co.jp/c",
+            "section": "手数料",
+            "fetched_date": "2026-10-17",
+        }
+    )
+    assert card == {
+        "kind": "rule",
+        "url": "https://www.jal.co.jp/c",
+        "title": "払い戻し",
+        "section": "手数料",
+        "fetched": "2026-10-17",
+    }
 
 
 def test_same_question_is_answered_from_cache_for_free(
