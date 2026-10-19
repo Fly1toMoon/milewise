@@ -9,13 +9,14 @@ from __future__ import annotations
 import json
 import re
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Any, Literal
 
 from langchain.agents import create_agent
 from langchain.agents.middleware import ModelCallLimitMiddleware, ToolCallLimitMiddleware
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, AIMessageChunk
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 
@@ -386,13 +387,40 @@ def _usage(messages: list[Any]) -> dict[str, int]:
     return total
 
 
+def _stream(
+    agent: Any, inputs: dict[str, Any], on_event: Callable[[str, dict[str, Any]], None]
+) -> dict[str, Any]:
+    state: dict[str, Any] = {}
+    for mode, payload in agent.stream(inputs, stream_mode=["messages", "values"]):
+        if mode == "values":
+            state = payload
+            continue
+        chunk, meta = payload
+        # only the agent's own model node; the reranker inside search_rules is not streamed
+        if meta.get("langgraph_node") != "model" or not isinstance(chunk, AIMessageChunk):
+            continue
+        for tc in chunk.tool_call_chunks:
+            if tc.get("name"):
+                on_event("tool", {"name": tc["name"]})
+        if chunk.text:
+            on_event("delta", {"text": chunk.text})
+    return state
+
+
 def ask(
     question: str,
     fares: FareStore | None = None,
     index: RulesIndex | None = None,
     settings: Settings | None = None,
     model: str | None = None,
+    on_event: Callable[[str, dict[str, Any]], None] | None = None,
 ) -> AskResult:
+    """Answer one question. With `on_event`, the run is streamed: ("tool", {"name"}) when the
+    model starts a tool call and ("delta", {"text"}) for answer text as it is generated.
+    Text that precedes a tool call is a preamble, not the answer, so a "tool" event tells
+    the listener to discard what it has shown so far. The returned answer is authoritative
+    (it may carry the post-check warning).
+    """
     s = settings or get_settings()
     agent_model = model or s.chat_model
     evidence = Evidence()
@@ -413,7 +441,8 @@ def ask(
         middleware=middleware,
     )
     t0 = time.perf_counter()
-    state = agent.invoke({"messages": [{"role": "user", "content": question}]})
+    inputs: Any = {"messages": [{"role": "user", "content": question}]}
+    state = agent.invoke(inputs) if on_event is None else _stream(agent, inputs, on_event)
     latency_ms = round((time.perf_counter() - t0) * 1000)
 
     messages = state["messages"]

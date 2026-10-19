@@ -43,7 +43,7 @@ data "aws_iam_policy_document" "lambda_trust" {
 data "aws_iam_policy_document" "app_common" {
   statement {
     sid       = "Bedrock"
-    actions   = ["bedrock:InvokeModel"]
+    actions   = ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"] # the page streams answers
     resources = concat(local.bedrock_chat, local.bedrock_embedding)
   }
   statement {
