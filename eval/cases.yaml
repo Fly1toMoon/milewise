@@ -554,3 +554,66 @@ cases:
     verified_at: null
     crosschecked_at: 2026-10-18
     verified_by: null
+
+  # ---------------------------------------------------------------- follow-ups (2026-10-19)
+  # history holds the earlier turns as the page sends them; the answer is graded for the
+  # last question only. Gold figures are the same official-page figures as miles-01/09/15
+  # and rules-01.
+  - id: multi-01
+    category: miles
+    lang: zh
+    history:
+      - {role: user, content: "东京到伦敦单程商务舱，ANA要多少里程？"}
+      - {role: assistant, content: "ANA 东京→伦敦商务舱单程（按单程计算）：L 55,000里程、R 57,500里程、H 90,000里程。燃油附加费和税费另付，有无空位需另行确认。"}
+    question: "那JAL呢？"
+    expected:
+      miles: [57000]
+      reference: "沿用上一问的东京→伦敦、商务舱、单程，换成 JAL：基本里程 57,000 起（最少），特典航空券PLUS 时最多 441,000。"
+      must_mention:
+        - "回答的是 JAL 东京→伦敦商务舱单程"
+        - "57,000 是最低值（基本里程），可能因特典航空券PLUS 而更高"
+      must_not_say: ["JAL 也是 55,000 / 57,500 / 90,000", "JAL 商务舱固定 57,000"]
+    gold_urls: [*jal_chart]
+    source_note: "miles-09 / miles-15 と同じ: JAL ロンドン C 基本 57,000、PLUS 最大 441,000"
+    verified_at: null
+    crosschecked_at: 2026-10-19
+    verified_by: null
+
+  - id: multi-02
+    category: miles
+    lang: ja
+    history:
+      - {role: user, content: "ANAで東京→ロンドンのビジネスクラス往復の特典航空券は何マイル必要？"}
+      - {role: assistant, content: "ANA 東京→ロンドン ビジネスクラス往復：Lシーズン 110,000マイル、Rシーズン 115,000マイル、Hシーズン 180,000マイル。燃油特別付加運賃・税金は別途必要です。"}
+    question: "片道ならどうなる？"
+    expected:
+      miles: [55000, 57500, 90000]
+      reference: "同じ東京→ロンドン・ビジネスクラスの片道：L 55,000 / R 57,500 / H 90,000 マイル。"
+      must_mention: ["片道の L/R/H それぞれのマイル数"]
+      must_not_say: ["往復の 110,000 / 115,000 / 180,000 を片道として示す"]
+    gold_urls: [*ana_chart]
+    source_note: "片道 Zone1-Zone7 C: 55,000/57,500/90,000（miles-15 と同じ）"
+    verified_at: null
+    crosschecked_at: 2026-10-19
+    verified_by: null
+
+  - id: multi-03
+    category: rules
+    lang: en
+    history:
+      - {role: user, content: "ANA business class one way Tokyo to Singapore: how many miles?"}
+      - {role: assistant, content: "ANA Tokyo to Singapore, business class one way: L season 40,000 miles, R season 42,500 miles, H season 47,500 miles. Fuel surcharges and taxes are extra."}
+    question: "If I cancel it later, do I get the miles back? Is there a fee?"
+    expected:
+      reference: >-
+        The question is about refunding (cancelling) an ANA international award ticket. Miles return
+        to the account only if every segment is unused and it is done before departure. For tickets
+        booked on or after 24 June 2025 the cancellation fee can be paid by credit card or in miles;
+        for earlier ones it is 3,000 miles per person. Miles already expired at refund time do not return.
+      must_mention: ["miles come back only if all segments are unused", "there is a cancellation fee (3,000 miles per person, or a choice depending on when it was booked)"]
+      must_not_say: ["the refund is free", "partially used tickets can be refunded"]
+    gold_urls: [*ana_refund, *ana_revision]
+    source_note: "rules-01 と同じ（変更・払い戻し > 未使用特典の払い戻し、改定のお知らせ）"
+    verified_at: null
+    crosschecked_at: 2026-10-19
+    verified_by: null

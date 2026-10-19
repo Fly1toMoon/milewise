@@ -105,7 +105,7 @@ def judge(
         model,
         name="grade",
         instructions=JUDGE_INSTRUCTIONS,
-        prompt=f"Question: {case['question']}\n\nRubric:\n{_rubric(case)}\n\nAnswer to grade:\n{answer}",
+        prompt=f"{_earlier(case)}Question: {case['question']}\n\nRubric:\n{_rubric(case)}\n\nAnswer to grade:\n{answer}",
         schema=JUDGE_SCHEMA,
         s=s,
     )
@@ -133,3 +133,12 @@ def grade(case: dict[str, Any], res: AskResult, s: Settings, judge_model: str) -
     urls = cited_urls(res)
     citation_ok = bool(set(urls) & set(case["gold_urls"])) if case["gold_urls"] else None
     return Grade(miles_ok, judge_ok, rationale, citation_ok, urls, usage)
+
+
+def _earlier(case: dict[str, Any]) -> str:
+    """Earlier turns of a follow-up case, so the judge knows what the question refers to."""
+    turns = case.get("history") or []
+    if not turns:
+        return ""
+    lines = "\n".join(f"{t['role']}: {t['content']}" for t in turns)
+    return f"Earlier in the conversation:\n{lines}\n\n(The answer below is to the last question.)\n"

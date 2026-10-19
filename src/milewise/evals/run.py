@@ -58,12 +58,13 @@ def case_sha(case: dict[str, Any]) -> str:
     return hashlib.sha256(json.dumps(case, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
 
-Asker = Callable[[str], AskResult]
+# (question, earlier turns of the conversation or None)
+Asker = Callable[[str, list[dict[str, str]] | None], AskResult]
 
 
 def _attempt(case: dict[str, Any], asker: Asker, s: Settings, judge_model: str) -> CaseResult:
     try:
-        res = asker(case["question"])
+        res = asker(case["question"], case.get("history"))
         g = grade(case, res, s, judge_model)
     except Exception as e:  # one broken case must not abort the whole run
         return CaseResult(
@@ -289,8 +290,8 @@ def run_eval(
     asker: Asker
     if target == "local":
 
-        def asker(question: str) -> AskResult:
-            return ask(question, settings=s, model=model)
+        def asker(question: str, history: list[dict[str, str]] | None) -> AskResult:
+            return ask(question, settings=s, model=model, history=history)
     else:
         from milewise.evals.remote import ask_remote
 
@@ -299,8 +300,8 @@ def run_eval(
             raise SystemExit("remote eval needs an app token (APP_TOKEN or --token-secret-arn)")
         model = "deployed"
 
-        def asker(question: str) -> AskResult:
-            return ask_remote(target, str(token), question)
+        def asker(question: str, history: list[dict[str, str]] | None) -> AskResult:
+            return ask_remote(target, str(token), question, history=history)
 
     started = datetime.now(UTC).isoformat()
     t0 = time.perf_counter()

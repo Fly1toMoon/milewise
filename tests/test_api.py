@@ -19,6 +19,7 @@ class Calls:
     def __init__(self) -> None:
         self.asked: list[str] = []
         self.alerts: list[str] = []
+        self.histories: list[list[dict[str, str]]] = []
 
 
 @pytest.fixture
@@ -54,8 +55,9 @@ def client(
     g = make_guard(store, calls)
     monkeypatch.setattr(api, "guard", lambda: g)
 
-    def fake_ask(question: str, on_event: Any = None) -> AskResult:
+    def fake_ask(question: str, on_event: Any = None, history: Any = None) -> AskResult:
         calls.asked.append(question)
+        calls.histories.append(history or [])
         if on_event:
             on_event("delta", {"text": "調べます"})  # a preamble, discarded by the tool call
             on_event("tool", {"name": "get_required_miles"})
@@ -178,6 +180,26 @@ def test_rule_evidence_card() -> None:
         "section": "手数料",
         "fetched": "2026-10-17",
     }
+
+
+def test_follow_up_passes_history_and_skips_the_cache(
+    client: TestClient, store: MemoryStore, calls: Calls
+) -> None:
+    ask(client, "那经济舱呢？")  # standalone: cached
+    history = [
+        {"role": "user", "content": "东京到伦敦商务舱往返要多少里程？"},
+        {"role": "assistant", "content": "110,000里程 [C1]"},
+    ]
+    r = client.post("/ask", json={"question": "那经济舱呢？", "history": history})
+    assert sse_events(r.text)[-1][1]["cached"] is False
+    assert calls.asked == ["那经济舱呢？", "那经济舱呢？"]  # the follow-up was not a cache hit
+    assert calls.histories[-1] == history
+    assert not [k for k in store.items if k.startswith("cache#")][1:]  # only the first is stored
+
+
+def test_history_is_bounded(client: TestClient) -> None:
+    turns = [{"role": "user", "content": "q"}] * 13
+    assert client.post("/ask", json={"question": "东京", "history": turns}).status_code == 422
 
 
 def test_same_question_is_answered_from_cache_for_free(
