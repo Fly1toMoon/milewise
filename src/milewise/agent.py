@@ -93,6 +93,11 @@ never pick one silently.
 7. End with a short "Sources" section: for each chart its chart_id, the booking date it \
 applies from, its source URL and fetch date; for each document excerpt its title, URL and \
 fetch date.
+9. Earlier turns of the conversation may precede the last question. Use them only to \
+understand it: a follow-up such as "那经济舱呢" or "片道なら？" keeps the route, airline, cabin, \
+trip type and dates of the previous question except what it changes. Answer only the last \
+question. Figures and evidence ids from earlier answers are not evidence for this one: call \
+the tools again in this turn and cite only what they return now.
 """
 
 OFFICIAL_URLS = {
@@ -387,6 +392,42 @@ def _usage(messages: list[Any]) -> dict[str, int]:
     return total
 
 
+# Bounds on what a client may send as context (each turn is also re-sent, so this caps cost).
+HISTORY_TURNS = 3
+HISTORY_CHARS = 4000
+_CITE_MARK = re.compile(r"\s*\[[CD]\d+\]")
+
+
+def prior_turns(history: list[dict[str, str]] | None) -> list[dict[str, str]]:
+    """The last HISTORY_TURNS user/assistant pairs, trimmed, as chat messages.
+
+    Earlier evidence ids ([C1]) and the post-check warning are removed from answers, so the
+    model cannot cite evidence that does not exist in this turn.
+    """
+    out: list[dict[str, str]] = []
+    for m in (history or [])[-2 * HISTORY_TURNS :]:
+        role, text = m.get("role"), str(m.get("content") or "")
+        if role not in ("user", "assistant") or not text.strip():
+            continue
+        if role == "assistant":
+            for w in POSTCHECK_WARNING.values():
+                text = text.replace(w, "")
+            text = _CITE_MARK.sub("", text)
+        out.append({"role": role, "content": text.strip()[:HISTORY_CHARS]})
+    # the conversation must alternate and start with the user
+    while out and out[0]["role"] != "user":
+        out.pop(0)
+    merged: list[dict[str, str]] = []
+    for m in out:
+        if merged and merged[-1]["role"] == m["role"]:
+            merged[-1] = m
+        else:
+            merged.append(m)
+    if merged and merged[-1]["role"] == "user":
+        merged.pop()  # an unanswered question is not context
+    return merged
+
+
 def _stream(
     agent: Any, inputs: dict[str, Any], on_event: Callable[[str, dict[str, Any]], None]
 ) -> dict[str, Any]:
@@ -414,12 +455,16 @@ def ask(
     settings: Settings | None = None,
     model: str | None = None,
     on_event: Callable[[str, dict[str, Any]], None] | None = None,
+    history: list[dict[str, str]] | None = None,
 ) -> AskResult:
     """Answer one question. With `on_event`, the run is streamed: ("tool", {"name"}) when the
     model starts a tool call and ("delta", {"text"}) for answer text as it is generated.
     Text that precedes a tool call is a preamble, not the answer, so a "tool" event tells
     the listener to discard what it has shown so far. The returned answer is authoritative
     (it may carry the post-check warning).
+
+    `history` is the earlier turns of the conversation, oldest first, as {"role": "user" |
+    "assistant", "content": text}; they only give context (system prompt rule 9).
     """
     s = settings or get_settings()
     agent_model = model or s.chat_model
@@ -441,7 +486,7 @@ def ask(
         middleware=middleware,
     )
     t0 = time.perf_counter()
-    inputs: Any = {"messages": [{"role": "user", "content": question}]}
+    inputs: Any = {"messages": [*prior_turns(history), {"role": "user", "content": question}]}
     state = agent.invoke(inputs) if on_event is None else _stream(agent, inputs, on_event)
     latency_ms = round((time.perf_counter() - t0) * 1000)
 
