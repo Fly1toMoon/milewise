@@ -28,7 +28,7 @@ import uuid
 from collections.abc import AsyncIterator
 from functools import cache
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
@@ -151,8 +151,15 @@ get_fare_store()
 data_version()
 
 
+class Turn(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(max_length=20000)
+
+
 class AskBody(BaseModel):
     question: str = Field(min_length=2, max_length=500)
+    # earlier turns of the conversation, oldest first; the agent keeps the last 3 (trimmed)
+    history: list[Turn] = Field(default_factory=list, max_length=12)
 
 
 def _sse(event: str, data: Any) -> bytes:
@@ -278,7 +285,8 @@ async def ask_endpoint(
             if not await run_in_threadpool(_verify_turnstile, x_turnstile_token, ip):
                 raise Denied(403, "bot_check", "please complete the check and try again")
             await run_in_threadpool(g.check_ip, ip, day)
-            hit = await run_in_threadpool(g.cached, key)
+            # a follow-up depends on its conversation, so only standalone questions are cached
+            hit = None if body.history else await run_in_threadpool(g.cached, key)
             if hit:
                 emit("ask", request_id=request_id, cached=1, pool=pool)
                 return StreamingResponse(
@@ -302,7 +310,10 @@ async def ask_endpoint(
         def on_event(kind: str, data: dict[str, Any]) -> None:  # called on the worker thread
             loop.call_soon_threadsafe(events.put_nowait, (kind, data))
 
-        task = asyncio.ensure_future(run_in_threadpool(ask, body.question, on_event=on_event))
+        history = [t.model_dump() for t in body.history]
+        task = asyncio.ensure_future(
+            run_in_threadpool(ask, body.question, on_event=on_event, history=history)
+        )
         # Forward events as they come; ping after 3 s of silence to keep the stream alive.
         while not (task.done() and events.empty()):
             getter = asyncio.ensure_future(events.get())
@@ -353,7 +364,7 @@ async def ask_endpoint(
         }
         yield _sse("answer", {"request_id": request_id, "text": res.answer})
         yield _sse("done", {"request_id": request_id, "cached": False, **done})
-        if res.postcheck.ok and not owner:
+        if res.postcheck.ok and not owner and not body.history:
             # only answers that passed the post-check are reused, and not owner/eval runs
             await run_in_threadpool(
                 g.remember, key, json.dumps({"text": res.answer, "done": done}, ensure_ascii=False)
@@ -370,6 +381,7 @@ async def ask_endpoint(
             pool=pool,
             tools=[t["name"] for t in res.tool_calls],
             question_sha256=hashlib.sha256(body.question.encode()).hexdigest()[:16],
+            history_turns=len(body.history) // 2,
         )
 
     return StreamingResponse(
