@@ -1,4 +1,4 @@
-"""Smoke test a deployed endpoint: health, auth, and one real question over SSE.
+"""Smoke test a deployed endpoint: health, page config, and one real question over SSE.
 
 uv run python scripts/smoke.py <function url> <app token secret arn> [question]
 """
@@ -27,9 +27,11 @@ def main() -> int:
     )
     if r.status_code != 200:
         return 1
-    r = httpx.post(f"{url}/ask", json={"question": question}, timeout=60)
-    print(f"no token: {r.status_code} (expect 401)")
-    if r.status_code != 401:
+    # The endpoint is public now (design.md §4.8); the smoke question uses the owner token
+    # so it does not spend the public budget. /config is what the page loads first.
+    r = httpx.get(f"{url}/config", timeout=30)
+    print(f"config: {r.status_code} {r.text}")
+    if r.status_code != 200:
         return 1
 
     t0 = time.perf_counter()

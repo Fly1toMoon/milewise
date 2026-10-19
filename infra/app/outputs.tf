@@ -21,3 +21,7 @@ output "api_function_name" {
 output "usage_table" {
   value = aws_dynamodb_table.usage.name
 }
+
+output "quota_table" {
+  value = aws_dynamodb_table.quota.name
+}

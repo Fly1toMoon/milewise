@@ -6,7 +6,7 @@ locals {
   image_uri  = "${local.bootstrap.ecr_repository_url}:${var.image_tag}"
   account_id = data.aws_caller_identity.current.account_id
   common_env = {
-    USAGE_TABLE  = aws_dynamodb_table.usage.name
+    QUOTA_TABLE  = aws_dynamodb_table.quota.name
     CHAT_MODEL   = "bedrock:${var.chat_model}"
     RERANK_MODEL = "bedrock:${var.chat_model}"
     # Only read when a model is switched to openai:* for an A/B run (milewise.api).
@@ -42,9 +42,14 @@ data "aws_iam_policy_document" "app_common" {
     resources = concat(local.bedrock_chat, local.bedrock_embedding)
   }
   statement {
-    sid       = "Usage"
-    actions   = ["dynamodb:UpdateItem"]
-    resources = [aws_dynamodb_table.usage.arn]
+    sid       = "Quota"
+    actions   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem"]
+    resources = [aws_dynamodb_table.quota.arn, aws_dynamodb_table.usage.arn]
+  }
+  statement {
+    sid       = "PublicBudgetAlert"
+    actions   = ["sns:Publish"]
+    resources = [aws_sns_topic.alerts.arn]
   }
   statement {
     sid     = "Secrets"
@@ -52,6 +57,7 @@ data "aws_iam_policy_document" "app_common" {
     resources = [
       aws_secretsmanager_secret.openai.arn,
       aws_secretsmanager_secret.app_token.arn,
+      aws_secretsmanager_secret.turnstile.arn,
     ]
   }
   statement {
@@ -103,9 +109,16 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = merge(local.common_env, {
-      APP_TOKEN_SECRET_ARN = aws_secretsmanager_secret.app_token.arn
-      DAILY_REQUEST_LIMIT  = tostring(var.daily_request_limit)
-      DAILY_COST_LIMIT_USD = tostring(var.daily_cost_limit_usd)
+      APP_TOKEN_SECRET_ARN        = aws_secretsmanager_secret.app_token.arn
+      DAILY_REQUEST_LIMIT         = tostring(var.daily_request_limit) # owner pool
+      DAILY_COST_LIMIT_USD        = tostring(var.daily_cost_limit_usd)
+      PUBLIC_DAILY_REQUEST_LIMIT  = tostring(var.public_daily_request_limit)
+      PUBLIC_DAILY_COST_LIMIT_USD = tostring(var.public_daily_cost_limit_usd)
+      IP_WINDOW_LIMIT             = tostring(var.ip_window_limit)
+      IP_DAILY_LIMIT              = tostring(var.ip_daily_limit)
+      ALERT_TOPIC_ARN             = aws_sns_topic.alerts.arn
+      TURNSTILE_SITE_KEY          = var.turnstile_site_key
+      TURNSTILE_SECRET_ARN        = aws_secretsmanager_secret.turnstile.arn
     })
   }
 

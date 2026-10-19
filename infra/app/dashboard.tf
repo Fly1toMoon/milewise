@@ -50,7 +50,10 @@ resource "aws_cloudwatch_dashboard" "main" {
             [local.emf.namespace, "cost_usd", local.emf.dim[0], local.emf.dim[1], { label = "cost_usd" }],
           ]
           annotations = {
-            horizontal = [{ label = "daily cost limit (429 above)", value = var.daily_cost_limit_usd }]
+            horizontal = [
+              { label = "public daily limit (closes the day)", value = var.public_daily_cost_limit_usd },
+              { label = "public + owner", value = var.public_daily_cost_limit_usd + var.daily_cost_limit_usd },
+            ]
           }
         }
       },
