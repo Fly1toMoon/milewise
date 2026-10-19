@@ -41,10 +41,15 @@ case "$cmd" in
     tag=${2:?image tag}
     test -f build/index/manifest.json || { echo "build/index missing: run 'release.sh index' or 'make index'" >&2; exit 1; }
     r=$(repo)
-    aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "${r%%/*}" >/dev/null
-    # Lambda rejects OCI indexes with attestation manifests, so attestations are disabled.
-    docker build --platform linux/arm64 --provenance=false --sbom=false -t "$r:$tag" .
-    docker push "$r:$tag" >/dev/null
+    # Tags are immutable, so a re-run of the same commit reuses the image it already pushed.
+    if aws ecr describe-images --repository-name "${r#*/}" --image-ids imageTag="$tag" >/dev/null 2>&1; then
+      echo "image $tag already in ECR; reusing it"
+    else
+      aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "${r%%/*}" >/dev/null
+      # Lambda rejects OCI indexes with attestation manifests, so attestations are disabled.
+      docker build --platform linux/arm64 --provenance=false --sbom=false -t "$r:$tag" .
+      docker push "$r:$tag" >/dev/null
+    fi
     aws lambda update-function-code --function-name "$API" --image-uri "$r:$tag" --query LastUpdateStatus --output text >/dev/null
     aws lambda wait function-updated-v2 --function-name "$API"
     index=$(python3 -c 'import json; print(json.load(open("build/index/manifest.json"))["content_sha256"][:12])')
