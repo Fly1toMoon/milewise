@@ -8,7 +8,10 @@ Routes
   GET  /config   public settings for the page (Turnstile site key)
   POST /ask      open to everyone behind milewise.guard (per-IP limits, answer cache,
                  site budget, kill switch); an owner Bearer token skips them.
-                 Server-Sent Events: status → answer → done
+                 Server-Sent Events: status → (progress | delta)* → answer → done
+                 progress names the tool being called; delta is answer text as it is
+                 generated (a progress event discards the deltas before it); answer is the
+                 final text, which replaces the deltas.
 
 Charts and the rules index ship in the image (design.md §4.6) and are loaded at init.
 """
@@ -205,6 +208,36 @@ def _cache_key(question: str) -> str:
     )
 
 
+def _place(ep: Any) -> str | None:
+    if isinstance(ep, dict):
+        return ep.get("city_code") or ep.get("input")
+    return ep or None
+
+
+def evidence_card(v: dict[str, Any]) -> dict[str, Any]:
+    """The citable facts of one evidence item: kind, where it is, and how fresh it is."""
+    if "chart" in v:
+        c = v["chart"]
+        ids = c.get("chart_ids") or ([c["chart_id"]] if c.get("chart_id") else [])
+        return {
+            "kind": "season" if "season_group" in v else "chart",
+            "url": c.get("source_url"),
+            "charts": ids,
+            "booking_from": c.get("booking_from"),
+            "fetched": (c.get("fetched_at") or "")[:10] or None,
+            "route": [_place(v.get("origin")), _place(v.get("destination"))],
+            "cabin": v.get("cabin"),
+            "trip_type": v.get("trip_type"),
+        }
+    return {
+        "kind": "rule",
+        "url": v.get("url"),
+        "title": v.get("title"),
+        "section": v.get("section") or None,
+        "fetched": v.get("fetched_date"),
+    }
+
+
 def _denied(e: Denied) -> JSONResponse:
     return JSONResponse({"code": e.code, "message": e.message}, status_code=e.status)
 
@@ -263,13 +296,27 @@ async def ask_endpoint(
 
         yield _sse("status", {"request_id": request_id, "stage": "working"})
         t0 = time.perf_counter()
-        task = asyncio.ensure_future(run_in_threadpool(ask, body.question))
-        # Return as soon as the answer is ready; ping every 3 s meanwhile to keep the
-        # stream (and the user) alive. (A plain sleep(3) loop added up to 3 s to every answer.)
-        while not task.done():
-            done_now, _ = await asyncio.wait({task}, timeout=3)
-            if not done_now:
-                yield b": ping\n\n"
+        loop = asyncio.get_running_loop()
+        events: asyncio.Queue[tuple[str, dict[str, Any]]] = asyncio.Queue()
+
+        def on_event(kind: str, data: dict[str, Any]) -> None:  # called on the worker thread
+            loop.call_soon_threadsafe(events.put_nowait, (kind, data))
+
+        task = asyncio.ensure_future(run_in_threadpool(ask, body.question, on_event=on_event))
+        # Forward events as they come; ping after 3 s of silence to keep the stream alive.
+        while not (task.done() and events.empty()):
+            getter = asyncio.ensure_future(events.get())
+            done_now, _ = await asyncio.wait(
+                {getter, task}, timeout=3, return_when="FIRST_COMPLETED"
+            )
+            if getter in done_now:
+                kind, data = getter.result()
+                name = "progress" if kind == "tool" else kind
+                yield _sse(name, {"request_id": request_id, **data})
+            else:
+                getter.cancel()
+                if not done_now:
+                    yield b": ping\n\n"
         try:
             res = task.result()
         except Exception as e:
@@ -294,6 +341,8 @@ async def ask_endpoint(
                 eid: v.get("url") or v.get("chart", {}).get("source_url")
                 for eid, v in res.evidence.items()
             },
+            # what the page shows for each citation mark
+            "evidence_detail": {eid: evidence_card(v) for eid, v in res.evidence.items()},
             "tools": [t["name"] for t in res.tool_calls],
             "usage": res.usage,
             "postcheck_ok": res.postcheck.ok,
