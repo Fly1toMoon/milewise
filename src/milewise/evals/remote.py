@@ -15,7 +15,12 @@ from milewise.agent import AskResult, PostCheck
 
 
 def ask_remote(
-    url: str, token: str, question: str, timeout: float = 180, client: httpx.Client | None = None
+    url: str,
+    token: str,
+    question: str,
+    timeout: float = 180,
+    client: httpx.Client | None = None,
+    history: list[dict[str, str]] | None = None,
 ) -> AskResult:
     events: dict[str, dict[str, Any]] = {}
     t0 = time.perf_counter()
@@ -23,7 +28,7 @@ def ask_remote(
     with (client or httpx.Client()).stream(
         "POST",
         f"{url.rstrip('/')}/ask",
-        json={"question": question},
+        json={"question": question, **({"history": history} if history else {})},
         headers={"Authorization": f"Bearer {token}"},
         timeout=timeout,
     ) as resp:

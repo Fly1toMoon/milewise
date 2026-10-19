@@ -16,7 +16,7 @@
   :root {
     --paper:#EEF2F0; --paper-2:#E3E9E6; --ink:#14263A; --contour:#5F7180; --rule:#C5D0D3;
     --magenta:#B0186E; --magenta-soft:rgba(176,24,110,.10); --terrain:#D9E4D2; --terrain-ink:#2F4A2C;
-    --warn-bg:#F6E7C8; --warn-ink:#6A4A00; --field:#F8FAF9;
+    --warn-bg:#F6E7C8; --warn-ink:#6A4A00; --field:#F8FAF9; --bubble:#DCE4E7;
     --font: "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", system-ui, sans-serif;
     --num: "Barlow Semi Condensed", "Noto Sans JP", system-ui, sans-serif;
     color-scheme: light;
@@ -27,19 +27,19 @@
     :root:not([data-theme="light"]) {
       --paper:#0F1B26; --paper-2:#152534; --ink:#DCE6EA; --contour:#8FA3B0; --rule:#26394A;
       --magenta:#E05AA6; --magenta-soft:rgba(224,90,166,.14); --terrain:#1C3020; --terrain-ink:#BFD8B6;
-      --warn-bg:#3A2E12; --warn-ink:#F1D08A; --field:#132231; color-scheme: dark;
+      --warn-bg:#3A2E12; --warn-ink:#F1D08A; --field:#132231; --bubble:#1F3346; color-scheme: dark;
     }
   }
   :root[data-theme="dark"] {
     --paper:#0F1B26; --paper-2:#152534; --ink:#DCE6EA; --contour:#8FA3B0; --rule:#26394A;
     --magenta:#E05AA6; --magenta-soft:rgba(224,90,166,.14); --terrain:#1C3020; --terrain-ink:#BFD8B6;
-    --warn-bg:#3A2E12; --warn-ink:#F1D08A; --field:#132231; color-scheme: dark;
+    --warn-bg:#3A2E12; --warn-ink:#F1D08A; --field:#132231; --bubble:#1F3346; color-scheme: dark;
   }
 
   * { box-sizing: border-box; }
   [hidden] { display:none !important; }
   html { -webkit-text-size-adjust: 100%; }
-  body { margin:0; background:var(--paper); color:var(--ink); font:16px/1.75 var(--font); font-feature-settings:"palt" 0; }
+  body { margin:0; background:var(--paper); color:var(--ink); font:16px/1.75 var(--font); }
   button, input, textarea { font:inherit; color:inherit; }
   a { color:var(--magenta); text-underline-offset:2px; }
   :focus-visible { outline:2px solid var(--magenta); outline-offset:2px; border-radius:3px; }
@@ -49,51 +49,69 @@
   .shell { display:grid; grid-template-columns: 1fr; min-height:100dvh; }
   @media (min-width: 960px) { .shell { grid-template-columns: 264px 1fr; } }
 
-  .history { display:none; border-right:1px solid var(--rule); background:var(--paper-2); padding:20px 12px; position:sticky; top:0; height:100dvh; overflow:auto; }
-  @media (min-width: 960px) { .history { display:block; } }
-  .history.open { display:block; position:fixed; inset:0 auto 0 0; width:min(86vw, 320px); z-index:30; box-shadow: 8px 0 32px rgba(10,20,30,.25); }
+  .side { display:none; border-right:1px solid var(--rule); background:var(--paper-2); padding:16px 12px; position:sticky; top:0; height:100dvh; overflow:auto; }
+  @media (min-width: 960px) { .side { display:block; } }
+  .side.open { display:block; position:fixed; inset:0 auto 0 0; width:min(86vw, 320px); z-index:30; box-shadow: 8px 0 32px rgba(10,20,30,.25); }
   .scrim { display:none; position:fixed; inset:0; background:rgba(10,20,30,.35); z-index:25; }
   .scrim.open { display:block; }
-  .history h2 { font-size:14px; font-weight:500; color:var(--contour); margin:4px 8px 12px; }
-  .history ol { list-style:none; margin:0; padding:0; }
-  .history li { display:flex; align-items:flex-start; gap:2px; border-radius:6px; }
-  .history li.current { background:var(--magenta-soft); }
-  .history .open-h { flex:1; min-width:0; text-align:left; border:0; background:none; padding:8px; cursor:pointer; font-size:14px; line-height:1.5; border-radius:6px; }
-  .history .open-h span { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-  .history .open-h:hover { background:var(--magenta-soft); }
-  .history .del { border:0; background:none; color:var(--contour); cursor:pointer; padding:8px 6px; font-size:16px; line-height:1; border-radius:6px; }
-  .history .del:hover { color:var(--magenta); }
-  .history .empty { color:var(--contour); font-size:13px; margin:0 8px; }
-  .history .clear { margin:16px 8px 0; border:0; background:none; color:var(--contour); font-size:13px; cursor:pointer; padding:0; text-decoration:underline; }
+  .new-chat { display:flex; align-items:center; gap:8px; width:100%; border:1px solid var(--rule); background:var(--field); border-radius:9px; padding:9px 12px; cursor:pointer; font-size:14px; font-weight:500; }
+  .new-chat:hover { border-color:var(--magenta); }
+  .new-chat svg { color:var(--magenta); flex:none; }
+  .side h2 { font-size:13px; font-weight:500; color:var(--contour); margin:20px 8px 8px; }
+  .side ol { list-style:none; margin:0; padding:0; }
+  .side li { display:flex; align-items:flex-start; gap:2px; border-radius:6px; }
+  .side li.current { background:var(--magenta-soft); }
+  .side .open-c { flex:1; min-width:0; text-align:left; border:0; background:none; padding:8px; cursor:pointer; font-size:14px; line-height:1.5; border-radius:6px; }
+  .side .open-c span { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .side .open-c small { display:block; color:var(--contour); font-size:12px; font-family:var(--num); }
+  .side .open-c:hover { background:var(--magenta-soft); }
+  .side .del { border:0; background:none; color:var(--contour); cursor:pointer; padding:8px 6px; font-size:16px; line-height:1; border-radius:6px; }
+  .side .del:hover { color:var(--magenta); }
+  .side .empty { color:var(--contour); font-size:13px; margin:0 8px; }
+  .side .clear { margin:16px 8px 0; border:0; background:none; color:var(--contour); font-size:13px; cursor:pointer; padding:0; text-decoration:underline; }
 
-  .main { display:flex; flex-direction:column; min-width:0; }
-  .col { width:100%; max-width:760px; margin:0 auto; padding:0 16px; }
+  .main { display:flex; flex-direction:column; min-width:0; min-height:100dvh; }
+  .col { width:100%; max-width:780px; margin:0 auto; padding:0 16px; }
 
   /* ---------- header ---------- */
-  header.top { display:flex; align-items:center; gap:10px; padding-top:14px; padding-bottom:6px; }
+  header.top { position:sticky; top:0; z-index:12; background:var(--paper); }
+  header.top .col { display:flex; align-items:center; gap:10px; padding-top:12px; padding-bottom:8px; }
   .wordmark { font-family:var(--num); font-weight:600; font-size:22px; letter-spacing:.01em; margin:0; margin-right:auto; }
-  .icon-btn { border:1px solid var(--rule); background:transparent; border-radius:8px; width:36px; height:36px; display:inline-grid; place-items:center; cursor:pointer; color:var(--ink); }
+  .wordmark a { color:inherit; text-decoration:none; }
+  .icon-btn { border:1px solid var(--rule); background:transparent; border-radius:8px; width:36px; height:36px; display:inline-grid; place-items:center; cursor:pointer; color:var(--ink); flex:none; }
   .icon-btn:hover { border-color:var(--contour); }
-  .menu-btn { display:inline-grid; }
-  @media (min-width: 960px) { .menu-btn { display:none; } }
-  .langs { display:inline-flex; border:1px solid var(--rule); border-radius:8px; overflow:hidden; }
+  .narrow-only { display:inline-grid; }
+  @media (min-width: 960px) { .narrow-only { display:none; } }
+  .langs { display:inline-flex; border:1px solid var(--rule); border-radius:8px; overflow:hidden; flex:none; }
   .langs button { border:0; background:transparent; padding:0 11px; height:34px; cursor:pointer; font-size:14px; color:var(--contour); }
   .langs button[aria-pressed="true"] { background:var(--ink); color:var(--paper); }
 
-  /* ---------- the arc: the one bold element ---------- */
-  .arc { display:block; width:100%; height:auto; margin:6px 0 2px; overflow:visible; }
+  /* ---------- welcome: the big arc is the one bold element ---------- */
+  .welcome { padding-top:8px; }
+  .arc { display:block; width:100%; height:auto; margin:4px 0 2px; overflow:visible; }
   .arc .graticule { stroke:var(--rule); stroke-width:1; fill:none; }
-  .arc .route { stroke:var(--magenta); stroke-width:2.5; fill:none; stroke-linecap:round; }
-  .arc .route.idle { stroke-dasharray:2 9; }
+  .arc .route { stroke:var(--magenta); stroke-width:2.5; fill:none; stroke-linecap:round; stroke-dasharray:2 9; }
   .arc .pin { fill:var(--paper); stroke:var(--ink); stroke-width:2.5; }
   .arc .code { font-family:var(--num); font-weight:600; font-size:30px; fill:var(--ink); letter-spacing:.04em; }
-  .arc .plane { fill:var(--magenta); }
-  .lede { margin:0 0 4px; color:var(--contour); font-size:15px; max-width:38em; }
+  .lede { margin:4px 0 4px; color:var(--contour); font-size:15px; max-width:40em; }
+  .examples { display:grid; gap:8px; margin:22px 0 8px; }
+  @media (min-width: 640px) { .examples { grid-template-columns:1fr 1fr; } }
+  .examples button { text-align:left; border:1px solid var(--rule); background:var(--field); border-radius:10px; padding:12px 14px; cursor:pointer; line-height:1.5; font-size:15px; }
+  .examples button:hover { border-color:var(--magenta); }
+  .examples .kind { display:block; color:var(--contour); font-size:12px; margin-bottom:2px; }
 
   /* ---------- conversation ---------- */
-  .thread { flex:1; padding-top:8px; padding-bottom:24px; }
-  .question { font-size:19px; font-weight:500; line-height:1.55; margin:18px 0 10px; overflow-wrap:anywhere; }
-  .progress { display:flex; align-items:center; gap:10px; color:var(--contour); font-size:14px; min-height:24px; }
+  .thread { flex:1; padding-top:8px; padding-bottom:16px; }
+  .msg { margin:0 0 28px; }
+  .msg.user { display:flex; justify-content:flex-end; }
+  .msg.user .bubble { background:var(--bubble); border-radius:16px 16px 4px 16px; padding:9px 15px; max-width:min(82%, 560px); white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.6; }
+  .msg.bot { display:grid; grid-template-columns:28px 1fr; gap:12px; }
+  .msg.bot .mark { width:28px; height:28px; border-radius:50%; display:grid; place-items:center; background:var(--field); border:1px solid var(--rule); margin-top:2px; }
+  .msg.bot .body { min-width:0; }
+  @media (max-width: 639px) { .msg.bot { grid-template-columns:1fr; } .msg.bot .mark { display:none; } }
+  .route-line { display:flex; align-items:center; gap:8px; font-family:var(--num); font-weight:600; font-size:15px; letter-spacing:.04em; color:var(--ink); margin:2px 0 6px; }
+  .route-line svg { flex:none; }
+  .progress { display:flex; align-items:center; gap:10px; color:var(--contour); font-size:14px; min-height:28px; }
   .progress .dot { width:8px; height:8px; border-radius:50%; background:var(--magenta); animation: blink 1.2s ease-in-out infinite; }
   .progress .elapsed { font-family:var(--num); font-variant-numeric:tabular-nums; }
   @keyframes blink { 50% { opacity:.25; } }
@@ -101,11 +119,11 @@
   .answer { overflow-wrap:anywhere; }
   .answer p { margin:0 0 .8em; }
   .answer h3 { font-size:16px; font-weight:700; margin:1.3em 0 .4em; }
+  .answer h3:first-child { margin-top:0; }
   .answer ul, .answer ol { margin:0 0 .9em; padding-left:1.3em; }
   .answer li { margin:.15em 0; }
   .answer blockquote { margin:0 0 .9em; padding:2px 0 2px 14px; border-left:3px solid var(--rule); color:var(--contour); }
-  .answer blockquote p { margin:0 0 .4em; }
-  .answer blockquote ul { margin:0 0 .4em; }
+  .answer blockquote p, .answer blockquote ul { margin:0 0 .4em; }
   .answer code { font-size:.9em; background:var(--paper-2); padding:1px 5px; border-radius:4px; }
   .answer strong { font-weight:700; }
   .answer .num { font-family:var(--num); font-weight:600; font-size:1.18em; font-variant-numeric:tabular-nums; letter-spacing:.01em; }
@@ -118,49 +136,41 @@
   sup.cite a { font-family:var(--num); font-weight:600; font-size:12px; text-decoration:none; padding:0 2px; color:var(--magenta); }
   sup.cite a:hover { text-decoration:underline; }
 
-  .warning { background:var(--warn-bg); color:var(--warn-ink); border-radius:6px; padding:10px 14px; font-size:14px; margin:4px 0 16px; }
-  .notice { color:var(--contour); font-size:15px; }
+  .warning { background:var(--warn-bg); color:var(--warn-ink); border-radius:6px; padding:10px 14px; font-size:14px; margin:4px 0 12px; }
+  .notice { color:var(--contour); font-size:15px; margin:0; }
 
   /* sources: a chart legend on terrain tint */
-  .sources { background:var(--terrain); color:var(--terrain-ink); border-radius:10px; padding:14px 16px 6px; margin:18px 0 8px; }
-  .sources h2 { font-size:14px; font-weight:700; margin:0 0 8px; color:inherit; }
+  .sources { background:var(--terrain); color:var(--terrain-ink); border-radius:10px; padding:12px 16px 4px; margin:14px 0 6px; }
+  .sources h4 { font-size:13px; font-weight:700; margin:0 0 6px; color:inherit; }
   .sources ol { list-style:none; margin:0; padding:0; }
-  .sources li { display:grid; grid-template-columns:28px 1fr; gap:4px; padding:8px 0; border-top:1px solid color-mix(in srgb, var(--terrain-ink) 18%, transparent); scroll-margin-top:24px; transition: background-color .6s; border-radius:4px; }
+  .sources li { display:grid; grid-template-columns:24px 1fr; gap:4px; padding:7px 0; border-top:1px solid color-mix(in srgb, var(--terrain-ink) 18%, transparent); scroll-margin-top:72px; transition: background-color .6s; border-radius:4px; }
   .sources li:first-child { border-top:0; }
   .sources li.flash { background:color-mix(in srgb, var(--magenta) 16%, transparent); }
-  .sources .n { font-family:var(--num); font-weight:600; font-size:16px; color:var(--magenta); line-height:1.6; }
+  .sources .n { font-family:var(--num); font-weight:600; font-size:15px; color:var(--magenta); line-height:1.6; }
   .sources .what { font-size:14px; line-height:1.55; }
   .sources .what a { color:inherit; font-weight:500; }
   .sources .facts { display:block; font-size:13px; opacity:.85; }
   .sources li.uncited .n { color:inherit; opacity:.6; }
-
-  .meta { color:var(--contour); font-size:13px; margin:6px 0 0; }
-
-  /* welcome: examples */
-  .examples { display:grid; gap:8px; margin:22px 0 8px; }
-  @media (min-width: 640px) { .examples { grid-template-columns:1fr 1fr; } }
-  .examples button { text-align:left; border:1px solid var(--rule); background:var(--field); border-radius:8px; padding:12px 14px; cursor:pointer; line-height:1.5; font-size:15px; }
-  .examples button:hover { border-color:var(--magenta); }
-  .examples .kind { display:block; color:var(--contour); font-size:12px; margin-bottom:2px; }
+  .meta { color:var(--contour); font-size:12.5px; margin:4px 0 0; }
 
   /* ---------- composer ---------- */
   .composer-wrap { position:sticky; bottom:0; background:linear-gradient(to bottom, transparent, var(--paper) 18px); padding-top:18px; padding-bottom:calc(10px + env(safe-area-inset-bottom)); z-index:10; }
-  .composer { display:flex; align-items:flex-end; gap:8px; border:1.5px solid var(--rule); background:var(--field); border-radius:12px; padding:6px 6px 6px 14px; }
+  .composer { display:flex; align-items:flex-end; gap:8px; border:1.5px solid var(--rule); background:var(--field); border-radius:14px; padding:6px 6px 6px 14px; }
   .composer:focus-within { border-color:var(--ink); }
   .composer textarea { flex:1; border:0; background:transparent; resize:none; font-size:16px; line-height:1.6; padding:7px 0; max-height:40vh; min-height:28px; outline:none; overflow-y:auto; }
   .composer textarea:placeholder-shown { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
-  .send { border:0; background:var(--magenta); color:#fff; border-radius:9px; height:40px; min-width:40px; padding:0 16px; cursor:pointer; font-weight:500; white-space:nowrap; }
+  .send { border:0; background:var(--magenta); color:#fff; border-radius:10px; height:40px; min-width:40px; padding:0 16px; cursor:pointer; font-weight:500; white-space:nowrap; }
   .send:disabled { opacity:.45; cursor:default; }
   .under { display:flex; justify-content:space-between; gap:12px; color:var(--contour); font-size:12px; margin:6px 2px 0; }
   @media (pointer: coarse) { .under .hint { visibility:hidden; } }
   .under .count { font-family:var(--num); font-variant-numeric:tabular-nums; }
   .under .count.over { color:var(--magenta); }
+  #turnstile { margin:8px 0 0; }
 
   footer.foot { color:var(--contour); font-size:12.5px; padding-bottom:28px; }
   footer.foot p { margin:0 0 8px; }
   footer.foot details summary { cursor:pointer; }
   footer.foot input { width:100%; max-width:360px; padding:6px 8px; border:1px solid var(--rule); border-radius:6px; background:var(--field); margin-top:6px; }
-  #turnstile { margin:8px 0; }
 
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation:none !important; transition:none !important; }
@@ -169,22 +179,30 @@
 </head>
 <body>
 <div class="shell">
-  <aside class="history" id="history" aria-labelledby="history-title">
-    <h2 id="history-title" data-i18n="history"></h2>
-    <ol id="history-list"></ol>
-    <p class="empty" id="history-empty" data-i18n="historyEmpty"></p>
-    <button class="clear" id="history-clear" type="button" data-i18n="historyClear" hidden></button>
+  <aside class="side" id="side" aria-label="Conversations">
+    <button class="new-chat" id="new-chat" type="button">
+      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v12M2 8h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <span data-i18n="newChat"></span>
+    </button>
+    <h2 data-i18n="conversations"></h2>
+    <ol id="conv-list"></ol>
+    <p class="empty" id="conv-empty" data-i18n="historyEmpty"></p>
+    <button class="clear" id="conv-clear" type="button" data-i18n="historyClear" hidden></button>
   </aside>
   <div class="scrim" id="scrim"></div>
 
   <div class="main">
-    <div class="col">
-      <header class="top">
-        <button class="icon-btn menu-btn" id="menu" type="button" aria-controls="history" aria-expanded="false">
+    <header class="top">
+      <div class="col">
+        <button class="icon-btn narrow-only" id="menu" type="button" aria-controls="side" aria-expanded="false">
           <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M2 4h14M2 9h14M2 14h9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-          <span class="sr" data-i18n="history"></span>
+          <span class="sr" data-i18n="conversations"></span>
         </button>
-        <h1 class="wordmark"><a href="/" id="home" style="color:inherit;text-decoration:none">Milewise</a></h1>
+        <h1 class="wordmark"><a href="/" id="home">Milewise</a></h1>
+        <button class="icon-btn narrow-only" id="new-chat-top" type="button">
+          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v12M2 8h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <span class="sr" data-i18n="newChat"></span>
+        </button>
         <div class="langs" role="group" aria-label="Language" id="langs">
           <button type="button" data-lang="zh">中</button>
           <button type="button" data-lang="ja">日</button>
@@ -194,37 +212,24 @@
           <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M14.5 11.2A6 6 0 0 1 6.8 3.5a6 6 0 1 0 7.7 7.7Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
           <span class="sr" data-i18n="theme"></span>
         </button>
-      </header>
+      </div>
+    </header>
 
-      <svg class="arc" id="arc" viewBox="0 0 720 150" role="img" aria-labelledby="arc-label">
-        <title id="arc-label"></title>
+    <div class="col welcome" id="welcome">
+      <svg class="arc" id="arc" viewBox="0 0 720 150" role="img" aria-label="TYO → LON">
         <path class="graticule" d="M0 128 H720 M0 88 Q360 70 720 88 M0 48 Q360 26 720 48" />
         <path class="graticule" d="M120 0 Q132 75 120 150 M360 0 V150 M600 0 Q588 75 600 150" />
-        <path class="route idle" id="route" d="" />
-        <circle class="pin" id="pin-a" r="7" />
-        <circle class="pin" id="pin-b" r="7" />
-        <text class="code" id="code-a" text-anchor="start"></text>
-        <text class="code" id="code-b" text-anchor="end"></text>
+        <path class="route" id="route" d="M40 106 Q360 -70 680 106" />
+        <circle class="pin" cx="40" cy="106" r="7" />
+        <circle class="pin" cx="680" cy="106" r="7" />
+        <text class="code" x="34" y="146" text-anchor="start">TYO</text>
+        <text class="code" x="686" y="146" text-anchor="end">LON</text>
       </svg>
+      <p class="lede" data-i18n="lede"></p>
+      <div class="examples" id="examples"></div>
     </div>
 
-    <div class="col thread" id="thread" aria-live="polite">
-      <div id="welcome">
-        <p class="lede" data-i18n="lede"></p>
-        <div class="examples" id="examples"></div>
-      </div>
-      <div id="turn" hidden>
-        <p class="question" id="question"></p>
-        <div class="progress" id="progress" hidden><span class="dot"></span><span id="stage"></span><span class="elapsed" id="elapsed"></span></div>
-        <div class="answer" id="answer"></div>
-        <div id="warning"></div>
-        <section class="sources" id="sources" hidden aria-labelledby="sources-title">
-          <h2 id="sources-title" data-i18n="sources"></h2>
-          <ol id="sources-list"></ol>
-        </section>
-        <p class="meta" id="meta"></p>
-      </div>
-    </div>
+    <div class="col thread" id="thread" aria-live="polite"></div>
 
     <div class="col composer-wrap">
       <form class="composer" id="form">
@@ -236,7 +241,7 @@
       <div id="turnstile"></div>
     </div>
 
-    <footer class="col foot">
+    <footer class="col foot" id="foot">
       <p data-i18n="limits"></p>
       <p data-i18n="disclaimer"></p>
       <details>
@@ -251,25 +256,25 @@
 
 <script>
 "use strict";
-const MAX = 500, HISTORY_MAX = 30;
+const MAX = 500, CONV_MAX = 30, TURNS_MAX = 20, CONTEXT_TURNS = 3;
 
 const I18N = {
   zh: {
     htmlLang: "zh-CN",
-    lede: "ANA / JAL 里程兑换机票助手。所需里程按官方里程表用代码计算，规则问题引用官网原文回答，查不到依据时会直说不确定。",
-    ask: "你的问题", send: "提问", enterHint: "Enter 发送，Shift+Enter 换行",
-    placeholder: "问里程或规则",
-    history: "历史记录", historyEmpty: "提过的问题会保存在这个浏览器里。", historyClear: "清空历史", del: "删除",
-    theme: "切换深色/浅色", sources: "来源",
-    stage: { working: "正在理解问题", get_required_miles: "正在查里程表", search_rules: "正在检索规则", get_season: "正在查季节日历", writing: "正在撰写回答", cached: "今天已有人问过，直接给出答案" },
+    lede: "ANA / JAL 里程兑换机票助手。所需里程按官方里程表用代码计算，规则问题引用官网原文回答，查不到依据时会直说不确定。可以接着追问。",
+    ask: "你的问题", send: "发送", enterHint: "Enter 发送，Shift+Enter 换行",
+    placeholder: "问里程或规则", followUp: "继续追问…",
+    newChat: "新对话", conversations: "对话", historyEmpty: "对话会保存在这个浏览器里。", historyClear: "清空全部对话", del: "删除",
+    theme: "切换深色/浅色", sources: "来源", turns: "{n} 问",
+    stage: { working: "正在理解问题", get_required_miles: "正在查里程表", search_rules: "正在检索规则", get_season: "正在查季节日历", writing: "正在撰写回答" },
     kinds: { miles: "查里程", season: "季节 × 舱位", partner: "合作航空", rule: "规则" },
     chart: "里程表", season: "季节日历", rule: "规则页", bookFrom: "{d} 起预订适用", fetched: "抓取于 {d}",
     cabins: { Y: "经济舱", PY: "超级经济舱", C: "商务舱", F: "头等舱" }, trips: { OW: "单程", RT: "往返" },
     cached: "来自当日缓存", warnPost: "自动检查：回答里有依据数据之外的数字、引用或链接，请务必以官网为准。",
-    limits: "免费演示：每个网络 10 分钟内 5 次、每天 20 次。全站当日额度用完后，日本时间 0 点恢复。同一问题当天从缓存回答。",
+    limits: "免费演示：每个网络 10 分钟内 5 次、每天 20 次（追问也算一次）。全站当日额度用完后，日本时间 0 点恢复。不带上文的同一问题当天从缓存回答。",
     disclaimer: "非 ANA / JAL 官方服务。是否有空位、税费与燃油附加费请以官网为准。",
     ownerTitle: "站长 token（可选）", ownerBody: "供运营者使用。填写后不占用公开额度（只保存在本浏览器）。",
-    error: "出错了（{id}）", network: "网络错误：{e}", httpError: "错误（{s}）", tooLong: "问题最多 500 字。",
+    error: "出错了（{id}）。可以再发一次。", network: "网络错误：{e}", httpError: "错误（{s}）", tooLong: "问题最多 500 字。",
     denied: {
       ip_window: "提问太频繁了，请几分钟后再试。", ip_daily: "这个网络今天的提问次数已用完，请明天再来。",
       public_budget: "今天的免费额度已用完，日本时间 0 点恢复。", owner_budget: "站长额度今天已用完。",
@@ -284,20 +289,20 @@ const I18N = {
   },
   ja: {
     htmlLang: "ja",
-    lede: "ANA / JAL 特典航空券アシスタント。必要マイルは公式チャートからコードで計算し、規則は公式ページを引用して答えます。根拠がなければ「わからない」と答えます。",
-    ask: "質問", send: "質問する", enterHint: "Enter で送信、Shift+Enter で改行",
-    placeholder: "マイルや規則について質問",
-    history: "履歴", historyEmpty: "質問はこのブラウザに保存されます。", historyClear: "履歴を消去", del: "削除",
-    theme: "ダーク/ライト切り替え", sources: "出典",
-    stage: { working: "質問を読んでいます", get_required_miles: "チャートを確認中", search_rules: "規則を検索中", get_season: "シーズンカレンダーを確認中", writing: "回答を作成中", cached: "本日すでに回答済みの質問です" },
+    lede: "ANA / JAL 特典航空券アシスタント。必要マイルは公式チャートからコードで計算し、規則は公式ページを引用して答えます。根拠がなければ「わからない」と答えます。続けて質問できます。",
+    ask: "質問", send: "送信", enterHint: "Enter で送信、Shift+Enter で改行",
+    placeholder: "マイルや規則について質問", followUp: "続けて質問…",
+    newChat: "新しい会話", conversations: "会話", historyEmpty: "会話はこのブラウザに保存されます。", historyClear: "すべての会話を消去", del: "削除",
+    theme: "ダーク/ライト切り替え", sources: "出典", turns: "{n} 問",
+    stage: { working: "質問を読んでいます", get_required_miles: "チャートを確認中", search_rules: "規則を検索中", get_season: "シーズンカレンダーを確認中", writing: "回答を作成中" },
     kinds: { miles: "必要マイル", season: "シーズン × クラス", partner: "提携航空会社", rule: "規則" },
     chart: "チャート", season: "シーズンカレンダー", rule: "規則ページ", bookFrom: "{d} 以降の予約に適用", fetched: "{d} 取得",
     cabins: { Y: "エコノミー", PY: "プレミアムエコノミー", C: "ビジネス", F: "ファースト" }, trips: { OW: "片道", RT: "往復" },
     cached: "当日キャッシュから回答", warnPost: "自動チェック：根拠データにない数値・引用・リンクが含まれています。公式サイトで必ずご確認ください。",
-    limits: "無料デモ：1つのネットワークにつき10分間に5回・1日20回まで。全体の1日の上限に達すると翌日0時（日本時間）まで停止します。同じ質問は当日中キャッシュから回答します。",
+    limits: "無料デモ：1つのネットワークにつき10分間に5回・1日20回まで（続けての質問も1回）。全体の1日の上限に達すると翌日0時（日本時間）まで停止します。会話の流れによらない同じ質問は当日中キャッシュから回答します。",
     disclaimer: "ANA / JAL の公式サービスではありません。空席・税金・燃油特別付加運賃は公式サイトでご確認ください。",
     ownerTitle: "オーナートークン（任意）", ownerBody: "運営者用です。入力すると公開デモの上限とは別枠で利用できます（ブラウザ内にのみ保存）。",
-    error: "エラーが発生しました（{id}）", network: "通信エラー：{e}", httpError: "エラー（{s}）", tooLong: "質問は500文字までです。",
+    error: "エラーが発生しました（{id}）。もう一度送信できます。", network: "通信エラー：{e}", httpError: "エラー（{s}）", tooLong: "質問は500文字までです。",
     denied: {
       ip_window: "短時間に質問が多すぎます。数分後にもう一度お試しください。", ip_daily: "このネットワークからの本日の質問回数の上限に達しました。明日またお試しください。",
       public_budget: "本日の無料デモの上限に達しました。日本時間の0時に再開します。", owner_budget: "オーナー枠の本日の上限に達しました。",
@@ -312,20 +317,20 @@ const I18N = {
   },
   en: {
     htmlLang: "en",
-    lede: "An ANA / JAL award ticket assistant. Miles are computed in code from the official charts; rules are answered by quoting the official pages, and it says so when it cannot tell.",
-    ask: "Your question", send: "Ask", enterHint: "Enter to send, Shift+Enter for a new line",
-    placeholder: "Ask about miles or rules",
-    history: "History", historyEmpty: "Questions you ask are kept in this browser.", historyClear: "Clear history", del: "Delete",
-    theme: "Toggle dark/light", sources: "Sources",
-    stage: { working: "Reading the question", get_required_miles: "Checking the award chart", search_rules: "Searching the rules", get_season: "Checking the season calendar", writing: "Writing the answer", cached: "Already answered today" },
+    lede: "An ANA / JAL award ticket assistant. Miles are computed in code from the official charts; rules are answered by quoting the official pages, and it says so when it cannot tell. Ask follow-ups any time.",
+    ask: "Your question", send: "Send", enterHint: "Enter to send, Shift+Enter for a new line",
+    placeholder: "Ask about miles or rules", followUp: "Ask a follow-up…",
+    newChat: "New chat", conversations: "Chats", historyEmpty: "Chats are kept in this browser.", historyClear: "Delete all chats", del: "Delete",
+    theme: "Toggle dark/light", sources: "Sources", turns: "{n} questions",
+    stage: { working: "Reading the question", get_required_miles: "Checking the award chart", search_rules: "Searching the rules", get_season: "Checking the season calendar", writing: "Writing the answer" },
     kinds: { miles: "Miles", season: "Seasons × cabins", partner: "Partner airlines", rule: "Rules" },
     chart: "Award chart", season: "Season calendar", rule: "Rules page", bookFrom: "bookings from {d}", fetched: "fetched {d}",
     cabins: { Y: "Economy", PY: "Premium Economy", C: "Business", F: "First" }, trips: { OW: "one way", RT: "round trip" },
     cached: "from today's cache", warnPost: "Automatic check: this answer contains numbers, citations or links not backed by the source data. Please verify on the official site.",
-    limits: "Free demo: 5 questions per 10 minutes and 20 per day per network. When the site-wide daily budget is used up it reopens at midnight Japan time. The same question is answered from cache for the rest of the day.",
+    limits: "Free demo: 5 questions per 10 minutes and 20 per day per network (a follow-up counts as one). When the site-wide daily budget is used up it reopens at midnight Japan time. A standalone question asked again the same day is answered from cache.",
     disclaimer: "Not an official ANA / JAL service. Check seat availability, taxes and fuel surcharges on the airline's site.",
     ownerTitle: "Owner token (optional)", ownerBody: "For the operator. With it, questions use a separate budget from the public demo (kept only in this browser).",
-    error: "Something went wrong ({id})", network: "Network error: {e}", httpError: "Error ({s})", tooLong: "Questions are limited to 500 characters.",
+    error: "Something went wrong ({id}). You can send it again.", network: "Network error: {e}", httpError: "Error ({s})", tooLong: "Questions are limited to 500 characters.",
     denied: {
       ip_window: "Too many questions in a short time. Try again in a few minutes.", ip_daily: "This network has reached today's question limit. Please come back tomorrow.",
       public_budget: "Today's free demo budget is used up. It reopens at midnight Japan time.", owner_budget: "The owner budget for today is used up.",
@@ -340,17 +345,6 @@ const I18N = {
   },
 };
 
-// City names in questions -> codes, only to draw the arc while the answer is coming.
-const PLACES = [
-  ["TYO", /东京|東京|tokyo|羽田|成田|haneda|narita|hnd|nrt/i], ["OSA", /大阪|osaka|関西|关西|kix/i],
-  ["LON", /伦敦|倫敦|ロンドン|london/i], ["PAR", /巴黎|パリ|paris/i], ["FRA", /法兰克福|フランクフルト|frankfurt/i],
-  ["NYC", /纽约|紐約|ニューヨーク|new york/i], ["LAX", /洛杉矶|ロサンゼルス|los angeles|\blax\b/i],
-  ["SFO", /旧金山|サンフランシスコ|san francisco/i], ["HNL", /檀香山|夏威夷|ホノルル|ハワイ|honolulu|hawaii/i],
-  ["SEL", /首尔|ソウル|seoul/i], ["TPE", /台北|台湾|台灣|taipei|taiwan/i], ["HKG", /香港|hong kong/i],
-  ["SHA", /上海|shanghai/i], ["BJS", /北京|beijing/i], ["SIN", /新加坡|シンガポール|singapore/i],
-  ["BKK", /曼谷|バンコク|bangkok/i], ["SYD", /悉尼|シドニー|sydney/i], ["CHN", /中国|china/i], ["EUR", /欧洲|ヨーロッパ|europe/i],
-];
-
 const $ = (id) => document.getElementById(id);
 const store = {
   get(k, d = "") { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch { return d; } },
@@ -359,6 +353,7 @@ const store = {
 };
 const fmt = (s, vars) => s.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? "");
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /* ---------- language ---------- */
 function initialLang() {
@@ -378,16 +373,14 @@ function applyLang() {
   const L = t();
   document.documentElement.lang = L.htmlLang;
   for (const el of document.querySelectorAll("[data-i18n]")) el.textContent = L[el.dataset.i18n];
-  $("q").placeholder = L.placeholder;
   for (const b of $("langs").children) b.setAttribute("aria-pressed", String(b.dataset.lang === lang));
   $("examples").replaceChildren(...L.examples.map(([kind, text]) => {
     const b = document.createElement("button"); b.type = "button";
     b.innerHTML = `<span class="kind">${esc(L.kinds[kind])}</span>${esc(text)}`;
-    b.onclick = () => { $("q").value = text; autosize(); submit(); };
+    b.onclick = () => { q.value = text; autosize(); submit(); };
     return b;
   }));
-  if (view) renderTurn(view);  // re-label sources and meta of what is on screen
-  renderHistory();
+  renderAll();
 }
 $("langs").addEventListener("click", (e) => {
   const b = e.target.closest("button[data-lang]"); if (!b) return;
@@ -395,73 +388,85 @@ $("langs").addEventListener("click", (e) => {
 });
 
 /* ---------- theme ---------- */
-function applyTheme(v) {
-  if (v) document.documentElement.dataset.theme = v; else delete document.documentElement.dataset.theme;
-}
+function applyTheme(v) { if (v) document.documentElement.dataset.theme = v; else delete document.documentElement.dataset.theme; }
 applyTheme(store.get("milewise-theme"));
 $("theme").onclick = () => {
-  const dark = matchMedia("(prefers-color-scheme: dark)").matches;
-  const cur = document.documentElement.dataset.theme || (dark ? "dark" : "light");
+  const cur = document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
   const next = cur === "dark" ? "light" : "dark";
   store.set("milewise-theme", next); applyTheme(next);
 };
 
-/* ---------- arc ---------- */
-function drawArc(a, b, idle) {
-  const x1 = 40, x2 = 680, y = 106, h = 88;
-  const d = `M${x1} ${y} Q360 ${y - h * 2} ${x2} ${y}`;
-  const route = $("route");
-  route.setAttribute("d", d);
-  route.classList.toggle("idle", !!idle);
-  for (const [pin, x] of [["pin-a", x1], ["pin-b", x2]]) { $(pin).setAttribute("cx", x); $(pin).setAttribute("cy", y); }
-  $("code-a").setAttribute("x", x1 - 6); $("code-b").setAttribute("x", x2 + 6);
-  for (const id of ["code-a", "code-b"]) $(id).setAttribute("y", 146);
-  $("code-a").textContent = a; $("code-b").textContent = b;
-  $("arc-label").textContent = `${a} → ${b}`;
-  if (arcAnim) { arcAnim.cancel(); arcAnim = null; }
-  route.style.strokeDasharray = "";
-  if (!idle && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    const len = route.getTotalLength();
-    route.style.strokeDasharray = `${len}`;
-    arcAnim = route.animate([{ strokeDashoffset: len }, { strokeDashoffset: 0 }],
-      { duration: 1100, easing: "cubic-bezier(.45,.05,.25,1)", fill: "forwards" });
-  }
+/* ---------- conversations (this browser only) ---------- */
+function loadConvs() {
+  try {
+    const v = JSON.parse(store.get("milewise-convs", "null"));
+    if (Array.isArray(v)) return v;
+  } catch {}
+  // one-time move of the single-question history kept by the previous page
+  let old = [];
+  try { old = JSON.parse(store.get("milewise-history", "[]")) || []; } catch {}
+  const convs = old.map((h) => ({ id: h.id, ts: h.ts || Date.now(), turns: [{ q: h.q, text: h.text, done: h.done }] }));
+  saveConvs(convs); store.del("milewise-history");
+  return convs;
 }
-let arcAnim = null;
-function guessRoute(text) {
-  const found = [];
-  for (const [code, re] of PLACES) {
-    const m = text.match(re); if (m) found.push([m.index, code]);
-  }
-  found.sort((x, y) => x[0] - y[0]);
-  const codes = [...new Set(found.map((f) => f[1]))];
-  if (codes.length >= 2) return [codes[0], codes[1]];
-  if (codes.length === 1) return codes[0] === "TYO" ? null : ["TYO", codes[0]];
-  return null;
+function saveConvs(c) { store.set("milewise-convs", JSON.stringify(c.slice(0, CONV_MAX))); }
+let convs = loadConvs();
+let conv = null;  // the open conversation: { id, ts, turns: [{ q, text, done, notice?, streaming?, stage? }] }
+
+function persist(c) {
+  // only finished turns are stored; a conversation moves to the top when it gets a new answer
+  const turns = c.turns.filter((x) => x.done).map(({ q, text, done }) => ({ q, text, done })).slice(-TURNS_MAX);
+  if (!turns.length) return;
+  convs = [{ id: c.id, ts: Date.now(), turns }, ...convs.filter((x) => x.id !== c.id)];
+  saveConvs(convs);
 }
-function routeFromEvidence(detail) {
-  for (const v of Object.values(detail || {})) {
-    if (v.kind === "chart" && v.route && v.route[0] && v.route[1]) return v.route.map((c) => String(c).slice(0, 4).toUpperCase());
-  }
-  return null;
+
+function renderConvList() {
+  const L = t();
+  $("conv-empty").hidden = convs.length > 0; $("conv-clear").hidden = convs.length === 0;
+  $("conv-list").replaceChildren(...convs.map((c) => {
+    const li = document.createElement("li"); if (conv && c.id === conv.id) li.className = "current";
+    const open = document.createElement("button"); open.type = "button"; open.className = "open-c";
+    const title = document.createElement("span"); title.textContent = c.turns[0].q;
+    const small = document.createElement("small"); small.textContent = c.turns.length > 1 ? fmt(L.turns, { n: c.turns.length }) : "";
+    open.append(title, small);
+    open.onclick = () => { if (busy) return; conv = structuredClone(c); closeDrawer(); renderAll(); scrollToEnd(false); };
+    const del = document.createElement("button"); del.type = "button"; del.className = "del"; del.textContent = "×"; del.setAttribute("aria-label", L.del);
+    del.onclick = () => {
+      if (busy && conv && conv.id === c.id) return;
+      convs = convs.filter((x) => x.id !== c.id); saveConvs(convs);
+      if (conv && conv.id === c.id) conv = null;
+      renderAll();
+    };
+    li.append(open, del); return li;
+  }));
 }
+$("conv-clear").onclick = () => { if (busy) return; convs = []; saveConvs(convs); conv = null; renderAll(); };
+
+function newChat() { if (busy) return; conv = null; closeDrawer(); renderAll(); q.focus(); }
+$("new-chat").onclick = newChat; $("new-chat-top").onclick = newChat;
+$("home").onclick = (e) => { e.preventDefault(); newChat(); };
+
+function openDrawer() { $("side").classList.add("open"); $("scrim").classList.add("open"); $("menu").setAttribute("aria-expanded", "true"); }
+function closeDrawer() { $("side").classList.remove("open"); $("scrim").classList.remove("open"); $("menu").setAttribute("aria-expanded", "false"); }
+$("menu").onclick = openDrawer; $("scrim").onclick = closeDrawer;
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDrawer(); });
 
 /* ---------- markdown (small, safe subset) ---------- */
 const SOURCES_HEAD = /^\s*(?:#{1,4}\s*|\*\*)?\s*(?:sources?|references?|出典|出所|情報源|引用元|参考(?:资料|資料|链接)?|来源(?:引用)?|資料)\s*(?:\*\*)?\s*[:：]?\s*(?:\*\*)?\s*$/i;
-const WARN_LINE = /^\s*⚠️?\s*/;
 
 function splitAnswer(text) {
   // The page shows sources and the post-check warning in their own places.
-  const lines = text.split("\n");
+  const lines = (text || "").split("\n");
   let warn = "";
-  const w = lines.findIndex((l) => WARN_LINE.test(l) && /自動チェック|自动检查|Automatic check/.test(l));
-  if (w >= 0) { warn = lines.splice(w).join("\n"); }
+  const w = lines.findIndex((l) => /^\s*⚠/.test(l) && /自動チェック|自动检查|Automatic check/.test(l));
+  if (w >= 0) warn = lines.splice(w).join("\n");
   const s = lines.findIndex((l) => SOURCES_HEAD.test(l));
   if (s > 0) lines.splice(s);
   return { body: lines.join("\n").trim(), warn };
 }
 
-function inline(s, cites) {
+function inline(s, ctx) {
   return s
     .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
     .replace(/(^|[\s(（])(https?:\/\/[A-Za-z0-9\-._~:\/?#@!$&*+=%]+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>')
@@ -469,61 +474,69 @@ function inline(s, cites) {
     .replace(/`([^`]+)`/g, "<code>$1</code>")
     .replace(/(\d{1,3}(?:[,，]\d{3})+|\d{4,})(\s?)(マイル|里程|英里|miles?)/gi, '<span class="num">$1</span>$2$3')
     .replace(/\[([CD]\d+)\]/g, (_, id) => {
-      if (!cites.has(id)) cites.set(id, cites.size + 1);
-      const n = cites.get(id);
-      return `<sup class="cite"><a href="#src-${id}" data-cite="${id}" aria-label="${n}">${n}</a></sup>`;
+      if (!ctx.cites.has(id)) ctx.cites.set(id, ctx.cites.size + 1);
+      const n = ctx.cites.get(id);
+      return `<sup class="cite"><a href="#src-${ctx.turn}-${id}" data-cite="${ctx.turn}-${id}" aria-label="${n}">${n}</a></sup>`;
     });
 }
 
-function render(md, cites) {
+function render(md, ctx) {
   const lines = esc(md).split("\n");
-  let html = "", list = null, table = [];
+  let html = "", list = null, table = [], quote = [];
   const flushList = () => { if (list) { html += `</${list}>`; list = null; } };
   const flushTable = () => {
     if (!table.length) return;
-    const rows = table.filter((r) => !/^\s*\|?\s*:?-{2,}/.test(r)).map((r) => r.trim().replace(/^\||\|$/g, "").split("|"));
     const cell = (c) => /^[\s,、，CD\d]+$/.test(c) && /[CD]\d/.test(c) ? c.replace(/([CD]\d+)/g, "[$1]") : c;
-    const [head, ...body] = rows.map((r) => r.map(cell));
-    html += '<div class="tbl"><table><thead><tr>' + head.map((c) => `<th>${inline(c.trim(), cites)}</th>`).join("") + "</tr></thead><tbody>"
-      + body.map((r) => "<tr>" + r.map((c) => `<td>${inline(c.trim(), cites)}</td>`).join("") + "</tr>").join("") + "</tbody></table></div>";
+    const rows = table.filter((r) => !/^\s*\|?\s*:?-{2,}/.test(r)).map((r) => r.trim().replace(/^\||\|$/g, "").split("|").map(cell));
+    const [head, ...body] = rows;
+    html += '<div class="tbl"><table><thead><tr>' + head.map((c) => `<th>${inline(c.trim(), ctx)}</th>`).join("") + "</tr></thead><tbody>"
+      + body.map((r) => "<tr>" + r.map((c) => `<td>${inline(c.trim(), ctx)}</td>`).join("") + "</tr>").join("") + "</tbody></table></div>";
     table = [];
   };
-  let quote = [];
   const flushQuote = () => {
     if (!quote.length) return;
-    const inner = render(quote.join("\n").replace(/&gt;/g, ">").replace(/&lt;/g, "<").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&"), cites);
-    html += `<blockquote>${inner}</blockquote>`; quote = [];
+    const raw = quote.join("\n").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
+    html += `<blockquote>${render(raw, ctx)}</blockquote>`; quote = [];
   };
-  for (const raw of lines) {
-    const bq = raw.match(/^\s*&gt;\s?(.*)$/);
+  for (const line of lines) {
+    const bq = line.match(/^\s*&gt;\s?(.*)$/);
     if (bq) { flushTable(); flushList(); quote.push(bq[1]); continue; }
     flushQuote();
-    if (/^\s*\|.*\|\s*$/.test(raw)) { flushList(); table.push(raw); continue; }
+    if (/^\s*\|.*\|\s*$/.test(line)) { flushList(); table.push(line); continue; }
     flushTable();
-    const ul = raw.match(/^\s*[-*•]\s+(.*)$/), ol = raw.match(/^\s*\d+[.)]\s+(.*)$/);
+    const ul = line.match(/^\s*[-*•]\s+(.*)$/), ol = line.match(/^\s*\d+[.)]\s+(.*)$/);
     if (ul || ol) {
       const tag = ul ? "ul" : "ol";
       if (list !== tag) { flushList(); html += `<${tag}>`; list = tag; }
-      html += `<li>${inline((ul || ol)[1], cites)}</li>`; continue;
+      html += `<li>${inline((ul || ol)[1], ctx)}</li>`; continue;
     }
     flushList();
-    const h = raw.match(/^#{1,4}\s+(.*)$/);
-    if (h) html += `<h3>${inline(h[1], cites)}</h3>`;
-    else if (/^\s*(-{3,}|\*{3,})\s*$/.test(raw)) continue;
-    else if (raw.trim()) html += `<p>${inline(raw, cites)}</p>`;
+    const h = line.match(/^#{1,4}\s+(.*)$/);
+    if (h) html += `<h3>${inline(h[1], ctx)}</h3>`;
+    else if (/^\s*(-{3,}|\*{3,})\s*$/.test(line)) continue;
+    else if (line.trim()) html += `<p>${inline(line, ctx)}</p>`;
   }
   flushQuote(); flushTable(); flushList();
   return html;
 }
 
-/* ---------- sources ---------- */
-function sourceItem(id, n, card, url, cited) {
+/* ---------- one answer ---------- */
+function routeOf(done) {
+  for (const v of Object.values((done && done.evidence_detail) || {})) {
+    if (v.kind === "chart" && v.route && v.route[0] && v.route[1]) return v.route.map((c) => String(c).slice(0, 4).toUpperCase());
+  }
+  return null;
+}
+function routeLine(r) {
+  return `<div class="route-line" aria-label="${esc(r[0])} → ${esc(r[1])}"><span>${esc(r[0])}</span>`
+    + `<svg width="56" height="16" viewBox="0 0 56 16" aria-hidden="true"><path d="M3 13 Q28 -6 53 13" fill="none" stroke="var(--magenta)" stroke-width="2" stroke-linecap="round"/>`
+    + `<circle cx="3" cy="13" r="2.5" fill="var(--ink)"/><circle cx="53" cy="13" r="2.5" fill="var(--ink)"/></svg><span>${esc(r[1])}</span></div>`;
+}
+function sourceItem(key, id, n, card, url, cited) {
   const L = t();
-  const li = document.createElement("li");
-  li.id = `src-${id}`; if (!cited) li.className = "uncited";
   const c = card || { kind: id.startsWith("C") ? "chart" : "rule", url };
   const link = c.url || url;
-  let name, facts = [];
+  let name; const facts = [];
   if (c.kind === "rule") {
     name = c.title || L.rule;
     if (c.section) facts.push(c.section);
@@ -537,86 +550,75 @@ function sourceItem(id, n, card, url, cited) {
     if (c.booking_from) facts.push(fmt(L.bookFrom, { d: c.booking_from }));
   }
   if (c.fetched) facts.push(fmt(L.fetched, { d: c.fetched }));
-  const host = link ? new URL(link).host.replace(/^www\./, "") : "";
-  li.innerHTML = `<span class="n">${cited ? n : "·"}</span><span class="what">`
+  let host = "";
+  try { host = link ? new URL(link).host.replace(/^www\./, "") : ""; } catch {}
+  return `<li id="src-${key}"${cited ? "" : ' class="uncited"'}><span class="n">${cited ? n : "·"}</span><span class="what">`
     + (link ? `<a href="${esc(link)}" target="_blank" rel="noopener">${esc(name)}</a>` : esc(name))
-    + `<span class="facts">${esc([host, ...facts].filter(Boolean).join("　"))}</span></span>`;
-  return li;
+    + `<span class="facts">${esc([host, ...facts].filter(Boolean).join("　"))}</span></span></li>`;
 }
-function renderSources(done, cites) {
-  const ev = (done && done.evidence) || {};
-  const detail = (done && done.evidence_detail) || {};
+function sourcesHtml(turnKey, done, cites) {
+  const ev = (done && done.evidence) || {}, detail = (done && done.evidence_detail) || {};
   const ids = Object.keys(ev);
-  const list = $("sources-list");
-  list.replaceChildren();
-  const cited = [...cites.keys()].filter((id) => ids.includes(id) || detail[id]);
-  for (const id of cited) list.append(sourceItem(id, cites.get(id), detail[id], ev[id], true));
-  for (const id of ids.filter((i) => !cites.has(i))) list.append(sourceItem(id, 0, detail[id], ev[id], false));
-  $("sources").hidden = !list.children.length;
+  const items = [...cites.keys()].filter((id) => ids.includes(id) || detail[id])
+    .map((id) => sourceItem(`${turnKey}-${id}`, id, cites.get(id), detail[id], ev[id], true))
+    .concat(ids.filter((i) => !cites.has(i)).map((id) => sourceItem(`${turnKey}-${id}`, id, 0, detail[id], ev[id], false)));
+  return items.length ? `<section class="sources"><h4>${esc(t().sources)}</h4><ol>${items.join("")}</ol></section>` : "";
 }
-$("answer").addEventListener("click", (e) => {
+
+const MARK = '<span class="mark" aria-hidden="true"><svg width="16" height="12" viewBox="0 0 16 12"><path d="M2 10 Q8 -2 14 10" fill="none" stroke="var(--magenta)" stroke-width="2" stroke-linecap="round"/></svg></span>';
+
+function botHtml(turn, i) {
+  const L = t();
+  if (turn.notice) return `<div class="msg bot">${MARK}<div class="body"><p class="notice">${esc(turn.notice)}</p></div></div>`;
+  const { body, warn } = splitAnswer(turn.text);
+  const ctx = { cites: new Map(), turn: i };
+  let html = "";
+  const r = routeOf(turn.done);
+  if (r) html += routeLine(r);
+  if (turn.streaming) {
+    html += `<div class="progress"><span class="dot"></span><span>${esc(L.stage[turn.stage] || L.stage.working)}</span><span class="elapsed" data-elapsed></span></div>`;
+  }
+  if (body) html += `<div class="answer${turn.streaming ? " streaming" : ""}">${render(body, ctx)}</div>`;
+  const d = turn.done;
+  if (d && (d.postcheck_ok === false || warn)) html += `<div class="warning" role="note">⚠ ${esc(L.warnPost)}</div>`;
+  if (d) {
+    html += sourcesHtml(i, d, ctx.cites);
+    const meta = [d.cached ? L.cached : (d.latency_ms ? `${(d.latency_ms / 1000).toFixed(1)} s` : ""), d.model ? d.model.replace(/^bedrock:|^openai:/, "") : ""].filter(Boolean).join("　");
+    if (meta) html += `<p class="meta">${esc(meta)}</p>`;
+  }
+  return `<div class="msg bot" data-turn="${i}">${MARK}<div class="body">${html}</div></div>`;
+}
+function turnHtml(turn, i) {
+  return `<div class="msg user"><div class="bubble">${esc(turn.q)}</div></div>` + botHtml(turn, i);
+}
+
+/* ---------- page ---------- */
+function renderAll() {
+  const inConv = !!(conv && conv.turns.length);
+  $("welcome").hidden = inConv;
+  $("thread").innerHTML = inConv ? conv.turns.map(turnHtml).join("") : "";
+  q.placeholder = inConv ? t().followUp : t().placeholder;
+  renderConvList();
+}
+function renderLast() {
+  // re-render only the answer being streamed
+  const i = conv.turns.length - 1;
+  const el = $("thread").querySelector(`.msg.bot[data-turn="${i}"]`) || $("thread").lastElementChild;
+  const stick = nearBottom();
+  if (el) el.outerHTML = botHtml(conv.turns[i], i); else renderAll();
+  tickElapsed();
+  if (stick) scrollToEnd(false);
+}
+function nearBottom() { return innerHeight + scrollY >= document.documentElement.scrollHeight - 160; }
+function scrollToEnd(smooth) { scrollTo({ top: document.documentElement.scrollHeight, behavior: smooth && !reducedMotion() ? "smooth" : "auto" }); }
+
+$("thread").addEventListener("click", (e) => {
   const a = e.target.closest("a[data-cite]"); if (!a) return;
   const li = $(`src-${a.dataset.cite}`); if (!li) return;
   e.preventDefault();
-  li.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" });
+  li.scrollIntoView({ behavior: reducedMotion() ? "auto" : "smooth", block: "center" });
   li.classList.add("flash"); setTimeout(() => li.classList.remove("flash"), 1400);
 });
-
-/* ---------- one turn on screen ---------- */
-let view = null;  // { q, text, done, streaming, stage, error, notice }
-function renderTurn(v) {
-  const L = t();
-  $("welcome").hidden = true; $("turn").hidden = false;
-  $("question").textContent = v.q;
-  const { body, warn } = splitAnswer(v.text || "");
-  const cites = new Map();
-  $("answer").innerHTML = body ? render(body, cites) : "";
-  $("answer").classList.toggle("streaming", !!v.streaming && !!body);
-  const showWarn = v.done && (v.done.postcheck_ok === false || warn);
-  $("warning").innerHTML = showWarn ? `<div class="warning" role="note">⚠ ${esc(L.warnPost)}</div>` : "";
-  if (v.notice) $("answer").innerHTML = `<p class="notice">${esc(v.notice)}</p>`;
-  if (v.done) renderSources(v.done, cites); else $("sources").hidden = true;
-  const p = $("progress");
-  p.hidden = !v.streaming;
-  if (v.streaming) $("stage").textContent = L.stage[v.stage] || L.stage.working;
-  const d = v.done;
-  $("meta").textContent = d ? [
-    d.cached ? L.cached : (d.latency_ms ? `${(d.latency_ms / 1000).toFixed(1)} s` : ""),
-    d.model ? d.model.replace(/^bedrock:|^openai:/, "") : "",
-  ].filter(Boolean).join("　") : "";
-}
-function showWelcome() {
-  view = null; current = null;
-  $("welcome").hidden = false; $("turn").hidden = true;
-  drawArc("TYO", "LON", true);
-  renderHistory();
-}
-
-/* ---------- history (this browser only) ---------- */
-let current = null;
-function loadHistory() { try { return JSON.parse(store.get("milewise-history", "[]")) || []; } catch { return []; } }
-function saveHistory(h) { store.set("milewise-history", JSON.stringify(h.slice(0, HISTORY_MAX))); }
-function renderHistory() {
-  const L = t(), h = loadHistory();
-  $("history-empty").hidden = h.length > 0; $("history-clear").hidden = h.length === 0;
-  $("history-list").replaceChildren(...h.map((item) => {
-    const li = document.createElement("li"); if (item.id === current) li.className = "current";
-    const open = document.createElement("button"); open.type = "button"; open.className = "open-h";
-    const label = document.createElement("span"); label.textContent = item.q; open.append(label);
-    open.onclick = () => { current = item.id; view = { q: item.q, text: item.text, done: item.done }; renderTurn(view);
-      const r = routeFromEvidence(item.done && item.done.evidence_detail) || guessRoute(item.q); if (r) drawArc(r[0], r[1]); closeDrawer(); renderHistory(); };
-    const del = document.createElement("button"); del.type = "button"; del.className = "del"; del.textContent = "×"; del.setAttribute("aria-label", L.del);
-    del.onclick = () => { saveHistory(loadHistory().filter((x) => x.id !== item.id)); if (current === item.id) showWelcome(); else renderHistory(); };
-    li.append(open, del); return li;
-  }));
-}
-$("history-clear").onclick = () => { store.del("milewise-history"); showWelcome(); };
-
-function openDrawer() { $("history").classList.add("open"); $("scrim").classList.add("open"); $("menu").setAttribute("aria-expanded", "true"); }
-function closeDrawer() { $("history").classList.remove("open"); $("scrim").classList.remove("open"); $("menu").setAttribute("aria-expanded", "false"); }
-$("menu").onclick = openDrawer; $("scrim").onclick = closeDrawer;
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDrawer(); });
-$("home").onclick = (e) => { e.preventDefault(); showWelcome(); };
 
 /* ---------- composer ---------- */
 const q = $("q");
@@ -648,20 +650,36 @@ fetch("/config").then((r) => r.json()).then((cfg) => {
   sc.async = true; document.head.append(sc);
 }).catch(() => {});
 
-let busy = false, timer = null;
+let busy = false, started = 0;
+function tickElapsed() {
+  const el = document.querySelector("[data-elapsed]");
+  if (el && started) el.textContent = `${Math.round((performance.now() - started) / 1000)} s`;
+}
+setInterval(tickElapsed, 500);
+
+function contextOf(c) {
+  // the last few finished turns, as the API's history (answers without the sources section)
+  return c.turns.filter((x) => x.done && x.text).slice(-CONTEXT_TURNS).flatMap((x) => [
+    { role: "user", content: x.q },
+    { role: "assistant", content: splitAnswer(x.text).body },
+  ]);
+}
+
 async function submit() {
   const L = t();
   const question = q.value.trim();
   if (busy || question.length < 2) return;
-  if ([...question].length > MAX) { view = { q: question, notice: L.tooLong }; renderTurn(view); return; }
+  if (!conv) conv = { id: (crypto.randomUUID && crypto.randomUUID()) || String(Date.now()), ts: Date.now(), turns: [] };
+  if ([...question].length > MAX) { conv.turns.push({ q: question, notice: L.tooLong }); renderAll(); scrollToEnd(true); return; }
+  const history = contextOf(conv);
+  const turn = { q: question, text: "", done: null, streaming: true, stage: "working" };
+  conv.turns.push(turn);
   busy = true; $("send").disabled = true; closeDrawer();
-  current = null; renderHistory();
-  view = { q: question, text: "", done: null, streaming: true, stage: "working" };
-  renderTurn(view);
-  const guess = guessRoute(question); if (guess) drawArc(guess[0], guess[1]); else drawArc("TYO", "LON", true);
-  const t0 = performance.now();
-  timer = setInterval(() => { $("elapsed").textContent = `${((performance.now() - t0) / 1000).toFixed(0)} s`; }, 500);
-  $("elapsed").textContent = "";
+  q.value = ""; autosize();
+  renderAll(); scrollToEnd(true);
+  started = performance.now();
+  const c = conv;
+  const fail = (notice) => { turn.streaming = false; turn.notice = notice; if (conv === c) renderLast(); if (!q.value) { q.value = question; autosize(); } };
   try {
     const headers = { "Content-Type": "application/json" };
     const token = $("token").value.trim();
@@ -670,15 +688,14 @@ async function submit() {
       headers["X-Turnstile-Token"] = turnstile.getResponse(turnstileWidget) || "";
       turnstile.reset(turnstileWidget);  // one token per question
     }
-    const res = await fetch("/ask", { method: "POST", headers, body: JSON.stringify({ question }) });
+    const res = await fetch("/ask", { method: "POST", headers, body: JSON.stringify({ question, history }) });
     if (!res.ok) {
       let code = ""; try { code = (await res.json()).code || ""; } catch {}
-      view = { q: question, notice: L.denied[code] || fmt(L.httpError, { s: res.status }) }; renderTurn(view); return;
+      fail(L.denied[code] || fmt(L.httpError, { s: res.status })); return;
     }
-    q.value = ""; autosize();
-    const reader = res.body.getReader(), dec = new TextDecoder(); let buf = "", draft = "";
+    const reader = res.body.getReader(), dec = new TextDecoder(); let buf = "";
     let frame = 0;
-    const paint = () => { frame = 0; if (view && view.q === question) renderTurn(view); };
+    const paint = () => { frame = 0; if (conv === c) renderLast(); };
     const schedule = () => { if (!frame) frame = requestAnimationFrame(paint); };
     for (;;) {
       const { value, done } = await reader.read(); if (done) break;
@@ -689,32 +706,24 @@ async function submit() {
         const ev = (block.match(/^event: (.*)$/m) || [])[1], data = (block.match(/^data: (.*)$/m) || [])[1];
         if (!ev || !data) continue;
         const d = JSON.parse(data);
-        if (ev === "status") { view.stage = d.stage; }
-        else if (ev === "progress") { draft = ""; view.text = ""; view.stage = d.name; }  // text before a tool call was a preamble
-        else if (ev === "delta") { draft += d.text; view.text = draft; view.stage = "writing"; }
-        else if (ev === "answer") { view.text = d.text; }
-        else if (ev === "done") {
-          view.done = d; view.streaming = false;
-          const r = routeFromEvidence(d.evidence_detail);
-          if (r && (!guess || r[0] !== guess[0] || r[1] !== guess[1])) drawArc(r[0], r[1]);
-          const id = d.request_id || String(Date.now());
-          saveHistory([{ id, q: question, text: view.text, done: d, ts: Date.now() }, ...loadHistory().filter((x) => x.q !== question)]);
-          current = id; renderHistory();
-        }
-        else if (ev === "error") { view.streaming = false; view.notice = fmt(L.error, { id: d.request_id }); }
+        if (ev === "status") turn.stage = d.stage === "cached" ? "writing" : d.stage;
+        else if (ev === "progress") { turn.text = ""; turn.stage = d.name; }  // text before a tool call was a preamble
+        else if (ev === "delta") { turn.text += d.text; turn.stage = "writing"; }
+        else if (ev === "answer") turn.text = d.text;
+        else if (ev === "done") { turn.done = d; turn.streaming = false; persist(c); if (conv === c) renderConvList(); }
+        else if (ev === "error") { fail(fmt(L.error, { id: d.request_id })); }
         schedule();
       }
     }
-    if (view.streaming) { view.streaming = false; schedule(); }
+    if (turn.streaming) fail(fmt(L.error, { id: "stream" }));
   } catch (err) {
-    view = { q: question, notice: fmt(t().network, { e: err.message || err }) }; renderTurn(view);
+    fail(fmt(L.network, { e: err.message || err }));
   } finally {
-    clearInterval(timer); busy = false; $("send").disabled = false;
+    busy = false; $("send").disabled = false; started = 0;
   }
 }
 
 applyLang();
-showWelcome();
 autosize();
 </script>
 </body>
