@@ -25,7 +25,9 @@
 4. ~~**合作航空价目表的结构化**~~ ✅ 2026-10-18（design.md §9.15）
 5. ~~**CloudWatch Dashboard**~~ ✅ 2026-10-18（已 apply）
 6. ~~**检索评测**~~ ✅ 2026-10-18：Titan V2 hit@5 70%（中文 33%）、OpenAI large 85%（design.md §9.16）
-9. 改善中文检索：比较 Cohere embed（Bedrock）或在检索前把问题翻成日文
+9. ~~**改善中文检索**~~ ✅ 2026-10-19：embedding 改为 Cohere Multilingual v3（hit@5 70% → 95%，中文 33% → 83%），规则按自社便 / 合作航空过滤（design.md §9.18）
+11. rules-05（退票后里程有效期）仍不稳定：Nova 2 Lite 有时把"悪天候"情形的 36 个月规则当成一般规则；可考虑换更强的回答模型或在工具层标记特殊情形
+12. 清理：删除旧表 `milewise-usage`，IAM 里去掉 Titan embedding 权限
 10. ~~**JAL 合作航空的距离估算**~~ ✅ 2026-10-18（design.md §9.15）
 7. ~~**去掉 Aurora，数据随镜像发布**~~ ✅ 2026-10-18 上线（design.md §4.6、§9.13）
 8. ~~**模型改为 Bedrock**~~ ✅ 2026-10-18 上线（design.md §4.7、§9.14）
@@ -36,6 +38,7 @@
 - [x] ~~决定默认往返还是单程~~：默认单程（2026-10-18）
 - [x] ~~确认 SNS 订阅邮件~~（2026-10-18 已确认）
 - [x] ~~是否下载 OurAirports 机场坐标~~：已下载，只提交用到的 77 个机场
+- [ ] 确认第一张出现 Cohere（"AWS Marketplace software usage"）的账单是否被 credit 抵扣
 - [ ] （可选）在 Cloudflare 创建 Turnstile 小组件，把 site key 告诉我、secret 放进 `.env` 的 `TURNSTILE_SECRET`，然后 `make put-turnstile-secret`
 - [x] ~~给云端单独建一个 OpenAI key~~：不再需要（模型都在 Bedrock；OpenAI 只用于本地 A/B）
 - [x] push 到 GitHub 并设置 CI 用的 repo 变量

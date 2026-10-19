@@ -1151,3 +1151,28 @@ ADR 列表（M1 起逐步补齐，放在 `docs/adr/`）：
 - 顺带修正：SSE 循环原来每 3 秒才检查一次回答是否完成，平均给每个回答多加约 1.5 秒；改为回答一完成就返回。
 - 待清理：旧表 `milewise-usage` 在下一次发布后删除。
 
+### 9.18 embedding 改为 Cohere Multilingual v3，规则按特典类型过滤（2026-10-19）
+
+**检索评测**（20 问，只测召回；"翻译" = 检索前用 LLM 把非日文问题翻成日文）：
+
+| embedding | 查询 | hit@1 | hit@5 | hit@20 | MRR | 中文 hit@5 |
+|---|---|---|---|---|---|---|
+| Titan V2（原来） | 原文 | 55% | 70% | 90% | 0.63 | 33% |
+| Titan V2 | 翻译（Nova 2 Lite / Nova Pro） | 50–55% | 65–70% | 95% | 0.60–0.66 | 33–50% |
+| OpenAI `text-embedding-3-large` | 原文 | 35% | 85% | 95% | 0.56 | 67% |
+| OpenAI `text-embedding-3-large` | 翻译 | 30–45% | 95% | 100% | 0.54–0.63 | 83% |
+| **Cohere Embed Multilingual v3（采用）** | **原文** | **75%** | **95%** | **100%** | **0.82** | **83%** |
+| Cohere Embed Multilingual v3 | 翻译 | 70% | 100% | 100% | 0.83 | 100% |
+| Cohere Embed v4 | 原文 / 翻译 | 60% / 75% | 85% / 95% | 100% | 0.74 / 0.85 | 67% / 100% |
+
+- 翻译救不了 Titan：即使"退票"被正确译成"払い戻し"，Titan 仍然找不到，说明它的日文检索本身就偏弱。Cohere v3 不翻译就达到 OpenAI + 翻译的水平，hit@1 还明显更高，所以**不加翻译步骤**（省掉每问约 1 秒和一次模型调用）。`--translate` 只保留为评测选项。
+- Bedrock 上没有 OpenAI 的 embedding 模型。Cohere 属于第三方模型：第一次调用时账户在 AWS Marketplace 订阅（订阅免费，按量计费，东京 $0.10 / 1M token），账单上显示为 "AWS Marketplace software usage"。**新账户 credit 是否抵扣这部分，以第一张出现该项的账单为准**（Amazon 自家模型已确认被全额抵扣）。即使不抵扣，每月也只有几美分。
+- Cohere 区分文档和查询（`input_type` = search_document / search_query），`llm.embed(kind=…)` 负责传递。
+
+**换 embedding 暴露出的两个问题**（Titan 时代碰巧没出现）：
+
+1. **自社便与合作航空的规则混淆**（rules-08）：JAL ワンワールド / JMB 提携特典的页面和 JAL 国际线特典的页面写法几乎相同，规则却相反（合作航空发券后可以改日期，自社便不行）。Cohere 把合作航空的页面排得更靠前，回答就套用了错误的规则。→ 每页打上 `own` / `partner` / `general` 标签（`doc_type: partner` → partner，id 含 `-intl-award-` → own，其余 general），`search_rules` 增加 `award_type`（默认 own），检索时排除另一类页面。新增 rules-10（合作航空可以改日期）作为对照。
+2. **特殊情形被当成一般规则**（rules-05）：问"退票后返还的里程有效期"，答成了"悪天候・機材故障"情形下的 36 个月规则。召回本身没问题（一般规则在前 10 名里），重排和回答模型都会把排在前面的特殊情形当成通用答案。→ 摘录带上 `section`（标题路径），prompt 增加规则 5a（先讲一般规则，特殊情形作为例外），重排提示要求保留一般规则，摘录数 5 → 6。改善后 rules-05 仍不稳定（会先错一次、重试通过），这是 Nova 2 Lite 推理能力的上限，记为已知问题。
+
+**评测**：33/33（rules-05 重试通过），平均 7.0 s、$0.0093/问。
+
