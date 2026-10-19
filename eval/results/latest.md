@@ -1,6 +1,6 @@
-# Eval run ec43347d (2026-10-19T06:11Z)
+# Eval run 5100ea4a (2026-10-19T06:57Z)
 
-model `deployed`, judge `bedrock:apac.amazon.nova-pro-v1:0`, git `1ba8baa-dirty`, 32 cases (32 not yet human-verified)
+model `bedrock:jp.amazon.nova-2-lite-v1:0`, judge `bedrock:apac.amazon.nova-pro-v1:0`, git `24d078c-dirty`, 33 cases (33 not yet human-verified)
 
 | metric | value | threshold |
 |---|---|---|
@@ -10,10 +10,10 @@ model `deployed`, judge `bedrock:apac.amazon.nova-pro-v1:0`, git `1ba8baa-dirty`
 | citation accuracy | 100% | 80% |
 | post-check failures | 0% | |
 | overall | 100% | |
-| latency avg / p95 | 8336 / 15671 ms | |
-| cost avg / total | $0.01039 / $0.3323 | |
+| latency avg / p95 | 7040 / 10646 ms | |
+| cost avg / total | $0.00933 / $0.3079 | |
 
-**PASSED** · unstable: miles-12, miles-15, rules-05, both-01
+**PASSED** · unstable: rules-05
 
 | case | cat | lang | result | notes |
 |---|---|---|---|---|
@@ -28,10 +28,10 @@ model `deployed`, judge `bedrock:apac.amazon.nova-pro-v1:0`, git `1ba8baa-dirty`
 | miles-09 | miles | ja | ✅ |  |
 | miles-10 | miles | zh | ✅ |  |
 | miles-11 | miles | en | ✅ |  |
-| miles-12 | miles | zh | ✅ (unstable) | 1st try failed: The answer incorrectly references 2026 instead of 2027, and incorrectly splits the dates for the regular season. / missing: ['指的是2027年的7月和8月'] / |
+| miles-12 | miles | zh | ✅ |  |
 | miles-13 | miles | ja | ✅ |  |
 | miles-14 | miles | ja | ✅ |  |
-| miles-15 | miles | zh | ✅ (unstable) | 1st try failed: figures missing or unbacked; The answer correctly states the required points for both ANA and JAL, including the seasonal variations for ANA and |
+| miles-15 | miles | zh | ✅ |  |
 | miles-16 | miles | zh | ✅ |  |
 | miles-17 | miles | ja | ✅ |  |
 | miles-18 | miles | ja | ✅ |  |
@@ -39,12 +39,13 @@ model `deployed`, judge `bedrock:apac.amazon.nova-pro-v1:0`, git `1ba8baa-dirty`
 | rules-02 | rules | zh | ✅ |  |
 | rules-03 | rules | ja | ✅ |  |
 | rules-04 | rules | en | ✅ |  |
-| rules-05 | rules | ja | ✅ (unstable) | 1st try failed: The answer includes points not required by the rubric and does not fully address the required points clearly. / missing: ['通常の払い戻しは交換時と同じ有効期限で戻る |
+| rules-05 | rules | ja | ✅ (unstable) | 1st try failed: The answer incorrectly states that the miles have a 36-month validity period from the refund date, which contradicts the required point that the |
 | rules-06 | rules | zh | ✅ |  |
 | rules-07 | rules | ja | ✅ |  |
 | rules-08 | rules | ja | ✅ |  |
 | rules-09 | rules | zh | ✅ |  |
-| both-01 | both | ja | ✅ (unstable) | 1st try failed: figures missing or unbacked; The answer correctly states that miles are refundable if all segments are unused, which meets the required point. T |
+| rules-10 | rules | ja | ✅ |  |
+| both-01 | both | ja | ✅ |  |
 | both-02 | both | en | ✅ |  |
 | abstain-01 | abstain | ja | ✅ |  |
 | abstain-02 | abstain | zh | ✅ |  |

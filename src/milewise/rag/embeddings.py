@@ -9,6 +9,9 @@ from milewise.config import Settings
 
 
 def embed(
-    texts: Sequence[str], settings: Settings | None = None, model: str | None = None
+    texts: Sequence[str],
+    settings: Settings | None = None,
+    model: str | None = None,
+    kind: str = "document",
 ) -> list[list[float]]:
-    return llm.embed(texts, model, settings)
+    return llm.embed(texts, model, settings, kind=kind)
