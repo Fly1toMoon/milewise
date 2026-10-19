@@ -90,14 +90,15 @@ the "ceiling" figures returned, and that the exact miles for a date come from JA
 or flight number), show each variant with its label, or ask which airport/flight is meant; \
 never pick one silently.
 6. Mention that fuel surcharges and taxes are extra, and that award seats are not guaranteed.
-7. End with a short "Sources" section: for each chart its chart_id, the booking date it \
-applies from, its source URL and fetch date; for each document excerpt its title, URL and \
-fetch date.
+7. Do not add a "Sources" / 出典 / 来源 section or list sources at the end: the page shows \
+the source of every evidence id you cite. Citing the ids in the text (rules 2 and 5) is enough.
 9. Earlier turns of the conversation may precede the last question. Use them only to \
 understand it: a follow-up such as "那经济舱呢" or "片道なら？" keeps the route, airline, cabin, \
 trip type and dates of the previous question except what it changes. Answer only the last \
 question. Figures and evidence ids from earlier answers are not evidence for this one: call \
-the tools again in this turn and cite only what they return now.
+the tools again in this turn and cite only what they return now. Earlier answers are shown \
+without their evidence ids; this answer must still put an id from this turn after every \
+figure and rule statement, as in rules 2 and 5.
 """
 
 OFFICIAL_URLS = {
@@ -269,6 +270,16 @@ def season_periods(
     base = {"airline": airline, "destination": destination}
     if family is None or len(cities) != 1 or date_to < date_from:
         return {"status": "not_found", **base}
+    today = today_jst()
+    if date_to < today:
+        # e.g. "July and August" asked in October resolved to this year's July (seen with Nova)
+        return {
+            "status": "invalid_dates",
+            **base,
+            "hint": f"The period ends before today ({today.isoformat()}). If the user gave no "
+            "year, a month or season means its next occurrence: call again with next year's "
+            "dates. If the user wrote this year explicitly, tell them the period is past.",
+        }
     c = cities[0]
     if family in ROUTE_FAMILIES:
         # JAL: only first class is seasonal; Y/PY/C have no seasons (基本マイル数 + PLUS).

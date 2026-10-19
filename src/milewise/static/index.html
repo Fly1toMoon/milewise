@@ -453,7 +453,8 @@ $("menu").onclick = openDrawer; $("scrim").onclick = closeDrawer;
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDrawer(); });
 
 /* ---------- markdown (small, safe subset) ---------- */
-const SOURCES_HEAD = /^\s*(?:#{1,4}\s*|\*\*)?\s*(?:sources?|references?|出典|出所|情報源|引用元|参考(?:资料|資料|链接)?|来源(?:引用)?|資料)\s*(?:\*\*)?\s*[:：]?\s*(?:\*\*)?\s*$/i;
+// A sources section the model wrote anyway (the prompt asks it not to; older answers have one).
+const SOURCES_HEAD = /^\s*(?:#{1,4}\s*|\*\*)?\s*(?:sources?|references?|evidence|出典(?:情報)?|出所|情報源|ソース(?:情報)?|引用元|参照(?:元)?|根拠(?:データ)?|参考(?:资料|資料|链接|來源)?|来源(?:引用|信息)?|資料|证据|依据)\s*(?:\*\*)?\s*[:：]?\s*(?:\*\*)?\s*$/i;
 
 function splitAnswer(text) {
   // The page shows sources and the post-check warning in their own places.
@@ -671,6 +672,7 @@ async function submit() {
   if (busy || question.length < 2) return;
   if (!conv) conv = { id: (crypto.randomUUID && crypto.randomUUID()) || String(Date.now()), ts: Date.now(), turns: [] };
   if ([...question].length > MAX) { conv.turns.push({ q: question, notice: L.tooLong }); renderAll(); scrollToEnd(true); return; }
+  while (conv.turns.length && conv.turns[conv.turns.length - 1].notice) conv.turns.pop();
   const history = contextOf(conv);
   const turn = { q: question, text: "", done: null, streaming: true, stage: "working" };
   conv.turns.push(turn);

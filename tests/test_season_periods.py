@@ -4,8 +4,22 @@ from __future__ import annotations
 
 from datetime import date
 
+import pytest
+
+from milewise import agent
 from milewise.agent import season_periods
 from milewise.charts.store import FareStore
+
+
+@pytest.fixture(autouse=True)
+def today(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(agent, "today_jst", lambda: date(2026, 10, 19))
+
+
+def test_a_period_already_over_is_sent_back(fares: FareStore) -> None:
+    # "7月と8月" asked in October 2026 means 2027; 2026 must not be answered silently
+    res = season_periods(fares, "NH", "台北", date(2026, 7, 1), date(2026, 8, 31))
+    assert res["status"] == "invalid_dates" and "next year" in res["hint"]
 
 
 def test_tokyo_taipei_july_august_2027(fares: FareStore) -> None:
@@ -33,5 +47,5 @@ def test_year_end_split_is_merged_and_uncovered_days_flagged(fares: FareStore) -
 
 
 def test_jal_seasons_apply_to_first_class_only(fares: FareStore) -> None:
-    res = season_periods(fares, "JL", "ロンドン", date(2026, 8, 1), date(2026, 8, 10))
+    res = season_periods(fares, "JL", "ロンドン", date(2027, 8, 1), date(2027, 8, 10))
     assert res["season_group"] == "F" and "ファーストクラスのみ" in res["note"]
