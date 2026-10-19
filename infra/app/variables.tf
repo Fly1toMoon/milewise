@@ -69,7 +69,7 @@ variable "daily_request_limit" {
 
 variable "daily_cost_limit_usd" {
   type    = number
-  default = 1
+  default = 3
 }
 
 variable "log_retention_days" {

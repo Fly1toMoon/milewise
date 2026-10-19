@@ -164,7 +164,7 @@ class Limits:
     ip_window: int = 5  # per WINDOW_S
     ip_daily: int = 20
     owner_requests: int = 300
-    owner_cost_usd: float = 1.0
+    owner_cost_usd: float = 3.0
     cache_ttl_s: int = 86400
 
 

@@ -50,7 +50,7 @@ class Settings(BaseSettings):
     openai_api_key_secret_arn: str = ""
     # Owner pool: requests with APP_TOKEN (you and CI evals), separate from the public budget.
     daily_request_limit: int = 300
-    daily_cost_limit_usd: float = 1.0
+    daily_cost_limit_usd: float = 3.0
 
 
 @cache
