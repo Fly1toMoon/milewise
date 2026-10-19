@@ -233,6 +233,8 @@ def evidence_card(v: dict[str, Any]) -> dict[str, Any]:
             "booking_from": c.get("booking_from"),
             "fetched": (c.get("fetched_at") or "")[:10] or None,
             "route": [_place(v.get("origin")), _place(v.get("destination"))],
+            # the full itinerary the distance was measured on (JAL partner awards)
+            "path": v.get("route"),
             "cabin": v.get("cabin"),
             "trip_type": v.get("trip_type"),
         }
