@@ -54,3 +54,15 @@ def test_structured_on_bedrock_forces_the_schema_tool(monkeypatch: pytest.Monkey
     assert usage == {"input_tokens": 900, "cached_input_tokens": 0, "output_tokens": 20}
     assert fake.kwargs["toolConfig"]["toolChoice"] == {"tool": {"name": "rerank"}}
     assert fake.kwargs["modelId"] == "jp.amazon.nova-2-lite-v1:0"
+
+
+def test_chat_model_streams_and_sends_nova_fields_only_to_nova_2() -> None:
+    from milewise.config import Settings
+    from milewise.llm import chat_model
+
+    s = Settings()
+    glm = chat_model("bedrock:zai.glm-5", s)
+    nova = chat_model("bedrock:jp.amazon.nova-2-lite-v1:0", s)
+    assert glm.disable_streaming is False and nova.disable_streaming is False
+    assert not glm.additional_model_request_fields
+    assert "reasoningConfig" in nova.additional_model_request_fields

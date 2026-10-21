@@ -8,16 +8,16 @@ locals {
   common_env = {
     QUOTA_TABLE  = aws_dynamodb_table.quota.name
     CHAT_MODEL   = "bedrock:${var.chat_model}"
-    RERANK_MODEL = "bedrock:${var.chat_model}"
+    RERANK_MODEL = "bedrock:${var.rerank_model}"
     # Only read when a model is switched to openai:* for an A/B run (milewise.api).
     OPENAI_API_KEY_SECRET_ARN = aws_secretsmanager_secret.openai.arn
   }
   # A geo inference profile (jp. / apac.) routes to the foundation model in any of its
   # regions, so the model ARN is allowed in every region and the profile in this one.
-  bedrock_chat = [
-    "arn:aws:bedrock:${var.region}:${local.account_id}:inference-profile/${var.chat_model}",
-    "arn:aws:bedrock:*::foundation-model/${replace(var.chat_model, "/^(jp|apac|global)\\./", "")}",
-  ]
+  bedrock_chat = flatten([for m in [var.chat_model, var.rerank_model] : [
+    "arn:aws:bedrock:${var.region}:${local.account_id}:inference-profile/${m}",
+    "arn:aws:bedrock:*::foundation-model/${replace(m, "/^(jp|apac|global)\\./", "")}",
+  ]])
   bedrock_judge = [
     "arn:aws:bedrock:${var.region}:${local.account_id}:inference-profile/${var.judge_model}",
     "arn:aws:bedrock:*::foundation-model/${replace(var.judge_model, "/^(jp|apac|global)\\./", "")}",
