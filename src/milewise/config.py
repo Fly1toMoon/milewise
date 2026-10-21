@@ -21,7 +21,7 @@ class Settings(BaseSettings):
 
     # Models as "<provider>:<id>" (milewise.llm). Defaults run entirely on Amazon Bedrock,
     # billed to the AWS account (credits apply); OpenAI stays available for A/B runs.
-    chat_model: str = "bedrock:jp.amazon.nova-2-lite-v1:0"  # agent + final answer
+    chat_model: str = "bedrock:zai.glm-5"  # agent + final answer (design.md §4.11)
     rerank_model: str = "bedrock:jp.amazon.nova-2-lite-v1:0"  # search_rules relevance filter
     # A different model family from the answering one, so the judge is not grading itself (R10).
     judge_model: str = "bedrock:apac.amazon.nova-pro-v1:0"
@@ -68,6 +68,17 @@ PRICES: dict[str, tuple[float, float, float]] = {
     "jp.amazon.nova-2-lite-v1:0": (0.396, 0.099, 3.311),
     "global.amazon.nova-2-lite-v1:0": (0.36, 0.09, 3.01),
     "apac.amazon.nova-pro-v1:0": (0.96, 0.24, 3.84),
+    # Candidates compared for the answer model (Tokyo on-demand, AWS Price List, 2026-10-21).
+    "deepseek.v3.2": (0.74, 0.74, 2.22),
+    "qwen.qwen3-235b-a22b-2507-v1:0": (0.27, 0.27, 1.06),
+    "openai.gpt-oss-120b-1:0": (0.18, 0.18, 0.73),
+    "moonshotai.kimi-k2.5": (0.72, 0.72, 3.60),
+    "zai.glm-5": (1.20, 1.20, 3.84),
+    "mistral.mistral-large-3-675b-instruct": (0.61, 0.61, 1.82),
+    # Anthropic is billed through AWS Marketplace (not in the Bedrock price list): list price
+    # plus 10% for the jp. regional profile.
+    "jp.anthropic.claude-haiku-4-5-20251001-v1:0": (1.10, 0.11, 5.50),
+    "jp.anthropic.claude-sonnet-4-6": (3.30, 0.33, 16.50),
 }
 
 
