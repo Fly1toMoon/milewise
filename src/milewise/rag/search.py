@@ -12,7 +12,9 @@ from milewise.rag.embeddings import embed
 from milewise.rag.index import RulesIndex
 
 RECALL_K = 20
-SNIPPET_CHARS = 700
+# Whole chunks go to the reranker and the model: chunks are up to MAX_CHARS of body plus
+# their heading path (longest 1,016 in the 2026-10-21 index). 700 used to cut 22 of them.
+SNIPPET_CHARS = 1200
 
 RERANK_SCHEMA = {
     "type": "object",
