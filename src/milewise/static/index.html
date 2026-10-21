@@ -85,6 +85,12 @@
   .langs { display:inline-flex; border:1px solid var(--rule); border-radius:8px; overflow:hidden; flex:none; }
   .langs button { border:0; background:transparent; padding:0 11px; height:34px; cursor:pointer; font-size:14px; color:var(--contour); }
   .langs button[aria-pressed="true"] { background:var(--ink); color:var(--paper); }
+  @media (max-width: 420px) {
+    header.top .col { gap:6px; }
+    .wordmark { font-size:19px; }
+    .icon-btn { width:32px; height:32px; }
+    .langs button { padding:0 8px; height:30px; font-size:13px; }
+  }
 
   /* ---------- welcome: the big arc is the one bold element ---------- */
   .welcome { padding-top:8px; }
@@ -167,10 +173,22 @@
   .under .count.over { color:var(--magenta); }
   #turnstile { margin:8px 0 0; }
 
-  footer.foot { color:var(--contour); font-size:12.5px; padding-bottom:28px; }
-  footer.foot p { margin:0 0 8px; }
-  footer.foot details summary { cursor:pointer; }
-  footer.foot input { width:100%; max-width:360px; padding:6px 8px; border:1px solid var(--rule); border-radius:6px; background:var(--field); margin-top:6px; }
+  /* info dialog: what it does, what changed, limits, owner token */
+  dialog.info { border:1px solid var(--rule); border-radius:14px; background:var(--paper); color:var(--ink); padding:0; width:min(560px, calc(100vw - 32px)); max-height:min(80dvh, 720px); }
+  dialog.info::backdrop { background:rgba(10,20,30,.45); }
+  dialog.info .inner { padding:20px 22px 22px; overflow:auto; max-height:min(80dvh, 720px); }
+  dialog.info .head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:4px; }
+  dialog.info h2 { font-family:var(--num); font-weight:600; font-size:22px; margin:0; }
+  dialog.info h3 { font-size:14px; font-weight:700; margin:18px 0 6px; }
+  dialog.info p, dialog.info li { font-size:14px; line-height:1.65; }
+  dialog.info p { margin:0 0 6px; }
+  dialog.info ul { margin:0; padding-left:1.2em; }
+  dialog.info .changes { list-style:none; padding:0; }
+  dialog.info .changes li { display:grid; grid-template-columns:86px 1fr; gap:8px; padding:3px 0; }
+  dialog.info .changes time { font-family:var(--num); font-variant-numeric:tabular-nums; color:var(--contour); }
+  dialog.info details summary { cursor:pointer; font-size:14px; color:var(--contour); margin-top:16px; }
+  dialog.info input { width:100%; max-width:360px; padding:6px 8px; border:1px solid var(--rule); border-radius:6px; background:var(--field); margin-top:6px; }
+  .link-btn { border:0; background:none; padding:0; color:var(--magenta); text-decoration:underline; text-underline-offset:2px; cursor:pointer; font-size:14px; }
 
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation:none !important; transition:none !important; }
@@ -208,6 +226,10 @@
           <button type="button" data-lang="ja">日</button>
           <button type="button" data-lang="en">EN</button>
         </div>
+        <button class="icon-btn" id="info-btn" type="button" aria-haspopup="dialog" aria-controls="info">
+          <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="7.2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9 8v4.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="9" cy="5.4" r="1.1" fill="currentColor"/></svg>
+          <span class="sr" data-i18n="info"></span>
+        </button>
         <button class="icon-btn" id="theme" type="button">
           <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M14.5 11.2A6 6 0 0 1 6.8 3.5a6 6 0 1 0 7.7 7.7Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
           <span class="sr" data-i18n="theme"></span>
@@ -241,16 +263,31 @@
       <div id="turnstile"></div>
     </div>
 
-    <footer class="col foot" id="foot">
-      <p data-i18n="limits"></p>
-      <p data-i18n="disclaimer"></p>
-      <details>
-        <summary data-i18n="ownerTitle"></summary>
-        <p data-i18n="ownerBody"></p>
-        <label class="sr" for="token">Owner token</label>
-        <input id="token" type="password" autocomplete="off">
-      </details>
-    </footer>
+    <dialog class="info" id="info" aria-labelledby="info-title">
+      <div class="inner">
+        <div class="head">
+          <h2 id="info-title">Milewise</h2>
+          <button class="icon-btn" id="info-close" type="button">
+            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M2 2l10 10M12 2 2 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <span class="sr" data-i18n="close"></span>
+          </button>
+        </div>
+        <h3 data-i18n="featuresTitle"></h3>
+        <ul id="features"></ul>
+        <h3 data-i18n="changesTitle"></h3>
+        <ol class="changes" id="changes"></ol>
+        <h3 id="limits-title" data-i18n="limitsTitle"></h3>
+        <p data-i18n="limits"></p>
+        <h3 data-i18n="noteTitle"></h3>
+        <p data-i18n="disclaimer"></p>
+        <details>
+          <summary data-i18n="ownerTitle"></summary>
+          <p data-i18n="ownerBody"></p>
+          <label class="sr" for="token">Owner token</label>
+          <input id="token" type="password" autocomplete="off">
+        </details>
+      </div>
+    </dialog>
   </div>
 </div>
 
@@ -261,6 +298,19 @@ const MAX = 500, CONV_MAX = 30, TURNS_MAX = 20, CONTEXT_TURNS = 3;
 const I18N = {
   zh: {
     htmlLang: "zh-CN",
+    info: "说明", close: "关闭", featuresTitle: "能做什么", changesTitle: "更新记录", limitsTitle: "使用限制", noteTitle: "注意", seeLimits: "查看使用限制",
+    features: [
+      "按 ANA / JAL 官方里程表计算国际线特典所需里程，季节、舱位、单程或往返都可以问",
+      "合作航空特典：ANA 按区域，JAL 按总飞行距离，支持中转和开口行程",
+      "退改、候补、儿童等规则问题，引用官网原文回答，查不到依据时直说",
+      "可以接着追问；对话只保存在这个浏览器里",
+    ],
+    changes: [
+      ["2026-10-21", "回答模型换成 GLM-5；规则原文整段交给模型，不再截断"],
+      ["2026-10-20", "JAL 合作航空支持中转、开口行程，按每段距离相加；可按三字码使用约 4,000 个机场"],
+      ["2026-10-19", "支持多轮追问和对话列表；新界面、逐字显示、可点击的来源；中 / 日 / 英界面"],
+      ["2026-10-18", "收录合作航空里程表；没说单程还是往返时默认按单程"],
+    ],
     lede: "ANA / JAL 里程兑换机票助手。所需里程按官方里程表用代码计算，规则问题引用官网原文回答，查不到依据时会直说不确定。可以接着追问。",
     ask: "你的问题", send: "发送", enterHint: "Enter 发送，Shift+Enter 换行",
     placeholder: "问里程或规则", followUp: "继续追问…",
@@ -289,6 +339,19 @@ const I18N = {
   },
   ja: {
     htmlLang: "ja",
+    info: "このサイトについて", close: "閉じる", featuresTitle: "できること", changesTitle: "更新履歴", limitsTitle: "利用制限", noteTitle: "ご注意", seeLimits: "利用制限を見る",
+    features: [
+      "ANA / JAL の公式チャートから国際線特典航空券の必要マイルを計算（シーズン・クラス・片道／往復）",
+      "提携航空会社特典：ANA はゾーン制、JAL は総旅程距離制。乗り継ぎやオープンジョーにも対応",
+      "変更・払い戻し・キャンセル待ち・小児などの規則は公式ページを引用して回答。根拠がなければそう答えます",
+      "続けて質問できます。会話はこのブラウザにのみ保存されます",
+    ],
+    changes: [
+      ["2026-10-21", "回答モデルを GLM-5 に変更。規則の抜粋を途中で切らずにモデルへ渡すように"],
+      ["2026-10-20", "JAL 提携社特典で乗り継ぎ・オープンジョーに対応（区間ごとの距離を合算）。約 4,000 空港を3レターコードで指定可能に"],
+      ["2026-10-19", "続けての質問と会話一覧に対応。新デザイン、逐次表示、出典リンク、中・日・英の表示切り替え"],
+      ["2026-10-18", "提携航空会社のチャートを収録。片道／往復の指定がないときは片道で回答"],
+    ],
     lede: "ANA / JAL 特典航空券アシスタント。必要マイルは公式チャートからコードで計算し、規則は公式ページを引用して答えます。根拠がなければ「わからない」と答えます。続けて質問できます。",
     ask: "質問", send: "送信", enterHint: "Enter で送信、Shift+Enter で改行",
     placeholder: "マイルや規則について質問", followUp: "続けて質問…",
@@ -317,6 +380,19 @@ const I18N = {
   },
   en: {
     htmlLang: "en",
+    info: "About", close: "Close", featuresTitle: "What it does", changesTitle: "What's new", limitsTitle: "Usage limits", noteTitle: "Please note", seeLimits: "See usage limits",
+    features: [
+      "Computes the miles for ANA / JAL international awards from the official charts: seasons, cabins, one way or round trip",
+      "Partner awards: ANA by zone, JAL by total flown distance, including connections and open jaws",
+      "Rules such as changes, refunds, waitlists and children are answered by quoting the official pages, and it says so when it cannot tell",
+      "Ask follow-ups; chats are kept only in this browser",
+    ],
+    changes: [
+      ["2026-10-21", "Answers now come from GLM-5; rule excerpts reach the model whole"],
+      ["2026-10-20", "JAL partner awards with connections and open jaws, adding up each leg; about 4,000 airports by IATA code"],
+      ["2026-10-19", "Follow-up questions and a chat list; new design, streamed answers, clickable sources, Chinese / Japanese / English"],
+      ["2026-10-18", "Partner airline charts; one way is assumed when the trip type is not given"],
+    ],
     lede: "An ANA / JAL award ticket assistant. Miles are computed in code from the official charts; rules are answered by quoting the official pages, and it says so when it cannot tell. Ask follow-ups any time.",
     ask: "Your question", send: "Send", enterHint: "Enter to send, Shift+Enter for a new line",
     placeholder: "Ask about miles or rules", followUp: "Ask a follow-up…",
@@ -380,12 +456,26 @@ function applyLang() {
     b.onclick = () => { q.value = text; autosize(); submit(); };
     return b;
   }));
+  $("features").replaceChildren(...L.features.map((f) => { const li = document.createElement("li"); li.textContent = f; return li; }));
+  $("changes").replaceChildren(...L.changes.map(([d, f]) => {
+    const li = document.createElement("li"); li.innerHTML = `<time datetime="${esc(d)}">${esc(d)}</time><span>${esc(f)}</span>`; return li;
+  }));
   renderAll();
 }
 $("langs").addEventListener("click", (e) => {
   const b = e.target.closest("button[data-lang]"); if (!b) return;
   lang = b.dataset.lang; store.set("milewise-lang", lang); applyLang();
 });
+
+/* ---------- info dialog ---------- */
+function openInfo(focusLimits) {
+  const d = $("info");
+  if (!d.open) d.showModal();
+  if (focusLimits) $("limits-title").scrollIntoView({ block: "start" });
+}
+$("info-btn").onclick = () => openInfo(false);
+$("info-close").onclick = () => $("info").close();
+$("info").addEventListener("click", (e) => { if (e.target === $("info")) $("info").close(); });  // backdrop
 
 /* ---------- theme ---------- */
 function applyTheme(v) { if (v) document.documentElement.dataset.theme = v; else delete document.documentElement.dataset.theme; }
@@ -571,7 +661,10 @@ const MARK = '<span class="mark" aria-hidden="true"><svg width="16" height="12" 
 
 function botHtml(turn, i) {
   const L = t();
-  if (turn.notice) return `<div class="msg bot">${MARK}<div class="body"><p class="notice">${esc(turn.notice)}</p></div></div>`;
+  if (turn.notice) {
+    const more = turn.limit ? ` <button class="link-btn" type="button" data-open-limits>${esc(L.seeLimits)}</button>` : "";
+    return `<div class="msg bot">${MARK}<div class="body"><p class="notice">${esc(turn.notice)}${more}</p></div></div>`;
+  }
   const { body, warn } = splitAnswer(turn.text);
   const ctx = { cites: new Map(), turn: i };
   let html = "";
@@ -615,6 +708,7 @@ function nearBottom() { return innerHeight + scrollY >= document.documentElement
 function scrollToEnd(smooth) { scrollTo({ top: document.documentElement.scrollHeight, behavior: smooth && !reducedMotion() ? "smooth" : "auto" }); }
 
 $("thread").addEventListener("click", (e) => {
+  if (e.target.closest("[data-open-limits]")) { openInfo(true); return; }
   const a = e.target.closest("a[data-cite]"); if (!a) return;
   const li = $(`src-${a.dataset.cite}`); if (!li) return;
   e.preventDefault();
@@ -682,7 +776,7 @@ async function submit() {
   renderAll(); scrollToEnd(true);
   started = performance.now();
   const c = conv;
-  const fail = (notice) => { turn.streaming = false; turn.notice = notice; if (conv === c) renderLast(); if (!q.value) { q.value = question; autosize(); } };
+  const fail = (notice, limit) => { turn.streaming = false; turn.notice = notice; turn.limit = !!limit; if (conv === c) renderLast(); if (!q.value) { q.value = question; autosize(); } };
   try {
     const headers = { "Content-Type": "application/json" };
     const token = $("token").value.trim();
@@ -694,7 +788,7 @@ async function submit() {
     const res = await fetch("/ask", { method: "POST", headers, body: JSON.stringify({ question, history }) });
     if (!res.ok) {
       let code = ""; try { code = (await res.json()).code || ""; } catch {}
-      fail(L.denied[code] || fmt(L.httpError, { s: res.status })); return;
+      fail(L.denied[code] || fmt(L.httpError, { s: res.status }), /^(ip_|public_budget|owner_budget)/.test(code)); return;
     }
     const reader = res.body.getReader(), dec = new TextDecoder(); let buf = "";
     let frame = 0;
