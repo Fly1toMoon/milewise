@@ -617,3 +617,64 @@ cases:
     verified_at: null
     crosschecked_at: 2026-10-19
     verified_by: null
+
+  # ---------------------------------------------------------------- itineraries (2026-10-20)
+  # JAL partner awards are priced by the sum of every flown segment. Bands and prices are from
+  # the official charts; the distances are great-circle estimates between the main airports
+  # (Milewise's method), chosen so the estimate is not within 3% of a band edge.
+  - id: multi-04
+    category: miles
+    lang: zh
+    history:
+      - {role: user, content: "jal伙伴商务舱，香港飞伦敦商务舱要多少里程"}
+      - {role: assistant, content: "JAL 合作航空商务舱，香港→伦敦单程：推定总旅程距离 5,984 英里，JMB 提携航空公司 80,000 里程，oneworld 80,000 里程。"}
+      - {role: user, content: "往返呢"}
+      - {role: assistant, content: "香港↔伦敦往返：推定总旅程距离 11,968 英里，JMB 提携航空公司 100,000 里程，oneworld 110,000 里程。"}
+    question: "东京-香港-伦敦 这样呢"
+    expected:
+      miles: [120000, 130000]
+      reference: >-
+        沿用往返、商务舱：东京→香港→伦敦→香港→东京，各段相加约 15,576 英里（1,804 + 5,984 + 5,984 + 1,804），
+        落在 14,001–20,000 英里档：oneworld 120,000、JMB 提携航空公司 130,000。
+      must_mention:
+        - "按东京→香港→伦敦往返（经香港）逐段相加计算总距离"
+        - "总距离约 15,576 英里，落在 14,001–20,000 英里档"
+      must_not_say: ["按东京→伦敦直飞计算", "把 100,000 / 110,000 作为东京-香港-伦敦往返的答案"]
+    gold_urls: [*jal_ow_chart, *jal_jmbp_chart]
+    source_note: "ワンワールド 14,001–20,000 C 120,000 / JMB提携 14,001–20,000 C 130,000。距離は HND–HKG 1,804、HKG–LHR 5,984（大圏、Milewise 推定）"
+    revision_note: "2026-10-20: ユーザーの実際の会話（経由地が無視されて東京–ロンドン直行で計算された）から作成"
+    verified_at: null
+    crosschecked_at: 2026-10-20
+    verified_by: null
+
+  - id: miles-19
+    category: miles
+    lang: ja
+    question: "JALのマイルでワンワールド特典のビジネスクラス、東京→香港→ドーハ→アンマン→ロンドンの片道は何マイル？"
+    expected:
+      miles: [85000]
+      reference: "4区間の合計 約9,047マイル（HND–HKG 1,804 + HKG–DOH 3,909 + DOH–AMM 1,046 + AMM–LHR 2,288）で 8,001–10,000 マイル帯、ビジネス 85,000 マイル。"
+      must_mention: ["4区間を順に足した総旅程距離で計算している", "8,001–10,000 マイルの距離帯"]
+      must_not_say: ["東京→ロンドン直行の距離で計算"]
+    gold_urls: [*jal_ow_chart]
+    source_note: "ワンワールド 8,001–10,000 C 85,000。距離は HND→HKG→DOH→AMM→LHR の大圏合計 9,047（Milewise 推定、帯の境界から 3% 以上離れている）"
+    verified_at: null
+    crosschecked_at: 2026-10-20
+    verified_by: null
+
+  - id: miles-20
+    category: miles
+    lang: en
+    question: "JAL oneworld award in economy: Tokyo to Madrid via Helsinki, then Madrid to Barcelona by train, and back to Tokyo from Barcelona via Helsinki. How many miles?"
+    expected:
+      miles: [70000]
+      reference: >-
+        Flown: HND→HEL→MAD and BCN→HEL→HND, about 13,188 miles in total; the Madrid–Barcelona
+        train is not counted. That is the 12,001–14,000 band: 70,000 miles in economy.
+      must_mention: ["the Madrid–Barcelona part by land is not counted in the distance", "the 12,001–14,000 mile band"]
+      must_not_say: ["the train segment is added to the distance"]
+    gold_urls: [*jal_ow_chart]
+    source_note: "ワンワールド 12,001–14,000 Y 70,000。距離は HND–HEL 4,862 ほか 4区間の大圏合計 13,188（Milewise 推定）。地上移動区間は区間数・距離に含めない（利用区間・途中降機について）"
+    verified_at: null
+    crosschecked_at: 2026-10-20
+    verified_by: null

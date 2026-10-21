@@ -50,8 +50,9 @@ get_required_miles in this conversation, written with digits and thousands separ
 Do not write 万 or round numbers.
 3. If the user does not name an airline, call get_required_miles for both NH (ANA) and JL (JAL) \
 and report each, including when one of them is not covered. If the user gives no travel dates, \
-show the L/R/H values. If they do not say round trip \
-or one way, answer for one way (片道) and say so in one short line. Pass travel dates when the user \
+show the L/R/H values. If neither the question nor \
+the earlier turns (rule 9) say round trip or one way, answer for one way (片道) and say so in \
+one short line. Pass travel dates when the user \
 gives them.
 3a. If the user names travel months or a period, call get_season once for the whole period \
 (a month or month without a year means its next occurrence on or after today). Then group the \
@@ -65,11 +66,17 @@ Questions about awards on partner airlines (提携航空会社 / 伙伴航空 / 
 must be looked up with award_type "partner" (never as an own-metal award). Country or region \
 names (中国, 欧洲) are fine as origin/destination for partner awards. ANA partner results \
 from Japan come as Zone 1-A and Zone 1-B variants: show both with their conditions. JAL \
-partner awards are distance-based: pass total_distance_miles only if the user gives it. \
-Without it the tool estimates the distance from a nonstop great-circle route ("calculation"): \
-present that figure as an estimate with its basis, show every band returned (two when the \
-estimate is near a band edge), and say the exact figure depends on the actual flown distance \
-and connections. Never estimate a distance yourself.
+partner awards are distance-based (the sum of every flown segment): pass total_distance_miles \
+only if the user gives it. When the user names connections, stopovers or an open jaw, pass \
+the whole trip as itinerary, in the user's order: one list per stretch flown without a break, \
+e.g. 东京-香港-伦敦 round trip = [["东京","香港","伦敦","香港","东京"]]; to London, back \
+from Paris = [["東京","ロンドン"],["パリ","東京"]] (London-Paris by land is not counted). \
+A place the tool does not know by name can be given by its IATA airport code (e.g. "LIM"); \
+the route then shows the airport's name, so check it is the place the user meant. \
+Without it the tool assumes a nonstop route. Show the route the tool returns ("route") so \
+the user can check it, present the distance ("calculation") as an estimate with its basis, \
+show every band returned (two when the estimate is near a band edge), and say the exact \
+figure depends on JAL's segment mileage. Never estimate or add up a distance yourself.
 4b. Milewise covers only ANA Mileage Club and JAL Mileage Bank miles. For another airline's \
 own program (e.g. Delta SkyMiles, United MileagePlus, Asia Miles) say it is not covered and \
 give no figures; do not substitute ANA or JAL charts.
@@ -94,7 +101,9 @@ never pick one silently.
 the source of every evidence id you cite. Citing the ids in the text (rules 2 and 5) is enough.
 9. Earlier turns of the conversation may precede the last question. Use them only to \
 understand it: a follow-up such as "那经济舱呢" or "片道なら？" keeps the route, airline, cabin, \
-trip type and dates of the previous question except what it changes. Answer only the last \
+trip type and dates of the previous question except what it changes. A follow-up that \
+only names a new route keeps the trip type: after a round-trip answer, "东京-香港-伦敦 这样呢" \
+asks for a round trip Tokyo-Hong Kong-London (trip_type RT). Answer only the last \
 question. Figures and evidence ids from earlier answers are not evidence for this one: call \
 the tools again in this turn and cite only what they return now. Earlier answers are shown \
 without their evidence ids; this answer must still put an id from this turn after every \
@@ -161,8 +170,11 @@ class Evidence:
             for n in _ANY_NUMBER.findall(result.get("calculation") or "")
         )
         self.allowed_miles.update(result.get("totals", {}).values())
-        if result.get("chart", {}).get("source_url"):
-            self.allowed_urls.add(result["chart"]["source_url"])
+        chart = result.get("chart") or {}
+        # JAL partner awards cite two charts (oneworld and JMB partners)
+        self.allowed_urls.update(
+            u for u in [chart.get("source_url"), *chart.get("source_urls", [])] if u
+        )
         return eid
 
     def add_doc(self, chunk: dict[str, Any]) -> str:
@@ -229,6 +241,13 @@ class MilesArgs(BaseModel):
         default=None,
         description="JAL partner awards only: total flown distance of the itinerary in "
         "miles, if the user states it",
+    )
+    itinerary: list[list[str]] | None = Field(
+        default=None,
+        description="JAL partner awards only: the whole trip in travel order, as lists of "
+        "places flown consecutively; a new list starts after a stretch by land (open jaw). "
+        'E.g. [["Tokyo","Hong Kong","London","Hong Kong","Tokyo"]]. With trip_type RT and '
+        "the same way back, the outbound alone is enough.",
     )
     award_type: Literal["own", "partner"] = Field(
         default="own",

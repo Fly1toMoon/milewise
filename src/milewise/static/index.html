@@ -544,7 +544,8 @@ function sourceItem(key, id, n, card, url, cited) {
   } else {
     name = c.kind === "season" ? L.season : L.chart;
     const what = [];
-    if (c.route && c.route[0] && c.route[1]) what.push(`${c.route[0]} → ${c.route[1]}`);
+    if (c.path) what.push(c.path);
+    else if (c.route && c.route[0] && c.route[1]) what.push(`${c.route[0]} → ${c.route[1]}`);
     if (c.cabin) what.push(L.cabins[c.cabin] || c.cabin);
     if (c.trip_type) what.push(L.trips[c.trip_type] || c.trip_type);
     if (what.length) name += `：${what.join("，")}`;
