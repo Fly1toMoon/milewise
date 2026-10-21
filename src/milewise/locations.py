@@ -158,6 +158,18 @@ def airport_coords() -> dict[str, tuple[float, float]]:
     return {r["iata"]: (float(r["lat"]), float(r["lon"])) for r in csv.DictReader(lines)}
 
 
+@cache
+def airport_names() -> dict[str, str]:
+    """IATA code -> "name, municipality" for every airport in data/locations/airports.csv."""
+    path = data_dir() / "locations" / "airports.csv"
+    with path.open(encoding="utf-8") as f:
+        lines = [line for line in f if not line.startswith("#")]
+    return {
+        r["iata"]: ", ".join(x for x in (r["name"], r["municipality"]) if x)
+        for r in csv.DictReader(lines)
+    }
+
+
 def great_circle_miles(a: str, b: str) -> int | None:
     """Great-circle distance in statute miles between two airports, or None if unknown."""
     from math import asin, cos, radians, sin, sqrt

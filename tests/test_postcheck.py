@@ -62,3 +62,17 @@ def test_detect_language() -> None:
     assert detect_language("東京→ロンドンは何マイル？") == "ja"
     assert detect_language("从东京去洛杉矶要多少里程？") == "zh"
     assert detect_language("How many miles from Tokyo to London?") == "en"
+
+
+def test_every_chart_of_a_jal_partner_result_may_be_linked() -> None:
+    ev = Evidence()
+    ev.add_chart(
+        {
+            "results": [{"miles": 48_000}],
+            "chart": {
+                "source_url": "https://www.jal.co.jp/ow.html",
+                "source_urls": ["https://www.jal.co.jp/ow.html", "https://www.jal.co.jp/jmb.html"],
+            },
+        }
+    )
+    assert postcheck("48,000マイル [C1] https://www.jal.co.jp/jmb.html", ev).ok

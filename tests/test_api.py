@@ -161,6 +161,7 @@ def test_done_describes_each_citation(client: TestClient) -> None:
         "route": ["TYO", "LON"],
         "cabin": "C",
         "trip_type": "RT",
+        "path": None,
     }
 
 

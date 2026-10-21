@@ -8,13 +8,17 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from datetime import date, datetime, timedelta, timezone
+from itertools import pairwise
 from typing import Any, Literal
 
 from milewise.charts.store import SEASON_ORDER, FareStore
 from milewise.locations import (
     City,
+    airport_coords,
     airport_hint,
+    airport_names,
     great_circle_miles,
+    load_cities,
     resolve_area,
     resolve_city,
 )
@@ -27,6 +31,9 @@ NH_PARTNER = "NH-INTL-PARTNER"  # zone pairs, Japan split into Zone 1-A / 1-B, n
 # JAL partner awards are distance-based (総旅程距離); which chart applies depends on the
 # operating airline: oneworld members or other JMB partners.
 JL_PARTNER = {"oneworld": "JL-INTL-OW", "jmb_partner": "JL-INTL-JMBP"}
+# Flown segments allowed on one award, surface segments excluded (JAL 利用区間・途中降機について).
+# JMB partner: 6 in general; some airlines allow fewer (e.g. Korean Air 2).
+JL_PARTNER_SEGMENTS = {"oneworld": 8, "jmb_partner": 6}
 
 Status = Literal["ok", "needs_clarification", "not_found", "unsupported"]
 
@@ -62,6 +69,7 @@ class MilesResult:
     total_miles: int | None = None
     totals: dict[str, int] = field(default_factory=dict)  # route charts: {"min": .., "max": ..}
     calculation: str | None = None
+    route: str | None = None  # the itinerary as understood, e.g. "HND→HKG→LHR ／ 地上移動 LHR–CDG"
     price_kind: str | None = None
     chart: dict[str, Any] | None = None
     candidates: dict[str, list[str]] = field(default_factory=dict)
@@ -113,6 +121,7 @@ def get_required_miles(
     flight_number: str | None = None,
     partner_program: str | None = None,
     total_distance_miles: int | None = None,
+    itinerary: list[list[str]] | None = None,
 ) -> MilesResult:
     base: dict[str, Any] = {
         "airline": airline,
@@ -126,7 +135,14 @@ def get_required_miles(
         )
     if award_type == "partner" and airline == "JL":
         return _jl_partner(
-            fares, base, origin, destination, cabin, partner_program, total_distance_miles
+            fares,
+            base,
+            origin,
+            destination,
+            cabin,
+            partner_program,
+            total_distance_miles,
+            itinerary,
         )
     family = SUPPORTED_FAMILIES.get((airline, award_type))
     if family is None:
@@ -535,14 +551,38 @@ def _jl_partner(
     cabin: str,
     program: str | None,
     total_distance: int | None,
+    itinerary: list[list[str]] | None = None,
 ) -> MilesResult:
     res = MilesResult("ok", origin=Endpoint(origin), destination=Endpoint(destination), **base)
     programs = [program] if program in JL_PARTNER else list(JL_PARTNER)
-    estimate = (
-        _estimate_distance(origin, destination, base["trip_type"])
-        if total_distance is None
-        else None
-    )
+    estimate = None
+    if total_distance is None:
+        if (
+            itinerary
+            and base["trip_type"] == "RT"
+            and len(itinerary) == 1
+            and len(itinerary[0]) >= 2
+            and _airport(itinerary[0][0]) != _airport(itinerary[0][-1])
+        ):
+            # a round trip given as its outbound only: back the same way
+            itinerary = [[*itinerary[0], *reversed(itinerary[0][:-1])]]
+        runs = itinerary or (
+            [[origin, destination, origin]]
+            if base["trip_type"] == "RT"
+            else [[origin, destination]]
+        )
+        estimate = estimate_itinerary(runs)
+        if "unresolved" in estimate and not itinerary:
+            estimate = None  # e.g. a region ("欧洲"): no distance, the whole band table
+        elif "unresolved" in estimate:
+            res.status = "needs_clarification"
+            res.message = (
+                f"経路の「{estimate['unresolved']}」を空港に特定できないため距離を推定できない。"
+                "都市名を確認するか、総旅程距離を指定してほしい"
+            )
+            return res
+        else:
+            res.route = estimate["route"]
     lookup = total_distance if total_distance is not None else (estimate or {}).get("miles")
     rows: list[dict[str, Any]] = []
     for prog in programs:
@@ -591,9 +631,20 @@ def _jl_partner(
     if estimate:
         res.calculation = f"推定総旅程距離 {estimate['miles']:,} マイル（{estimate['basis']}）"
         res.caveats.append(
-            "総旅程距離は直行便の大圏距離からの推定値。実際の区間マイル数や乗り継ぎ経路で変わり、"
+            "総旅程距離は各区間の空港間の大圏距離を足した推定値。JAL が使う区間マイル数とは少し違い、"
             "距離帯の境界に近い場合は隣の距離帯も示している"
         )
+        if itinerary is None:
+            res.caveats.append(
+                "経路の指定がないため直行便として推定した。乗り継ぎがあれば距離が増える"
+            )
+        for prog in programs:
+            limit = JL_PARTNER_SEGMENTS[prog]
+            if estimate["segments"] > limit:
+                res.caveats.append(
+                    f"{prog}: 飛行区間 {estimate['segments']} は1特典の上限 {limit} 区間を超える"
+                    "（地上移動区間を除く）"
+                )
     elif total_distance is None:
         res.message = "総旅程距離が未指定のため、距離帯ごとの表を返す。経路（乗り継ぎを含む）か総旅程距離が分かれば1つに絞れる"
     if lookup is not None and len(rows) == 1:
@@ -604,23 +655,59 @@ def _jl_partner(
 BOUNDARY_MARGIN = 0.03  # an estimate this close to a band edge also returns the next band
 
 
-def _estimate_distance(origin: str, destination: str, trip_type: str) -> dict[str, Any] | None:
-    """Nonstop great-circle distance between the main airports (x2 for a round trip)."""
-    ends = []
-    for q in (origin, destination):
-        cities = resolve_city(q)
-        if len(cities) != 1:
-            return None
-        hint = airport_hint(q)
-        ends.append(hint if hint and hint in cities[0].airports else cities[0].airports[0])
-    one_way = great_circle_miles(ends[0], ends[1])
-    if not one_way:
-        return None
-    legs = 2 if trip_type == "RT" else 1
-    basis = f"{ends[0]}–{ends[1]} 大圏距離 {one_way:,} マイル" + (
-        " × 2（往復）" if legs == 2 else ""
-    )
-    return {"miles": one_way * legs, "basis": basis}
+def _airport(query: str) -> str | None:
+    cities = resolve_city(query)
+    if len(cities) == 1 and cities[0].airports:
+        hint = airport_hint(query)
+        return hint if hint and hint in cities[0].airports else cities[0].airports[0]
+    code = query.strip().upper()
+    if not cities and len(code) == 3 and code in airport_coords():
+        return code  # any airport with scheduled service, by IATA code only (never by name)
+    return None
+
+
+def _label(code: str) -> str:
+    """A code from the city list as is; any other airport with its name, so a wrong code shows."""
+    if any(code in c.airports for c in load_cities()):
+        return code
+    return f"{code}（{airport_names().get(code, '?')}）"
+
+
+def estimate_itinerary(runs: list[list[str]]) -> dict[str, Any]:
+    """Total flown distance of an itinerary given as runs of consecutively flown places.
+
+    [["東京", "香港", "ロンドン"], ["パリ", "東京"]] flies HND-HKG-LHR, goes LHR-CDG by land
+    (an open jaw: not counted), then flies CDG-HND. Each leg is the great-circle distance
+    between the cities' main airports. Returns {"unresolved": place} if a place is unknown.
+    """
+    codes: list[list[str]] = []
+    for run in runs:
+        row = []
+        for place in run:
+            code = _airport(place)
+            if code is None:
+                return {"unresolved": place}
+            row.append(code)
+        if codes and codes[-1][-1] == row[0]:
+            codes[-1].extend(row[1:])  # the next stretch starts where the last one ended
+        else:
+            codes.append(row)
+    legs: list[str] = []
+    parts: list[str] = []
+    total = 0
+    for i, row in enumerate(codes):
+        if i:
+            parts.append(f"地上移動 {codes[i - 1][-1]}–{row[0]}")
+        parts.append("→".join(_label(c) for c in row))
+        for a, b in pairwise(row):
+            d = great_circle_miles(a, b)
+            if d is None:
+                return {"unresolved": f"{a}–{b}"}
+            total += d
+            legs.append(f"{a}–{b} {d:,}")
+    surface = [p for p in parts if p.startswith("地上移動")]
+    basis = " + ".join(legs) + (f"。{'、'.join(surface)} は距離に含めない" if surface else "")
+    return {"miles": total, "basis": basis, "route": " ／ ".join(parts), "segments": len(legs)}
 
 
 def _band_matches(lo: int, hi: int, miles: int, estimate: dict[str, Any] | None) -> bool:
