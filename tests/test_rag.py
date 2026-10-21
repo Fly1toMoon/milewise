@@ -233,3 +233,21 @@ def test_award_type_keeps_partner_rules_out_of_own_award_answers(tmp_path: Path)
     assert own_rows and all(r["source_url"].endswith("/jal/inter/cancel") for r in own_rows)
     assert {r["award"] for r in index.recall(q, "JL", k=20, award="partner")} == {"partner"}
     assert award_of({"id": "ana-fuel-surcharge", "doc_type": "fees"}) == "general"
+
+
+def test_whole_chunks_reach_the_model(tmp_path: Path) -> None:
+    from milewise.rag.chunking import MAX_CHARS
+    from milewise.rag.search import SNIPPET_CHARS
+
+    # body up to MAX_CHARS plus a heading path: the excerpt limit must not cut chunks
+    assert SNIPPET_CHARS >= MAX_CHARS + 200
+    sources = write_site(tmp_path, {"test-refund": (SOURCE, PAGE)})
+    rep = build_index(
+        tmp_path / "raw",
+        tmp_path / "index",
+        sources_path=sources,
+        embed_fn=CountingEmbed(),
+        settings=SETTINGS,
+    )
+    chunks = RulesIndex.load(tmp_path / "index").chunks
+    assert rep.longest_chunk == max(len(c["text"]) for c in chunks) <= SNIPPET_CHARS

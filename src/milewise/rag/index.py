@@ -97,6 +97,7 @@ class BuildReport:
     n_embedded: int  # new embeddings requested from the API (the rest came from the cache)
     missing: list[str]
     content_sha256: str
+    longest_chunk: int = 0  # characters, heading path included (checked against SNIPPET_CHARS)
 
 
 def build_index(
@@ -190,7 +191,8 @@ def build_index(
     (out_dir / "manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
-    return BuildReport(out_dir, len(docs), len(records), len(todo), missing, content_sha)
+    longest = max((len(r["text"]) for r in records), default=0)
+    return BuildReport(out_dir, len(docs), len(records), len(todo), missing, content_sha, longest)
 
 
 class RulesIndex:

@@ -141,11 +141,20 @@ def build_index_cmd(args: argparse.Namespace) -> int:
         f"{rep.out_dir}: {rep.n_docs} pages, {rep.n_chunks} chunks, "
         f"{rep.n_embedded} newly embedded, content {rep.content_sha256[:12]}"
     )
+    from milewise.rag.search import SNIPPET_CHARS
+
+    long = rep.longest_chunk > SNIPPET_CHARS
+    if long:
+        print(
+            f"chunks up to {rep.longest_chunk} chars exceed SNIPPET_CHARS={SNIPPET_CHARS}: "
+            "their tails would not reach the model",
+            file=sys.stderr,
+        )
     if rep.missing:
         print("missing raw pages:", ", ".join(rep.missing), file=sys.stderr)
         if not args.allow_missing:
             return 1
-    return 0
+    return 1 if long else 0
 
 
 if __name__ == "__main__":
