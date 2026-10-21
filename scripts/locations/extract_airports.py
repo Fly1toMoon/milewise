@@ -43,7 +43,9 @@ def main() -> int:
     with OUT.open("w", newline="", encoding="utf-8") as f:
         f.write(f"# OurAirports (public domain), extracted {date.today().isoformat()}\n")
         w = csv.DictWriter(
-            f, fieldnames=["iata", "name", "municipality", "iso_country", "lat", "lon"], lineterminator="\n"
+            f,
+            fieldnames=["iata", "name", "municipality", "iso_country", "lat", "lon"],
+            lineterminator="\n",
         )
         w.writeheader()
         w.writerows(rows[k] for k in sorted(rows))
