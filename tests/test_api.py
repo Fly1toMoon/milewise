@@ -59,7 +59,7 @@ def client(
         calls.asked.append(question)
         calls.histories.append(history or [])
         if on_event:
-            on_event("delta", {"text": "調べます"})  # a preamble, discarded by the tool call
+            on_event("delta", {"text": "調べます"})  # text before a tool call stays in the answer
             on_event("tool", {"name": "get_required_miles"})
             on_event("delta", {"text": "110,000"})
             on_event("delta", {"text": "マイル [C1]"})

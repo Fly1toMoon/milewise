@@ -10,7 +10,7 @@ Routes
                  site budget, kill switch); an owner Bearer token skips them.
                  Server-Sent Events: status → (progress | delta)* → answer → done
                  progress names the tool being called; delta is answer text as it is
-                 generated (a progress event discards the deltas before it); answer is the
+                 generated (a progress event starts a new paragraph); answer is the
                  final text, which replaces the deltas.
 
 Charts and the rules index ship in the image (design.md §4.6) and are loaded at init.

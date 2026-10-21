@@ -39,3 +39,24 @@ def test_is_trimmed_alternating_and_ends_with_an_answer() -> None:
 
 def test_no_history() -> None:
     assert prior_turns(None) == [] and prior_turns([]) == []
+
+
+def test_answer_keeps_text_written_before_a_later_tool_call() -> None:
+    from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+
+    from milewise.agent import answer_text
+
+    messages = [
+        HumanMessage("东京到伦敦？"),
+        AIMessage("上一轮的回答"),  # an earlier turn: not part of this answer
+        HumanMessage("中国到欧洲的合作航空商务舱？"),
+        AIMessage("", tool_calls=[{"name": "get_required_miles", "args": {}, "id": "1"}]),
+        ToolMessage("{}", tool_call_id="1"),
+        AIMessage(
+            "单程 59,000里程 [C1]",
+            tool_calls=[{"name": "search_rules", "args": {}, "id": "2"}],
+        ),
+        ToolMessage("{}", tool_call_id="2"),
+        AIMessage("补充说明：可单程兑换 [D1]"),
+    ]
+    assert answer_text(messages) == "单程 59,000里程 [C1]\n\n补充说明：可单程兑换 [D1]"
