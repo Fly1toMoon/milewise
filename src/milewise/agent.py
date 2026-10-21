@@ -16,7 +16,7 @@ from typing import Any, Literal
 
 from langchain.agents import create_agent
 from langchain.agents.middleware import ModelCallLimitMiddleware, ToolCallLimitMiddleware
-from langchain_core.messages import AIMessage, AIMessageChunk
+from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 
@@ -99,6 +99,8 @@ never pick one silently.
 6. Mention that fuel surcharges and taxes are extra, and that award seats are not guaranteed.
 7. Do not add a "Sources" / 出典 / 来源 section or list sources at the end: the page shows \
 the source of every evidence id you cite. Citing the ids in the text (rules 2 and 5) is enough.
+8a. Call every tool you need first, then write the whole answer once, after the last tool \
+result: no text before or between tool calls.
 9. Earlier turns of the conversation may precede the last question. Use them only to \
 understand it: a follow-up such as "那经济舱呢" or "片道なら？" keeps the route, airline, cabin, \
 trip type and dates of the previous question except what it changes. A follow-up that \
@@ -478,6 +480,17 @@ def _stream(
     return state
 
 
+def answer_text(messages: list[Any]) -> str:
+    """Everything the model wrote after the last user message, in order.
+
+    Not only the last message: text written before a further tool call is part of the
+    answer too (seen with GLM-5: the mileage, then a rules lookup, then a note).
+    """
+    start = max((i for i, m in enumerate(messages) if isinstance(m, HumanMessage)), default=-1)
+    parts = [str(m.text).strip() for m in messages[start + 1 :] if isinstance(m, AIMessage)]
+    return "\n\n".join(p for p in parts if p)
+
+
 def ask(
     question: str,
     fares: FareStore | None = None,
@@ -489,9 +502,9 @@ def ask(
 ) -> AskResult:
     """Answer one question. With `on_event`, the run is streamed: ("tool", {"name"}) when the
     model starts a tool call and ("delta", {"text"}) for answer text as it is generated.
-    Text that precedes a tool call is a preamble, not the answer, so a "tool" event tells
-    the listener to discard what it has shown so far. The returned answer is authoritative
-    (it may carry the post-check warning).
+    Text written before a later tool call is part of the answer (GLM-5 writes the main
+    answer, then looks up a rule and adds to it), so a "tool" event only starts a new
+    paragraph. The returned answer is authoritative (it may carry the post-check warning).
 
     `history` is the earlier turns of the conversation, oldest first, as {"role": "user" |
     "assistant", "content": text}; they only give context (system prompt rule 9).
@@ -521,8 +534,7 @@ def ask(
     latency_ms = round((time.perf_counter() - t0) * 1000)
 
     messages = state["messages"]
-    final = next(m for m in reversed(messages) if isinstance(m, AIMessage))
-    answer: str = str(final.text)
+    answer = answer_text(messages)
     check = postcheck(answer, evidence)
     if not check.ok:
         answer += POSTCHECK_WARNING[detect_language(question)]

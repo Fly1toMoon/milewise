@@ -804,7 +804,10 @@ async function submit() {
         if (!ev || !data) continue;
         const d = JSON.parse(data);
         if (ev === "status") turn.stage = d.stage === "cached" ? "writing" : d.stage;
-        else if (ev === "progress") { turn.text = ""; turn.stage = d.name; }  // text before a tool call was a preamble
+        else if (ev === "progress") {  // more lookups: keep what was written, continue below it
+          if (turn.text.trim() && !turn.text.endsWith("\n\n")) turn.text += "\n\n";
+          turn.stage = d.name;
+        }
         else if (ev === "delta") { turn.text += d.text; turn.stage = "writing"; }
         else if (ev === "answer") turn.text = d.text;
         else if (ev === "done") { turn.done = d; turn.streaming = false; persist(c); if (conv === c) renderConvList(); }
