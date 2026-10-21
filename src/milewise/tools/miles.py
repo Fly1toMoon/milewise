@@ -14,8 +14,11 @@ from typing import Any, Literal
 from milewise.charts.store import SEASON_ORDER, FareStore
 from milewise.locations import (
     City,
+    airport_coords,
     airport_hint,
+    airport_names,
     great_circle_miles,
+    load_cities,
     resolve_area,
     resolve_city,
 )
@@ -654,10 +657,20 @@ BOUNDARY_MARGIN = 0.03  # an estimate this close to a band edge also returns the
 
 def _airport(query: str) -> str | None:
     cities = resolve_city(query)
-    if len(cities) != 1 or not cities[0].airports:
-        return None
-    hint = airport_hint(query)
-    return hint if hint and hint in cities[0].airports else cities[0].airports[0]
+    if len(cities) == 1 and cities[0].airports:
+        hint = airport_hint(query)
+        return hint if hint and hint in cities[0].airports else cities[0].airports[0]
+    code = query.strip().upper()
+    if not cities and len(code) == 3 and code in airport_coords():
+        return code  # any airport with scheduled service, by IATA code only (never by name)
+    return None
+
+
+def _label(code: str) -> str:
+    """A code from the city list as is; any other airport with its name, so a wrong code shows."""
+    if any(code in c.airports for c in load_cities()):
+        return code
+    return f"{code}（{airport_names().get(code, '?')}）"
 
 
 def estimate_itinerary(runs: list[list[str]]) -> dict[str, Any]:
@@ -685,7 +698,7 @@ def estimate_itinerary(runs: list[list[str]]) -> dict[str, Any]:
     for i, row in enumerate(codes):
         if i:
             parts.append(f"地上移動 {codes[i - 1][-1]}–{row[0]}")
-        parts.append("→".join(row))
+        parts.append("→".join(_label(c) for c in row))
         for a, b in pairwise(row):
             d = great_circle_miles(a, b)
             if d is None:

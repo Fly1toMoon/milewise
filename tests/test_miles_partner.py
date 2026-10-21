@@ -178,3 +178,26 @@ def test_jal_partner_stretches_that_meet_are_one_journey(fares: FareStore) -> No
         itinerary=[["東京", "香港", "倫敦"], ["倫敦", "香港", "東京"]],
     )
     assert res.route == "HND→HKG→LHR→HKG→HND" and "地上移動" not in (res.calculation or "")
+
+
+def test_jal_partner_any_airport_by_iata_code(fares: FareStore) -> None:
+    # Santiago is not in the city list: its IATA code still works, with the name shown
+    res = partner(
+        fares, "JL", "東京", "SCL", "Y", trip_type="OW", itinerary=[["東京", "DFW", "リマ", "SCL"]]
+    )
+    assert res.route == (
+        "HND→DFW→LIM→SCL（Comodoro Arturo Merino Benítez International Airport, Santiago）"
+    )
+    assert res.status == "ok" and "LIM–SCL" in (res.calculation or "")
+
+
+def test_city_names_do_not_resolve_through_the_airport_table() -> None:
+    from milewise.locations import resolve_city
+    from milewise.tools.miles import _airport
+
+    # OurAirports also has London, Ontario (YXU) and Sydney, Nova Scotia (YQY)
+    assert [c.city_code for c in resolve_city("London")] == ["LON"]
+    assert _airport("ロンドン") == "LHR" and _airport("悉尼") == "SYD"
+    assert _airport("YXU") == "YXU"  # only an explicit code reaches the full table
+    assert _airport("Lima") == "LIM"  # Lima is in the city list
+    assert _airport("Santiago") is None  # by name: unknown, so the tool asks

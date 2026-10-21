@@ -71,6 +71,8 @@ only if the user gives it. When the user names connections, stopovers or an open
 the whole trip as itinerary, in the user's order: one list per stretch flown without a break, \
 e.g. 东京-香港-伦敦 round trip = [["东京","香港","伦敦","香港","东京"]]; to London, back \
 from Paris = [["東京","ロンドン"],["パリ","東京"]] (London-Paris by land is not counted). \
+A place the tool does not know by name can be given by its IATA airport code (e.g. "LIM"); \
+the route then shows the airport's name, so check it is the place the user meant. \
 Without it the tool assumes a nonstop route. Show the route the tool returns ("route") so \
 the user can check it, present the distance ("calculation") as an estimate with its basis, \
 show every band returned (two when the estimate is near a band edge), and say the exact \
