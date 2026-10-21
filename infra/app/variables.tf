@@ -14,7 +14,13 @@ variable "alert_email" {
 }
 
 variable "chat_model" {
-  description = "Bedrock model or inference profile for the agent and the reranker (design.md §4.7)."
+  description = "Bedrock model or inference profile for the agent (design.md §4.7, §4.11)."
+  type        = string
+  default     = "zai.glm-5"
+}
+
+variable "rerank_model" {
+  description = "Bedrock model or inference profile for the search_rules relevance filter."
   type        = string
   default     = "jp.amazon.nova-2-lite-v1:0"
 }
