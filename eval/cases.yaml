@@ -678,3 +678,28 @@ cases:
     verified_at: null
     crosschecked_at: 2026-10-20
     verified_by: null
+
+  - id: miles-21
+    category: miles
+    lang: zh
+    question: "用JAL里程换寰宇一家商务舱单程：马尼拉→吉隆坡；吉隆坡到新加坡走陆路，再新加坡→吉隆坡→上海→大阪→赫尔辛基→首尔→东京。一共要多少里程？"
+    expected:
+      miles: [120000]
+      reference: >-
+        这是 JAL 的ワンワールド特典航空券（距离制，可以单程，出发地和最终目的地可以在不同国家）。
+        飞行 7 段：MNL–KUL、SIN–KUL、KUL–上海、上海–大阪、大阪–赫尔辛基、赫尔辛基–首尔、首尔–东京，
+        吉隆坡–新加坡是地上移动，不计距离。总距离约 14,830 英里，落在 14,001–20,000 英里档，商务舱 120,000 里程。
+        7 段在每张特典 8 段（不含地上移动）的上限之内。
+      must_mention:
+        - "按 7 个飞行区间逐段相加，吉隆坡–新加坡的陆路不计入距离"
+        - "总距离落在 14,001–20,000 英里档"
+      must_not_say: ["把吉隆坡–新加坡的陆路算进距离", "超过了区间上限"]
+    gold_urls: [*jal_ow_chart]
+    source_note: >-
+      網上の実例（日航ワンワールド特典 ビジネス片道 12万マイル、7区間、新馬間オープンジョー）。
+      ワンワールド 14,001–20,000 C 120,000。距離は MNL–KUL 1,547 + SIN–KUL 185 + KUL–PVG 2,359 + PVG–KIX 812
+      + KIX–HEL 4,805 + HEL–ICN 4,370 + ICN–HND 752 = 14,830（大圏、Milewise 推定、帯の境界から 3% 以上離れている）。
+      利用区間は地上移動区間を除き8区間まで（利用区間・途中降機について）
+    verified_at: null
+    crosschecked_at: 2026-10-21
+    verified_by: null

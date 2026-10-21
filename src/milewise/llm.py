@@ -64,13 +64,17 @@ def chat_model(model: str, s: Settings | None = None, max_tokens: int = 4000) ->
     if provider == "bedrock":
         from langchain_aws import ChatBedrockConverse
 
+        # reasoningConfig is Nova 2's own field; other models reject it (Nova Pro does too)
+        extra = (
+            {"reasoningConfig": {"type": "enabled", "maxReasoningEffort": s.reasoning_effort}}
+            if "nova-2" in mid
+            else None
+        )
         return ChatBedrockConverse(
             model=mid,
             client=_bedrock(s.bedrock_region),
             max_tokens=max_tokens,
-            additional_model_request_fields={
-                "reasoningConfig": {"type": "enabled", "maxReasoningEffort": s.reasoning_effort}
-            },
+            additional_model_request_fields=extra,
         )
     from langchain_openai import ChatOpenAI
 
