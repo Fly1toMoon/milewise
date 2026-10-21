@@ -75,6 +75,9 @@ def chat_model(model: str, s: Settings | None = None, max_tokens: int = 4000) ->
             client=_bedrock(s.bedrock_region),
             max_tokens=max_tokens,
             additional_model_request_fields=extra,
+            # langchain-aws only streams providers it has verified (not zai, for GLM-5); the
+            # Converse stream itself works for GLM-5 with tool use (checked 2026-10-21).
+            disable_streaming=False,
         )
     from langchain_openai import ChatOpenAI
 

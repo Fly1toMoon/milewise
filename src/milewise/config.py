@@ -21,7 +21,7 @@ class Settings(BaseSettings):
 
     # Models as "<provider>:<id>" (milewise.llm). Defaults run entirely on Amazon Bedrock,
     # billed to the AWS account (credits apply); OpenAI stays available for A/B runs.
-    chat_model: str = "bedrock:jp.amazon.nova-2-lite-v1:0"  # agent + final answer
+    chat_model: str = "bedrock:zai.glm-5"  # agent + final answer (design.md §4.11)
     rerank_model: str = "bedrock:jp.amazon.nova-2-lite-v1:0"  # search_rules relevance filter
     # A different model family from the answering one, so the judge is not grading itself (R10).
     judge_model: str = "bedrock:apac.amazon.nova-pro-v1:0"

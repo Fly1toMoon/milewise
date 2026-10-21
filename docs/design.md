@@ -648,6 +648,14 @@ Data API 的代价（会如实写进 README 的已知局限）：
 - **状态存储**：新表 `milewise-quota`，以 `pk` 为键（`ip#…#w#…`、`ip#…#d#…`、`public#日期`、`owner#日期`、`cache#…`、`config#public`、`alert#public#日期`），全部带 TTL。旧表 `milewise-usage` 保留一个版本，让上线过程中仍在服务的旧版本继续可用。
 - **不做的事**：缩短回答长度、缩短问题长度（会影响回答质量，用户决定不做）。
 
+### 4.11 回答模型改为 GLM-5（2026-10-21）
+
+- **对比**（东京区域、账号可用、支持工具调用）：12 道难题（多轮追问、季节 × 舱位、中转、开口、规则特殊情形）各跑一次。GLM-5 12/12，Nova 2 Lite 10/12，gpt-oss-120b 10/12，Qwen3 235B 9/12，DeepSeek V3.2 9/12（平均 32 秒），Kimi K2.5 8/12，Mistral Large 3 8/12。完整 39 题：GLM-5 全部通过（引用准确率 92%，$0.0124/问，平均 6.3 秒）；gpt-oss-120b 答案全对，但引用准确率 44%，过不了发布门槛。
+- **不可用**：GPT-6 Luna、GPT-5.6 Luna、GPT-5.5、Grok 4.7、Claude Sonnet 5.5、Claude Haiku 5.5 对本账号不开放；Claude Haiku 4.5 和 Sonnet 4.6 需要先在控制台提交 Anthropic 的使用场景表单。
+- **流式**：Bedrock 的 Converse 流对 GLM-5 正常（含工具调用），但 langchain-aws 默认只给它验证过的厂商开流式，zai 不在其中，会退回非流式。`chat_model` 里显式设 `disable_streaming=False`。GLM-5 的流式按较大的块推送（一条回答约 8–13 块）。
+- **重排序**仍用 Nova 2 Lite（Terraform 新增 `rerank_model` 变量）。`reasoningConfig` 是 Nova 2 专用字段，只发给 Nova 2。
+- **费用**：GLM-5 东京按需 $1.20 / $3.84 每百万 token（输入 / 输出）。在 Bedrock 自己的价目表里（不是 Marketplace），预计可用 credit 抵扣，要以账单为准。
+
 ### 4.9 网页：航图风格、流式回答、来源、三语界面（2026-10-19）
 
 仍然是一个文件 `src/milewise/static/index.html`，不引入框架和构建步骤；字体来自 Google Fonts。
