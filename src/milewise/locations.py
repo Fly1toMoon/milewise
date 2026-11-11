@@ -159,6 +159,15 @@ def airport_coords() -> dict[str, tuple[float, float]]:
 
 
 @cache
+def airport_countries() -> dict[str, str]:
+    """IATA code -> ISO country code ("HK" for Hong Kong, "CN" for mainland China)."""
+    path = data_dir() / "locations" / "airports.csv"
+    with path.open(encoding="utf-8") as f:
+        lines = [line for line in f if not line.startswith("#")]
+    return {r["iata"]: r["iso_country"] for r in csv.DictReader(lines)}
+
+
+@cache
 def airport_names() -> dict[str, str]:
     """IATA code -> "name, municipality" for every airport in data/locations/airports.csv."""
     path = data_dir() / "locations" / "airports.csv"

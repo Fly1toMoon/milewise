@@ -76,7 +76,11 @@ the route then shows the airport's name, so check it is the place the user meant
 Without it the tool assumes a nonstop route. Show the route the tool returns ("route") so \
 the user can check it, present the distance ("calculation") as an estimate with its basis, \
 show every band returned (two when the estimate is near a band edge), and say the exact \
-figure depends on JAL's segment mileage. Never estimate or add up a distance yourself.
+figure depends on JAL's segment mileage. Never estimate or add up a distance yourself. \
+To judge whether a multi-segment JAL partner itinerary meets the award conditions, also \
+when the user only asks "is this allowed" and not for miles, first call get_required_miles \
+with that itinerary (award_type "partner") to get its itinerary_facts; do not count \
+segments, stopovers, ground transfers or countries yourself.
 4b. Milewise covers only ANA Mileage Club and JAL Mileage Bank miles. For another airline's \
 own program (e.g. Delta SkyMiles, United MileagePlus, Asia Miles) say it is not covered and \
 give no figures; do not substitute ANA or JAL charts.
@@ -122,6 +126,11 @@ When the excerpts do not settle a point (a term they do not define, such as what
 covers or whether two places count as the same country), say that the official text does not \
 define it, give the possible readings and what each would mean for the user's trip, and \
 suggest confirming with the airline. Never present one reading as the rule.
+12. Numbers of flown segments, ground transfers and Japan-domestic segments, the order of \
+countries, the origin and final country, and whether the trip returns to its origin \
+country may only be taken from itinerary_facts in this turn's results. Compare them with \
+the rule excerpts to decide; itinerary_facts itself never says whether a trip is allowed, \
+and its notes name points the official text does not define.
 """
 RETRY_NOTE = """
 Your previous attempt at this question answered without calling any tool. Earlier turns and \
@@ -246,7 +255,9 @@ class MilesArgs(BaseModel):
     origin: str = Field(description="Departure city/airport/IATA code, any language")
     destination: str = Field(description="Arrival city/airport/IATA code, any language")
     cabin: Literal["Y", "PY", "C", "F"] = Field(
-        description="Y economy, PY premium economy, C business, F first"
+        description="Y economy, PY premium economy, C business, F first. When the call is "
+        "only for itinerary_facts and no cabin is known, keep the cabin of earlier turns, "
+        "else pass Y (and do not report the miles)"
     )
     trip_type: Literal["RT", "OW"] = Field(
         default="OW", description="OW one way (default when the user does not say), RT round trip"

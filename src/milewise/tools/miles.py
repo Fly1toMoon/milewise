@@ -15,6 +15,7 @@ from milewise.charts.store import SEASON_ORDER, FareStore
 from milewise.locations import (
     City,
     airport_coords,
+    airport_countries,
     airport_hint,
     airport_names,
     great_circle_miles,
@@ -74,6 +75,8 @@ class MilesResult:
     chart: dict[str, Any] | None = None
     candidates: dict[str, list[str]] = field(default_factory=dict)
     caveats: list[str] = field(default_factory=list)
+    # counts the model must cite instead of counting itself (JAL partner itineraries, §4.13)
+    itinerary_facts: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {k: v for k, v in asdict(self).items() if v not in (None, [], {}, "")}
@@ -583,6 +586,10 @@ def _jl_partner(
             return res
         else:
             res.route = estimate["route"]
+    if itinerary:
+        facts = itinerary_facts(itinerary)
+        if "unresolved" not in facts:
+            res.itinerary_facts = facts
     lookup = total_distance if total_distance is not None else (estimate or {}).get("miles")
     rows: list[dict[str, Any]] = []
     for prog in programs:
@@ -680,18 +687,9 @@ def estimate_itinerary(runs: list[list[str]]) -> dict[str, Any]:
     (an open jaw: not counted), then flies CDG-HND. Each leg is the great-circle distance
     between the cities' main airports. Returns {"unresolved": place} if a place is unknown.
     """
-    codes: list[list[str]] = []
-    for run in runs:
-        row = []
-        for place in run:
-            code = _airport(place)
-            if code is None:
-                return {"unresolved": place}
-            row.append(code)
-        if codes and codes[-1][-1] == row[0]:
-            codes[-1].extend(row[1:])  # the next stretch starts where the last one ended
-        else:
-            codes.append(row)
+    codes = _airport_runs(runs)
+    if isinstance(codes, str):
+        return {"unresolved": codes}
     legs: list[str] = []
     parts: list[str] = []
     total = 0
@@ -708,6 +706,124 @@ def estimate_itinerary(runs: list[list[str]]) -> dict[str, Any]:
     surface = [p for p in parts if p.startswith("地上移動")]
     basis = " + ".join(legs) + (f"。{'、'.join(surface)} は距離に含めない" if surface else "")
     return {"miles": total, "basis": basis, "route": " ／ ".join(parts), "segments": len(legs)}
+
+
+def _airport_runs(runs: list[list[str]]) -> list[list[str]] | str:
+    """Runs of places as runs of airport codes; consecutive runs that meet are joined. A
+    place that cannot be resolved is returned as is (a str)."""
+    codes: list[list[str]] = []
+    for run in runs:
+        row = []
+        for place in run:
+            code = _airport(place)
+            if code is None:
+                return place
+            row.append(code)
+        if not row:
+            continue
+        if codes and codes[-1][-1] == row[0]:
+            codes[-1].extend(row[1:])  # the next stretch starts where the last one ended
+        else:
+            codes.append(row)
+    return codes
+
+
+def _city_of(code: str) -> str:
+    return next((c.city_code for c in load_cities() if code in c.airports), code)
+
+
+# Codes that the oneworld conditions page does not say are or are not the same country as
+# mainland China (出発国へ戻り、さらに第三国へ…): the tool flags the case, the model must
+# not decide it (design.md §4.13).
+_CN_SEPARATE = {"HK", "MO", "TW"}
+
+
+def itinerary_facts(runs: list[list[str]]) -> dict[str, Any]:
+    """Countable facts about an itinerary, with the same input as estimate_itinerary.
+
+    Only counts: segments flown, ground transfers, Japan-domestic segments, countries in
+    order, whether and where the trip returns to its origin country, how often each city
+    is used. Whether the itinerary is allowed is NOT decided here: the model reads that in
+    the rules and cites them (writing the rules into code was rejected; §4.13).
+    """
+    codes = _airport_runs(runs)
+    if isinstance(codes, str):
+        return {"unresolved": codes}
+    country = airport_countries()
+    segments: list[dict[str, Any]] = []
+    transfers: list[dict[str, Any]] = []
+    order: list[str] = []  # every airport in travel order (ground transfers included)
+    for i, row in enumerate(codes):
+        if i:
+            a, b = codes[i - 1][-1], row[0]
+            transfers.append(
+                {
+                    "after_segment": len(segments),
+                    "from": a,
+                    "to": b,
+                    "from_country": country.get(a, "?"),
+                    "to_country": country.get(b, "?"),
+                }
+            )
+        order.extend(row if not order or order[-1] != row[0] else row[1:])
+        for a, b in pairwise(row):
+            segments.append(
+                {
+                    "segment": len(segments) + 1,
+                    "from": a,
+                    "to": b,
+                    "from_country": country.get(a, "?"),
+                    "to_country": country.get(b, "?"),
+                }
+            )
+    countries: list[str] = []
+    for code in order:
+        c = country.get(code, "?")
+        if not countries or countries[-1] != c:
+            countries.append(c)
+    origin = countries[0] if countries else None
+    returns: dict[str, Any] = {}
+    left = False
+    for seg in segments:
+        if seg["to_country"] != origin:
+            left = True
+        elif left:
+            after = [s["to_country"] for s in segments[seg["segment"] :]]
+            returns = {
+                "segment": seg["segment"],
+                "airport": seg["to"],
+                "countries_after": list(dict.fromkeys(after)),
+            }
+            break
+    visits: dict[str, int] = {}
+    for code in order:
+        city = _city_of(code)
+        visits[city] = visits.get(city, 0) + 1
+    facts: dict[str, Any] = {
+        "flown_segments": len(segments),
+        "segments": segments,
+        "ground_transfers": len(transfers),
+        "ground_transfer_list": transfers,
+        "japan_domestic_segments": sum(
+            1 for s in segments if s["from_country"] == "JP" and s["to_country"] == "JP"
+        ),
+        "countries_in_order": countries,
+        "origin_country": origin,
+        "final_country": countries[-1] if countries else None,
+        "returns_to_origin_country": returns or None,
+        "city_visits": visits,
+        "notes": [
+            "途中降機（24時間以上の滞在）の有無と回数は経路からは分からない（地上移動区間は1回の途中降機とみなされる）"
+        ],
+    }
+    seen = set(countries)
+    if "CN" in seen and seen & _CN_SEPARATE:
+        others = "・".join(sorted(seen & _CN_SEPARATE))
+        facts["notes"].append(
+            f"行程に CN（中国本土）と {others} が含まれる。国コードは別だが、ワンワールド特典の"
+            "ご利用条件ページはこれらを同じ国（出発国）とみなすかどうかを定義していない"
+        )
+    return facts
 
 
 def _band_matches(lo: int, hi: int, miles: int, estimate: dict[str, Any] | None) -> bool:
