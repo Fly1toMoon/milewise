@@ -177,6 +177,13 @@ _MILES_NUMBER = re.compile(
     r"(\d{1,3}(?:[,，]\d{3})+|\d{4,})\s*(?:マイル|miles?|英里|里程|哩)", re.IGNORECASE
 )
 _EVIDENCE_MARK = re.compile(r"\[([CD]\d+)\]")
+# Models sometimes write full-width marks (【D1】, ［D1］; seen with GLM-5): the answer is
+# normalised to [D1] before any check, so they are neither missed nor shown raw.
+_ANY_MARK = re.compile(r"[\[［【]\s*([CD]\d+)\s*[\]］】]")
+
+
+def normalize_marks(text: str) -> str:
+    return _ANY_MARK.sub(r"[\1]", text)
 
 
 @dataclass
@@ -495,7 +502,7 @@ def prior_turns(
         if role == "assistant":
             for w in [*POSTCHECK_WARNING.values(), *UNCHECKED_NOTE.values()]:
                 text = text.replace(w, "")
-            text = _CITE_MARK.sub("", text)
+            text = _CITE_MARK.sub("", normalize_marks(text))
         ids = [str(i) for i in (m.get("evidence") or [])] if role == "assistant" else []
         out.append({"role": role, "content": text.strip()[:HISTORY_CHARS], "evidence": ids})
     # the conversation must alternate and start with the user
@@ -642,7 +649,7 @@ def ask(
         spent = spent + messages
     latency_ms = round((time.perf_counter() - t0) * 1000)
 
-    answer = answer_text(messages)
+    answer = normalize_marks(answer_text(messages))
     check = postcheck(answer, evidence)
     if not check.ok:
         answer += POSTCHECK_WARNING[lang]

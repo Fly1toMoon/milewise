@@ -564,7 +564,7 @@ function inline(s, ctx) {
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     .replace(/`([^`]+)`/g, "<code>$1</code>")
     .replace(/(\d{1,3}(?:[,，]\d{3})+|\d{4,})(\s?)(マイル|里程|英里|miles?)/gi, '<span class="num">$1</span>$2$3')
-    .replace(/\[([CD]\d+)\]/g, (_, id) => {
+    .replace(/[\[［【]\s*([CD]\d+)\s*[\]］】]/g, (_, id) => {  // 【D1】 too (GLM-5)
       if (!ctx.cites.has(id)) ctx.cites.set(id, ctx.cites.size + 1);
       const n = ctx.cites.get(id);
       return `<sup class="cite"><a href="#src-${ctx.turn}-${id}" data-cite="${ctx.turn}-${id}" aria-label="${n}">${n}</a></sup>`;
@@ -760,7 +760,7 @@ function contextOf(c) {
   const kept = done.length > CONTEXT_TURNS + 1 ? [done[0], ...done.slice(-CONTEXT_TURNS)] : done;
   return kept.flatMap((x) => {
     const detail = x.done.evidence_detail || {};
-    const cited = [...new Set([...x.text.matchAll(/\[(D\d+)\]/g)].map((m) => m[1]))];
+    const cited = [...new Set([...x.text.matchAll(/[\[［【]\s*(D\d+)\s*[\]］】]/g)].map((m) => m[1]))];
     const evidence = cited.map((id) => detail[id] && detail[id].chunk).filter(Boolean).slice(0, 8);
     return [
       { role: "user", content: x.q },

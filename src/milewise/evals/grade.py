@@ -19,7 +19,7 @@ from difflib import SequenceMatcher
 from typing import Any
 
 from milewise import llm
-from milewise.agent import URL_RE, AskResult
+from milewise.agent import URL_RE, AskResult, normalize_marks
 from milewise.config import Settings
 
 _NUMBER_WITH_UNIT = re.compile(
@@ -108,7 +108,7 @@ def figures(answer: str) -> set[int]:
 
 def cited_urls(res: AskResult) -> list[str]:
     urls = set(URL_RE.findall(res.answer))
-    for eid in _MARK.findall(res.answer):
+    for eid in _MARK.findall(normalize_marks(res.answer)):
         ev = res.evidence.get(eid, {})
         url = ev.get("url") or ev.get("chart", {}).get("source_url")
         if url:
@@ -163,7 +163,7 @@ QUOTE_SPAN = 2.0
 
 def _norm(text: str) -> str:
     """NFKC, without citation marks, whitespace, punctuation and markdown symbols."""
-    text = unicodedata.normalize("NFKC", re.sub(r"\[[CD]\d+\]", "", text))
+    text = unicodedata.normalize("NFKC", re.sub(r"\[[CD]\d+\]", "", normalize_marks(text)))
     return "".join(
         ch
         for ch in text

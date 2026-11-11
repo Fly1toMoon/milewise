@@ -76,3 +76,32 @@ def test_every_chart_of_a_jal_partner_result_may_be_linked() -> None:
         }
     )
     assert postcheck("48,000マイル [C1] https://www.jal.co.jp/jmb.html", ev).ok
+
+
+def test_full_width_marks_are_normalised() -> None:
+    from milewise.agent import normalize_marks, prior_turns
+
+    assert normalize_marks("不可以【D1】，见［D2］和[ C3 ]") == "不可以[D1]，见[D2]和[C3]"
+    turns = prior_turns(
+        [{"role": "user", "content": "q"}, {"role": "assistant", "content": "答【D1】。"}]
+    )
+    assert turns[1]["content"] == "答。"
+
+
+def test_full_width_marks_count_as_citations() -> None:
+    from milewise.agent import AskResult, PostCheck
+    from milewise.evals.grade import cited_urls, quote_in
+
+    res = AskResult(
+        "q",
+        "不能【D1】",
+        {"D1": {"url": "https://x.example/"}},
+        PostCheck(True, [], [], []),
+        [],
+        {},
+        0.0,
+        0,
+        "m",
+    )
+    assert cited_urls(res) == ["https://x.example/"]
+    assert quote_in("不能【D1】再去第三国", "不能再去第三国")
