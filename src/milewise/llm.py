@@ -64,12 +64,15 @@ def chat_model(model: str, s: Settings | None = None, max_tokens: int = 4000) ->
     if provider == "bedrock":
         from langchain_aws import ChatBedrockConverse
 
-        # reasoningConfig is Nova 2's own field; other models reject it (Nova Pro does too)
-        extra = (
-            {"reasoningConfig": {"type": "enabled", "maxReasoningEffort": s.reasoning_effort}}
-            if "nova-2" in mid
-            else None
-        )
+        # reasoningConfig is Nova 2's own field; other models reject it (Nova Pro does too).
+        # GLM takes "reasoning_effort" instead (checked 2026-11-11); unknown fields are ignored.
+        extra: dict[str, Any] | None = None
+        if "nova-2" in mid:
+            extra = {
+                "reasoningConfig": {"type": "enabled", "maxReasoningEffort": s.reasoning_effort}
+            }
+        elif mid.startswith("zai.") and s.chat_reasoning_effort:
+            extra = {"reasoning_effort": s.chat_reasoning_effort}
         return ChatBedrockConverse(
             model=mid,
             client=_bedrock(s.bedrock_region),

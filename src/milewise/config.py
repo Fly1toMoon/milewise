@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     embedding_model: str = "bedrock:cohere.embed-multilingual-v3"
     embedding_dimensions: int = 1024
     reasoning_effort: str = "low"
+    # GLM on Bedrock thinks only when asked (Converse field "reasoning_effort"); "" = off
+    chat_reasoning_effort: str = ""
     bedrock_region: str = "ap-northeast-1"
     openai_api_key: str = ""  # only needed when a model above is openai:*
 
@@ -74,6 +76,10 @@ PRICES: dict[str, tuple[float, float, float]] = {
     "openai.gpt-oss-120b-1:0": (0.18, 0.18, 0.73),
     "moonshotai.kimi-k2.5": (0.72, 0.72, 3.60),
     "zai.glm-5": (1.20, 1.20, 3.84),
+    # 2026-11-11 A/B candidates (Pricing API, ap-northeast-1). Kimi K3.1 has no price entry
+    # yet: Kimi K3 global-standard is used.
+    "minimax.minimax-m2.5": (0.36, 0.36, 1.44),
+    "global.moonshotai.kimi-k3.1": (3.00, 0.30, 15.00),
     "mistral.mistral-large-3-675b-instruct": (0.61, 0.61, 1.82),
     # Anthropic is billed through AWS Marketplace (not in the Bedrock price list): list price
     # plus 10% for the jp. regional profile.
