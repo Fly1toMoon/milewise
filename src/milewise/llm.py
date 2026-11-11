@@ -102,11 +102,13 @@ def structured(
     schema: dict[str, Any],
     s: Settings | None = None,
     max_tokens: int = 2000,
+    temperature: float | None = None,
 ) -> tuple[dict[str, Any], dict[str, int]]:
     """One call whose answer is a JSON object matching `schema`; returns (object, usage).
 
     OpenAI: structured outputs. Bedrock: a single tool the model is forced to call, whose
     input is the object (Converse has no response_format; verified on Nova 2 Lite).
+    `temperature` applies to Bedrock only (OpenAI reasoning models reject it).
     """
     s = s or get_settings()
     provider, mid = parse(model)
@@ -127,7 +129,10 @@ def structured(
                 ],
                 "toolChoice": {"tool": {"name": name}},
             },
-            inferenceConfig={"maxTokens": max_tokens},
+            inferenceConfig={
+                "maxTokens": max_tokens,
+                **({"temperature": temperature} if temperature is not None else {}),
+            },
         )
         out = next(
             c["toolUse"]["input"] for c in r["output"]["message"]["content"] if "toolUse" in c

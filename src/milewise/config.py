@@ -24,7 +24,9 @@ class Settings(BaseSettings):
     chat_model: str = "bedrock:zai.glm-5"  # agent + final answer (design.md §4.11)
     rerank_model: str = "bedrock:jp.amazon.nova-2-lite-v1:0"  # search_rules relevance filter
     # A different model family from the answering one, so the judge is not grading itself (R10).
-    judge_model: str = "bedrock:apac.amazon.nova-pro-v1:0"
+    # DeepSeek V3.2 since 2026-11-11: 70/70 on scripts/judge_selfcheck.py with per-point
+    # verdicts, Nova Pro 53/70 (garbled quotes, missed a forbidden statement; design.md §4.13).
+    judge_model: str = "bedrock:deepseek.v3.2"
     # Cohere multilingual: best cross-lingual recall (zh/en questions, ja pages; §9.18)
     embedding_model: str = "bedrock:cohere.embed-multilingual-v3"
     embedding_dimensions: int = 1024

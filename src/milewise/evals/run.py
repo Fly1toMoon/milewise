@@ -3,6 +3,7 @@
 milewise eval                       # all cases, default models, JSONL + latest.md
 milewise eval --model gpt-6.1-sol   # A/B: same cases, stronger answer model
 milewise eval --upload s3://bucket/eval/   # also keep the run in S3 (CI does this)
+milewise eval --only multi-05 --repeat 5   # each case 5 times, reported as passes/5
 """
 
 from __future__ import annotations
@@ -48,6 +49,7 @@ class CaseResult:
     cost_usd: float
     error: str | None = None
     first_attempt: str | None = None  # why an unstable case failed the first time
+    attempt: int = 0  # 0..N-1 with --repeat N
 
 
 def load_cases(path: Path = CASES_PATH) -> list[dict[str, Any]]:
@@ -142,6 +144,11 @@ def summarize(results: list[CaseResult]) -> dict[str, Any]:
     abstain = [r.passed for r in by("abstain")]
     citation = [r.grade.citation_ok for r in results if r.grade and r.grade.citation_ok is not None]
     lat = sorted(r.latency_ms for r in results if not r.error)
+    per_case: dict[str, list[int]] = {}
+    for r in results:
+        k = per_case.setdefault(r.case_id, [0, 0])
+        k[0] += r.passed
+        k[1] += 1
     return {
         "n_cases": len(results),
         "miles_accuracy": _rate([bool(x) for x in miles]),
@@ -158,6 +165,8 @@ def summarize(results: list[CaseResult]) -> dict[str, Any]:
         if results
         else None,
         "cost_usd_total": round(sum(r.cost_usd for r in results), 4),
+        # passes / runs per case (more than one run per case with --repeat)
+        "per_case": {k: f"{p}/{n}" for k, (p, n) in per_case.items()},
     }
 
 
@@ -233,7 +242,8 @@ def write_report(run: dict[str, Any], results: list[CaseResult]) -> Path:
         f"# Eval run {run['run_id'][:8]} ({run['started_at'][:16]}Z)",
         "",
         f"model `{run['config']['model']}`, judge `{run['config']['judge_model']}`, "
-        f"git `{run['git_sha']}`, {s['n_cases']} cases ({run['n_unverified']} not yet human-verified)",
+        f"git `{run['git_sha']}`, {s['n_cases']} cases ({run['n_unverified']} not yet human-verified)"
+        + (f", each run {run['repeat']} times" if run.get("repeat", 1) > 1 else ""),
         "",
         "| metric | value | threshold |",
         "|---|---|---|",
@@ -250,18 +260,23 @@ def write_report(run: dict[str, Any], results: list[CaseResult]) -> Path:
         + (f" · unstable: {', '.join(s['unstable'])}" if s["unstable"] else "")
         + (f" · errors: {', '.join(s['errors'])}" if s["errors"] else ""),
         "",
-        "| case | cat | lang | result | notes |",
-        "|---|---|---|---|---|",
     ]
+    if run.get("repeat", 1) > 1:
+        lines += ["| case | passed |", "|---|---|"]
+        lines += [f"| {k} | {v} |" for k, v in s["per_case"].items()]
+        lines.append("")
+    lines += ["| case | cat | lang | result | notes |", "|---|---|---|---|---|"]
     for r in results:
         note = r.error or (r.grade.judge_rationale if r.grade and not r.passed else "") or ""
+        if r.grade and r.grade.check_notes:
+            note = "; ".join(r.grade.check_notes) + " | " + note
         if r.grade and r.grade.miles_ok is False:
             note = "missing or unbacked figures; " + note
         if r.unstable and r.first_attempt:
             note = f"1st try failed: {r.first_attempt}"
         status = "✅" if r.passed else "❌"
         lines.append(
-            f"| {r.case_id} | {r.category} | {r.lang} | {status}{' (unstable)' if r.unstable else ''} "
+            f"| {r.case_id}{f' #{r.attempt + 1}' if run.get('repeat', 1) > 1 else ''} | {r.category} | {r.lang} | {status}{' (unstable)' if r.unstable else ''} "
             f"| {note[:160].replace('|', '/')} |"
         )
     md = RESULTS_DIR / "latest.md"
@@ -280,8 +295,12 @@ def run_eval(
     target: str = "local",
     token: str | None = None,
     upload_to: str | None = None,
+    repeat: int = 1,
 ) -> dict[str, Any]:
-    """target "local" runs the agent in-process; an https URL evaluates a deployed endpoint."""
+    """target "local" runs the agent in-process; an https URL evaluates a deployed endpoint.
+
+    With repeat > 1 every case runs that many times (no retries) and the report gives each
+    case's passes / runs: one run per case cannot tell a fix from sampling noise."""
     s = get_settings()
     model = model or s.chat_model
     judge_model = judge_model or s.judge_model
@@ -305,8 +324,17 @@ def run_eval(
 
     started = datetime.now(UTC).isoformat()
     t0 = time.perf_counter()
+    if repeat > 1:
+        retries = 0
+
+    def one(job: tuple[dict[str, Any], int]) -> CaseResult:
+        r = run_case(job[0], s, asker, judge_model, retries)
+        r.attempt = job[1]
+        return r
+
+    jobs = [(c, i) for c in cases for i in range(repeat)]
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        results = list(pool.map(lambda c: run_case(c, s, asker, judge_model, retries), cases))
+        results = list(pool.map(one, jobs))
     summary = summarize(results)
     run = {
         "run_id": str(uuid.uuid4()),
@@ -316,6 +344,7 @@ def run_eval(
         "git_sha": git_sha(),
         "trigger": trigger,
         "target": target,
+        "repeat": repeat,
         "config": {
             "model": model,
             "judge_model": judge_model,
