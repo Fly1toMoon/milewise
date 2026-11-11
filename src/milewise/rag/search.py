@@ -15,6 +15,13 @@ RECALL_K = 20
 # Whole chunks go to the reranker and the model: chunks are up to MAX_CHARS of body plus
 # their heading path (longest 1,016 in the 2026-10-21 index). 700 used to cut 22 of them.
 SNIPPET_CHARS = 1200
+# Pages are returned whole when they are short (design.md §4.13): the oneworld conditions page
+# is 1,564 characters in 7 chunks, and a query often reached only one of the two chunks that
+# decide an itinerary question (旅程について / 利用区間・途中降機について), flipping the
+# answer. A longer page gives the hit and its neighbours. MAX_RESULT_CHARS caps the total.
+PAGE_EXPAND_CHARS = 3000
+MAX_RESULT_CHARS = 8000
+_SENTENCE_END = "。"
 
 RERANK_SCHEMA = {
     "type": "object",
@@ -102,32 +109,84 @@ def rerank(
     return list(dict.fromkeys(picked)), usage
 
 
+def _navigation_only(row: dict[str, Any]) -> bool:
+    """A chunk of link and menu text (「重要なお知らせ」, the page footer): no sentence in it."""
+    body = row["text"].split("\n", 1)[1] if "\n" in row["text"] else row["text"]
+    return _SENTENCE_END not in body
+
+
+def expand_pages(
+    index: RulesIndex,
+    hits: list[dict[str, Any]],
+    page_chars: int = PAGE_EXPAND_CHARS,
+    max_chars: int = MAX_RESULT_CHARS,
+) -> list[dict[str, Any]]:
+    """The reranked hits with the rest of their page: a whole page when it is at most
+    `page_chars` long, else each hit with the chunk before and after it. Filled in rerank
+    order, each page in page order, until `max_chars`; navigation-only chunks are skipped
+    unless they are a hit. Rows that are not hits carry no score."""
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    total = 0
+    for hit in hits:
+        if hit["chunk_id"] in seen:
+            continue
+        page = index.page(hit["source_url"]) or [hit]
+        size = sum(len(r["text"][:SNIPPET_CHARS]) for r in page if not _navigation_only(r))
+        if size <= page_chars:
+            group = page
+        else:
+            at = next((i for i, r in enumerate(page) if r["chunk_id"] == hit["chunk_id"]), None)
+            group = [hit] if at is None else page[max(0, at - 1) : at + 2]
+        group = [
+            {**r, "score": hit["score"]} if r["chunk_id"] == hit["chunk_id"] else r
+            for r in group
+            if r["chunk_id"] not in seen
+            and (r["chunk_id"] == hit["chunk_id"] or not _navigation_only(r))
+        ]
+        bodies = {r.get("body_sha256") for r in out}
+        for r in group:
+            n = len(r["text"][:SNIPPET_CHARS])
+            if total + n > max_chars:
+                if r["chunk_id"] == hit["chunk_id"]:
+                    return out  # not even the hit fits: nothing ranked lower may jump ahead
+                continue
+            if r["chunk_id"] != hit["chunk_id"] and r.get("body_sha256") in bodies:
+                continue  # the same notice printed twice on one page
+            seen.add(r["chunk_id"])
+            out.append(r)
+            total += n
+    return out
+
+
 def search_rules(
     index: RulesIndex,
     question: str,
     airline: str | None = None,
     k: int = 6,
     settings: Settings | None = None,
-    award_type: str | None = "own",
+    award_type: str | None = None,
 ) -> RulesResult:
     s = settings or get_settings()
     rows = recall(index, question, airline, s, award=award_type)
     if not rows:
         return RulesResult("no_evidence")
     picked, usage = rerank(question, rows, s)
+    expanded = expand_pages(index, [rows[i] for i in picked[:k]])
     chunks = [
         {
-            "chunk_id": rows[i]["chunk_id"],
-            "title": rows[i]["title"],
-            "url": rows[i]["source_url"],
-            "airline": rows[i]["airline"],
-            "award_type": rows[i].get("award", "general"),
+            "chunk_id": r["chunk_id"],
+            "title": r["title"],
+            "url": r["source_url"],
+            "airline": r["airline"],
+            "award_type": r.get("award", "general"),
             # the situation the excerpt covers, e.g. "悪天候や機材故障などが理由の…" (§9.18)
-            "section": rows[i].get("section", ""),
-            "fetched_date": rows[i]["fetched_date"],
-            "score": round(float(rows[i]["score"]), 3),
-            "text": rows[i]["text"][:SNIPPET_CHARS],
+            "section": r.get("section", ""),
+            "fetched_date": r["fetched_date"],
+            # a reranked hit; None for the rest of its page added around it
+            "score": round(float(r["score"]), 3) if r.get("score") is not None else None,
+            "text": r["text"][:SNIPPET_CHARS],
         }
-        for i in picked[:k]
+        for r in expanded
     ]
     return RulesResult("ok" if chunks else "no_evidence", chunks, usage)

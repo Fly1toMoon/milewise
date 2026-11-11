@@ -287,11 +287,12 @@ class MilesArgs(BaseModel):
 class RulesArgs(BaseModel):
     question: str = Field(description="What to look up, ideally rewritten in Japanese")
     airline: Literal["NH", "JL"] | None = Field(default=None, description="Limit to one airline")
-    award_type: Literal["own", "partner"] = Field(
-        default="own",
-        description="own: awards on the airline's own flights (the default). partner: only "
-        "when the user asks about partner-airline / oneworld / Star Alliance awards. Their "
-        "rules differ (e.g. JAL partner awards can be changed after ticketing, JAL's own cannot)",
+    award_type: Literal["own", "partner"] | None = Field(
+        default=None,
+        description="partner when the user asks about partner-airline / oneworld / Star "
+        "Alliance awards; own when they ask about awards on the airline's own flights; omit it "
+        "if unsure (both are searched). Their rules differ (e.g. JAL partner awards can be "
+        "changed after ticketing, JAL's own cannot)",
     )
 
 
@@ -377,7 +378,7 @@ def build_tools(
             res = {"evidence_id": evidence.add_chart(res), **res}
         return json.dumps(res, ensure_ascii=False, default=str)
 
-    def rules(question: str, airline: str | None = None, award_type: str = "own") -> str:
+    def rules(question: str, airline: str | None = None, award_type: str | None = None) -> str:
         res = search_rules(
             index or get_rules_index(), question, airline=airline, award_type=award_type
         )
@@ -452,8 +453,10 @@ def _usage(messages: list[Any]) -> dict[str, int]:
 # Bounds on what a client may send as context (each turn is also re-sent, so this caps cost).
 HISTORY_TURNS = 3
 HISTORY_CHARS = 4000
-# Rule excerpts an earlier answer cited, shown to the model under that answer (newest first).
-HISTORY_EXCERPTS = 6
+# Rule excerpts an earlier answer cited, shown to the model under that answer (newest first),
+# up to this many characters in all. A count limit (6 chunks) used to cut off half of a page
+# once search_rules returned whole pages (design.md §4.13).
+HISTORY_EXCERPT_CHARS = 6000
 _CITE_MARK = re.compile(r"\s*\[[CD]\d+\]")
 EXCERPTS_HEADER = (
     "[Rule excerpts this answer was based on. Context only: call search_rules again to cite them.]"
@@ -502,12 +505,14 @@ def prior_turns(
 
     # newest answers first, so a chunk cited again is shown under its latest answer
     shown: set[str] = set()
+    room = HISTORY_EXCERPT_CHARS
     for m in reversed(kept):
         chunks = []
         for cid in m["evidence"] if excerpt else []:
-            c = excerpt(cid) if excerpt and len(shown) < HISTORY_EXCERPTS else None
-            if c and cid not in shown:
+            c = excerpt(cid) if excerpt and cid not in shown else None
+            if c and len(c["text"]) <= room:
                 shown.add(cid)
+                room -= len(c["text"])
                 chunks.append(c["text"])
         if chunks:
             m["content"] += "\n\n" + EXCERPTS_HEADER + "\n" + "\n---\n".join(chunks)
