@@ -754,11 +754,19 @@ function tickElapsed() {
 setInterval(tickElapsed, 500);
 
 function contextOf(c) {
-  // the last few finished turns, as the API's history (answers without the sources section)
-  return c.turns.filter((x) => x.done && x.text).slice(-CONTEXT_TURNS).flatMap((x) => [
-    { role: "user", content: x.q },
-    { role: "assistant", content: splitAnswer(x.text).body },
-  ]);
+  // the first and the last few finished turns, as the API's history (answers without the
+  // sources section, with the rule chunks they cited so the model sees the official text)
+  const done = c.turns.filter((x) => x.done && x.text);
+  const kept = done.length > CONTEXT_TURNS + 1 ? [done[0], ...done.slice(-CONTEXT_TURNS)] : done;
+  return kept.flatMap((x) => {
+    const detail = x.done.evidence_detail || {};
+    const cited = [...new Set([...x.text.matchAll(/\[(D\d+)\]/g)].map((m) => m[1]))];
+    const evidence = cited.map((id) => detail[id] && detail[id].chunk).filter(Boolean).slice(0, 8);
+    return [
+      { role: "user", content: x.q },
+      { role: "assistant", content: splitAnswer(x.text).body, evidence },
+    ];
+  });
 }
 
 async function submit() {

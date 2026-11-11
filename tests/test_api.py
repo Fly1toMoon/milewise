@@ -168,6 +168,7 @@ def test_done_describes_each_citation(client: TestClient) -> None:
 def test_rule_evidence_card() -> None:
     card = api.evidence_card(
         {
+            "chunk_id": "jal-refund#3",
             "title": "払い戻し",
             "url": "https://www.jal.co.jp/c",
             "section": "手数料",
@@ -176,6 +177,7 @@ def test_rule_evidence_card() -> None:
     )
     assert card == {
         "kind": "rule",
+        "chunk": "jal-refund#3",
         "url": "https://www.jal.co.jp/c",
         "title": "払い戻し",
         "section": "手数料",
@@ -187,20 +189,22 @@ def test_follow_up_passes_history_and_skips_the_cache(
     client: TestClient, store: MemoryStore, calls: Calls
 ) -> None:
     ask(client, "那经济舱呢？")  # standalone: cached
-    history = [
+    history: list[dict[str, Any]] = [
         {"role": "user", "content": "东京到伦敦商务舱往返要多少里程？"},
-        {"role": "assistant", "content": "110,000里程 [C1]"},
+        {"role": "assistant", "content": "110,000里程 [C1]", "evidence": ["jal-refund#3"]},
     ]
     r = client.post("/ask", json={"question": "那经济舱呢？", "history": history})
     assert sse_events(r.text)[-1][1]["cached"] is False
     assert calls.asked == ["那经济舱呢？", "那经济舱呢？"]  # the follow-up was not a cache hit
-    assert calls.histories[-1] == history
+    assert calls.histories[-1] == [{**history[0], "evidence": []}, history[1]]
     assert not [k for k in store.items if k.startswith("cache#")][1:]  # only the first is stored
 
 
 def test_history_is_bounded(client: TestClient) -> None:
     turns = [{"role": "user", "content": "q"}] * 13
     assert client.post("/ask", json={"question": "东京", "history": turns}).status_code == 422
+    cited = [{"role": "assistant", "content": "a", "evidence": ["x"] * 9}]
+    assert client.post("/ask", json={"question": "东京", "history": cited}).status_code == 422
 
 
 def test_same_question_is_answered_from_cache_for_free(

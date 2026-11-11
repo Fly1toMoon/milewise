@@ -109,7 +109,26 @@ asks for a round trip Tokyo-Hong Kong-London (trip_type RT). Answer only the las
 question. Figures and evidence ids from earlier answers are not evidence for this one: call \
 the tools again in this turn and cite only what they return now. Earlier answers are shown \
 without their evidence ids; this answer must still put an id from this turn after every \
-figure and rule statement, as in rules 2 and 5.
+figure and rule statement, as in rules 2 and 5. Rule excerpts shown under an earlier answer \
+are what that answer was based on: use them to follow the conversation, then call \
+search_rules again to cite them.
+10. When the user disputes an answer or offers their own reading of a rule, call search_rules \
+again and quote the sentence of the excerpt that decides the point. Change your answer only if \
+that text supports the change; if it does not, say so and keep your answer, explaining why. \
+Never just agree. Itineraries the user reports as actually ticketed (e.g. in a post they \
+shared) are real examples: check your conclusion against them and point out any conflict.
+11. State only rules that are in this turn's excerpts; do not fill gaps from general knowledge. \
+When the excerpts do not settle a point (a term they do not define, such as what 日本発着 \
+covers or whether two places count as the same country), say that the official text does not \
+define it, give the possible readings and what each would mean for the user's trip, and \
+suggest confirming with the airline. Never present one reading as the rule.
+"""
+RETRY_NOTE = """
+Your previous attempt at this question answered without calling any tool. Earlier turns and \
+your own earlier answers are not evidence. Call the tools that cover this question now \
+(search_rules for rules, conditions and itinerary limits; get_required_miles for miles) and \
+answer only from what they return. Answer without tools only if the question is outside \
+Milewise's scope (rule 4b) or is not about award tickets at all.
 """
 
 OFFICIAL_URLS = {
@@ -117,6 +136,12 @@ OFFICIAL_URLS = {
     "JAL international award required miles": "https://www.jal.co.jp/jp/ja/jalmile/use/jal/inter/routemiles.html",
 }
 LANGUAGES = {"ja": "Japanese", "zh": "Simplified Chinese", "en": "English"}
+# Appended when even the retry (RETRY_NOTE) answered without looking anything up.
+UNCHECKED_NOTE = {
+    "ja": "\n\nℹ️ この回答は公式資料を参照していません。",
+    "zh": "\n\nℹ️ 本回答没有查阅官方资料。",
+    "en": "\n\nℹ️ This answer was not checked against the official sources.",
+}
 POSTCHECK_WARNING = {
     "ja": "\n\n⚠️ 自動チェック: 根拠データにない数値・引用・リンクが含まれています。公式サイトで必ずご確認ください。",
     "zh": "\n\n⚠️ 自动检查：回答中含有依据数据之外的数字、引用或链接，请务必以官网为准。",
@@ -427,29 +452,42 @@ def _usage(messages: list[Any]) -> dict[str, int]:
 # Bounds on what a client may send as context (each turn is also re-sent, so this caps cost).
 HISTORY_TURNS = 3
 HISTORY_CHARS = 4000
+# Rule excerpts an earlier answer cited, shown to the model under that answer (newest first).
+HISTORY_EXCERPTS = 6
 _CITE_MARK = re.compile(r"\s*\[[CD]\d+\]")
+EXCERPTS_HEADER = (
+    "[Rule excerpts this answer was based on. Context only: call search_rules again to cite them.]"
+)
 
 
-def prior_turns(history: list[dict[str, str]] | None) -> list[dict[str, str]]:
-    """The last HISTORY_TURNS user/assistant pairs, trimmed, as chat messages.
+def prior_turns(
+    history: list[dict[str, Any]] | None,
+    excerpt: Callable[[str], dict[str, Any] | None] | None = None,
+) -> list[dict[str, str]]:
+    """The first and the last HISTORY_TURNS user/assistant pairs, trimmed, as chat messages.
 
-    Earlier evidence ids ([C1]) and the post-check warning are removed from answers, so the
-    model cannot cite evidence that does not exist in this turn.
+    The first question stays because it often sets the topic (a shared post, an itinerary)
+    that later follow-ups test conclusions against. Earlier evidence ids ([C1]) and the
+    post-check warning are removed from answers, so the model cannot cite evidence that does
+    not exist in this turn. With `excerpt` (chunk id -> chunk), the rule excerpts an answer
+    cited (its "evidence" chunk ids) are appended under it, so a follow-up sees the official
+    text rather than only the model's own paraphrase of it.
     """
-    out: list[dict[str, str]] = []
-    for m in (history or [])[-2 * HISTORY_TURNS :]:
+    out: list[dict[str, Any]] = []
+    for m in history or []:
         role, text = m.get("role"), str(m.get("content") or "")
         if role not in ("user", "assistant") or not text.strip():
             continue
         if role == "assistant":
-            for w in POSTCHECK_WARNING.values():
+            for w in [*POSTCHECK_WARNING.values(), *UNCHECKED_NOTE.values()]:
                 text = text.replace(w, "")
             text = _CITE_MARK.sub("", text)
-        out.append({"role": role, "content": text.strip()[:HISTORY_CHARS]})
+        ids = [str(i) for i in (m.get("evidence") or [])] if role == "assistant" else []
+        out.append({"role": role, "content": text.strip()[:HISTORY_CHARS], "evidence": ids})
     # the conversation must alternate and start with the user
     while out and out[0]["role"] != "user":
         out.pop(0)
-    merged: list[dict[str, str]] = []
+    merged: list[dict[str, Any]] = []
     for m in out:
         if merged and merged[-1]["role"] == m["role"]:
             merged[-1] = m
@@ -457,13 +495,36 @@ def prior_turns(history: list[dict[str, str]] | None) -> list[dict[str, str]]:
             merged.append(m)
     if merged and merged[-1]["role"] == "user":
         merged.pop()  # an unanswered question is not context
-    return merged
+    pairs = [merged[i : i + 2] for i in range(0, len(merged), 2)]
+    if len(pairs) > HISTORY_TURNS:
+        pairs = [pairs[0], *pairs[-HISTORY_TURNS:]]
+    kept = [m for pair in pairs for m in pair]
+
+    # newest answers first, so a chunk cited again is shown under its latest answer
+    shown: set[str] = set()
+    for m in reversed(kept):
+        chunks = []
+        for cid in m["evidence"] if excerpt else []:
+            c = excerpt(cid) if excerpt and len(shown) < HISTORY_EXCERPTS else None
+            if c and cid not in shown:
+                shown.add(cid)
+                chunks.append(c["text"])
+        if chunks:
+            m["content"] += "\n\n" + EXCERPTS_HEADER + "\n" + "\n---\n".join(chunks)
+    return [{"role": m["role"], "content": m["content"]} for m in kept]
 
 
 def _stream(
-    agent: Any, inputs: dict[str, Any], on_event: Callable[[str, dict[str, Any]], None]
+    agent: Any,
+    inputs: dict[str, Any],
+    on_event: Callable[[str, dict[str, Any]], None],
+    hold: bool = False,
 ) -> dict[str, Any]:
+    """Run the agent, forwarding tool starts and answer text. With `hold`, text is kept back
+    until the first tool call: an answer written without any lookup is retried, and the page
+    should not show it first."""
     state: dict[str, Any] = {}
+    held: list[str] | None = [] if hold else None
     for mode, payload in agent.stream(inputs, stream_mode=["messages", "values"]):
         if mode == "values":
             state = payload
@@ -474,9 +535,15 @@ def _stream(
             continue
         for tc in chunk.tool_call_chunks:
             if tc.get("name"):
+                if held:
+                    on_event("delta", {"text": "".join(held)})
+                held = None
                 on_event("tool", {"name": tc["name"]})
         if chunk.text:
-            on_event("delta", {"text": chunk.text})
+            if held is None:
+                on_event("delta", {"text": chunk.text})
+            else:
+                held.append(chunk.text)
     return state
 
 
@@ -491,6 +558,12 @@ def answer_text(messages: list[Any]) -> str:
     return "\n\n".join(p for p in parts if p)
 
 
+def _excerpt_lookup(index: RulesIndex | None) -> Callable[[str], dict[str, Any] | None]:
+    """chunk id -> indexed chunk; ids the index does not have (or a client made up) are None."""
+    idx = index or get_rules_index()
+    return idx.chunk
+
+
 def ask(
     question: str,
     fares: FareStore | None = None,
@@ -498,7 +571,7 @@ def ask(
     settings: Settings | None = None,
     model: str | None = None,
     on_event: Callable[[str, dict[str, Any]], None] | None = None,
-    history: list[dict[str, str]] | None = None,
+    history: list[dict[str, Any]] | None = None,
 ) -> AskResult:
     """Answer one question. With `on_event`, the run is streamed: ("tool", {"name"}) when the
     model starts a tool call and ("delta", {"text"}) for answer text as it is generated.
@@ -507,44 +580,65 @@ def ask(
     paragraph. The returned answer is authoritative (it may carry the post-check warning).
 
     `history` is the earlier turns of the conversation, oldest first, as {"role": "user" |
-    "assistant", "content": text}; they only give context (system prompt rule 9).
+    "assistant", "content": text, "evidence": [chunk ids the answer cited]}; they only give
+    context (system prompt rule 9). An attempt that calls no tool at all is retried once
+    with RETRY_NOTE; its text is not streamed.
     """
     s = settings or get_settings()
     agent_model = model or s.chat_model
+    lang = detect_language(question)
     evidence = Evidence()
-    # Hard caps so a confused model cannot loop and run up cost (design.md R7).
-    middleware: list[Any] = [
-        ModelCallLimitMiddleware(run_limit=5, exit_behavior="end"),
-        # 8: a period question across cabins needs a season lookup plus one call per cabin.
-        ToolCallLimitMiddleware(run_limit=8, exit_behavior="continue"),
-    ]
-    agent = create_agent(
-        llm.chat_model(agent_model, s),
-        tools=build_tools(fares or get_fare_store(), index, evidence),
-        system_prompt=SYSTEM_PROMPT.format(
-            today=today_jst().isoformat(),
-            language=LANGUAGES[detect_language(question)],
-            official_urls="\n".join(f"- {k}: {v}" for k, v in OFFICIAL_URLS.items()),
-        ),
-        middleware=middleware,
+    tools = build_tools(fares or get_fare_store(), index, evidence)
+    system_prompt = SYSTEM_PROMPT.format(
+        today=today_jst().isoformat(),
+        language=LANGUAGES[lang],
+        official_urls="\n".join(f"- {k}: {v}" for k, v in OFFICIAL_URLS.items()),
     )
+
+    def run(prompt: str, hold: bool) -> list[Any]:
+        # Hard caps so a confused model cannot loop and run up cost (design.md R7).
+        middleware: list[Any] = [
+            ModelCallLimitMiddleware(run_limit=5, exit_behavior="end"),
+            # 8: a period question across cabins needs a season lookup plus one call per cabin.
+            ToolCallLimitMiddleware(run_limit=8, exit_behavior="continue"),
+        ]
+        agent = create_agent(
+            llm.chat_model(agent_model, s),
+            tools=tools,
+            system_prompt=prompt,
+            middleware=middleware,
+        )
+        if on_event is None:
+            return list(agent.invoke(inputs)["messages"])
+        return list(_stream(agent, inputs, on_event, hold=hold)["messages"])
+
     t0 = time.perf_counter()
-    inputs: Any = {"messages": [*prior_turns(history), {"role": "user", "content": question}]}
-    state = agent.invoke(inputs) if on_event is None else _stream(agent, inputs, on_event)
+    excerpt = _excerpt_lookup(index) if any(m.get("evidence") for m in history or []) else None
+    inputs: Any = {
+        "messages": [*prior_turns(history, excerpt), {"role": "user", "content": question}]
+    }
+    messages = run(system_prompt, hold=True)
+    spent = messages
+    if not evidence.items:
+        # Answered from memory (seen in follow-ups: invented rules, 2026-10-22). Retry once,
+        # told to look things up; the first attempt's text was held back from the page.
+        messages = run(system_prompt + RETRY_NOTE, hold=False)
+        spent = spent + messages
     latency_ms = round((time.perf_counter() - t0) * 1000)
 
-    messages = state["messages"]
     answer = answer_text(messages)
     check = postcheck(answer, evidence)
     if not check.ok:
-        answer += POSTCHECK_WARNING[detect_language(question)]
+        answer += POSTCHECK_WARNING[lang]
+    elif not evidence.items:
+        answer += UNCHECKED_NOTE[lang]
     tool_calls = [
         {"name": tc["name"], "args": tc["args"]}
         for m in messages
         if isinstance(m, AIMessage)
         for tc in m.tool_calls
     ]
-    usage = _usage(messages)
+    usage = _usage(spent)
     # The agent runs on agent_model; the reranker inside search_rules runs on rerank_model
     # (also when an A/B run overrides the agent model), so each is priced separately.
     cost = cost_usd(

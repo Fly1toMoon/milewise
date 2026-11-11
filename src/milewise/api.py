@@ -28,7 +28,7 @@ import uuid
 from collections.abc import AsyncIterator
 from functools import cache
 from pathlib import Path
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
@@ -154,11 +154,17 @@ data_version()
 class Turn(BaseModel):
     role: Literal["user", "assistant"]
     content: str = Field(max_length=20000)
+    # an answer's cited rule chunks (evidence_detail[...].chunk); their text is shown to the
+    # model under the answer. Ids not in the index are ignored.
+    evidence: list[Annotated[str, Field(max_length=120)]] = Field(
+        default_factory=list, max_length=8
+    )
 
 
 class AskBody(BaseModel):
     question: str = Field(min_length=2, max_length=500)
-    # earlier turns of the conversation, oldest first; the agent keeps the last 3 (trimmed)
+    # earlier turns of the conversation, oldest first; the agent keeps the first and the
+    # last 3 (trimmed)
     history: list[Turn] = Field(default_factory=list, max_length=12)
 
 
@@ -240,6 +246,7 @@ def evidence_card(v: dict[str, Any]) -> dict[str, Any]:
         }
     return {
         "kind": "rule",
+        "chunk": v.get("chunk_id"),
         "url": v.get("url"),
         "title": v.get("title"),
         "section": v.get("section") or None,

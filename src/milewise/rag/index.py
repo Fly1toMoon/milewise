@@ -202,6 +202,7 @@ class RulesIndex:
         self._airline = np.array([c["airline"] for c in chunks])
         self._award = np.array([c.get("award", "general") for c in chunks])
         self._url = np.array([c["url"] for c in chunks])
+        self._by_id = {c["chunk_id"]: c for c in chunks}
 
     @classmethod
     def load(cls, index_dir: Path | None = None) -> RulesIndex:
@@ -218,6 +219,9 @@ class RulesIndex:
     def version(self) -> dict[str, Any]:
         m = self.manifest
         return {k: m.get(k) for k in ("content_sha256", "built_at", "n_chunks", "embedding_model")}
+
+    def chunk(self, chunk_id: str) -> dict[str, Any] | None:
+        return self._by_id.get(chunk_id)
 
     def recall(
         self, vec: Sequence[float], airline: str | None, k: int, award: str | None = None

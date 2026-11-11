@@ -117,6 +117,7 @@ def search_rules(
     picked, usage = rerank(question, rows, s)
     chunks = [
         {
+            "chunk_id": rows[i]["chunk_id"],
             "title": rows[i]["title"],
             "url": rows[i]["source_url"],
             "airline": rows[i]["airline"],
