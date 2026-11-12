@@ -699,6 +699,8 @@ Data API 的代价（会如实写进 README 的已知局限）：
 - **裁判换成 DeepSeek V3.2**（`judge_model`，温度 0）：本账号可用且比 Nova Pro 强的有 DeepSeek V3.2、Kimi K3.1、Qwen3 235B、Mistral Large 3（GPT-5.x/6.x、Grok 4.6/4.7 不开放）。Kimi K3.1 是回答模型候选，不用作裁判。`scripts/judge_selfcheck.py`（参考答案应过、must_not_say 句应不过，共 70 项）：DeepSeek V3.2 70/70，Nova Pro 53/70（逐条格式下常给出乱码引用、漏判禁止项）。两个已知误判样本（Kimi 的 multi-06 应过、`98911f92` 的 multi-05 应不过）各判 5 次，DeepSeek 5/5 判对且理由正确。每次判定约 $0.003、5–8 秒。**CI 部署角色的 IAM 只放行 `infra/app/variables.tf` 的 `judge_model`（仍是 Nova Pro），下次部署前要把它改成 `deepseek.v3.2` 并 apply，否则部署评测会 AccessDenied。**
 - **按页检索（步骤 2）**：重排后每个命中块带上同页其他块：页面正文不超过 `PAGE_EXPAND_CHARS`（3,000 字）返回整页，否则返回命中块及前后各一块；总量 `MAX_RESULT_CHARS`（8,000 字）按重排顺序填充，命中块本身放不下就停止（排在后面的不插队）。只有导航文字（正文没有「。」）的块不展开进来。每块仍有自己的证据 id 和 `section`。`search_rules` 的 `award_type` 默认不过滤（原来默认 `own`，模型不传时查成自社便规则）。上文附带的原文改为按字数限制（合计 6,000 字），不再按块数。
 - **行程事实（步骤 3）**：`itinerary_facts(runs)`（`tools/miles.py`）与 `estimate_itinerary` 输入相同，只数数：飞行段（含两端国家代码）、地面移动、两端都在 JP 的段数、依次经过的国家、出发国与终点国、第几段回到出发国及之后去了哪些国家、各城市出现次数；行程同时有 CN 和 HK / MO / TW 时在 `notes` 写明"代码不同，但条件页没有定义是否同一国"。**不判断合法与否**（把规则写进代码已否决）。JAL 合作航空带 `itinerary` 查询时随结果返回；提示词第 4 条要求判断多段行程是否符合条件时先带行程调用拿到它（舱位未知沿用上文，否则用 Y 且不报里程），新第 12 条要求段数、地面移动、日本国内段、国家顺序只能引用它。
+- **歧义注释（步骤 4）**：`data/rule_notes.yaml` 每条注释绑定一个页面（`url`）、小节（`section`）和原文里的一句话（`match`）。`search_rules` 返回的块含这句话时加 `editor_note`；构建索引时如果某条注释的原句已不在该页该小节，直接报错，注释不会悬空。提示词第 18 条：块带 `editor_note` 时要转述，并说明是 Milewise 的注释、不是航司条文。网页在来源详情里单独显示注释（"Milewise 注（不是官方原文）"），与官方原文分开。现有两条（"日本発着"的范围、港澳台与中国大陆是否同一"出発国"）是人工结论，`checked_at` 为空，等用户确认。
+- **小修（步骤 5）**：模型有时写全角【D1】/［D1］，回答在后置校验、上文处理、评测引用检查和网页解析之前统一成 [D1]。系统提示分成"General / Required miles / Rules and follow-ups"三段并按顺序重编号为 1–18，规则文字不变（脚本比对过），交叉引用随之更新。
 
 ## 5. 对象航司的数据调研
 

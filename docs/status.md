@@ -31,7 +31,7 @@
 11. rules-05（退票后里程有效期）仍不稳定：Nova 2 Lite 有时把"悪天候"情形的 36 个月规则当成一般规则；可考虑换更强的回答模型或在工具层标记特殊情形
 12. 清理：删除旧表 `milewise-usage`，IAM 里去掉 Titan embedding 权限
 13. 中文提问时，回答里价目表的单位有时仍写成"マイル"（模型照抄工具结果），可在工具结果里按语言给出单位
-14. 多轮追问票规时不查资料、编规则、被质疑就附和（2026-10-22，GLM-5）：原因与改进方向见 [findings/2026-10-22-multiturn-rules.md](findings/2026-10-22-multiturn-rules.md)。第一组（没查就重答、上文带规则原文和第一问、反驳/歧义时的提示词、评测 multi-05〜08）2026-11-11 已实现（design.md §4.12）；第二组（行程事实工具）、第三组（GLM-5 思考模式、补 JAL 定义页）未开始
+14. 多轮追问票规时不查资料、编规则、被质疑就附和（2026-10-22，GLM-5）：原因与改进方向见 [findings/2026-10-22-multiturn-rules.md](findings/2026-10-22-multiturn-rules.md)。第一组（没查就重答、上文带规则原文和第一问、反驳/歧义时的提示词、评测 multi-05〜08）2026-11-11 已实现（design.md §4.12）；2026-11-11〜12 按 [findings/2026-11-11-multiturn-plan.md](findings/2026-11-11-multiturn-plan.md) 做了步骤 1〜5（design.md §4.13：逐条裁判 + DeepSeek V3.2 裁判、按页检索、行程事实、歧义注释、全角引用与提示词分段），分支 `fix/multiturn-rules-plan`。multi-05〜08（GLM-5，各 5 次）5/20 → 9/20（步骤 3 后）；multi-08（用户反驳）仍 0/5。待办：两条歧义注释的文字需用户确认；最终评测未完成（AWS 登录过期）；部署前把 `infra/app/variables.tf` 的 `judge_model` 改成 `deepseek.v3.2`；步骤 6 视最终数字再定
 10. ~~**JAL 合作航空的距离估算**~~ ✅ 2026-10-18（design.md §9.15）
 7. ~~**去掉 Aurora，数据随镜像发布**~~ ✅ 2026-10-18 上线（design.md §4.6、§9.13）
 8. ~~**模型改为 Bedrock**~~ ✅ 2026-10-18 上线（design.md §4.7、§9.14）
