@@ -32,6 +32,7 @@ from milewise.tools.miles import (
     ROUTE_FAMILIES,
     SUPPORTED_FAMILIES,
     get_required_miles,
+    itinerary_facts,
     season_group_for,
     today_jst,
 )
@@ -201,6 +202,20 @@ class Evidence:
     tool_usage: dict[str, int] = field(
         default_factory=lambda: {"input_tokens": 0, "output_tokens": 0}
     )
+    # itinerary_facts flags of the trips in this conversation (this turn's tools and the
+    # itineraries earlier answers used): they decide which rule notes apply (§4.13)
+    itinerary_flags: set[str] = field(default_factory=set)
+    # the latest itinerary a tool was given in this turn, returned so the client can send it
+    # back with this answer as history
+    itinerary: list[list[str]] | None = None
+
+    def add_itinerary(self, runs: list[list[str]] | None) -> None:
+        if not runs:
+            return
+        facts = itinerary_facts(runs)
+        if "unresolved" not in facts:
+            self.itinerary_flags.update(facts["flags"])
+            self.itinerary = runs
 
     def add_chart(self, result: dict[str, Any]) -> str:
         eid = f"C{sum(k.startswith('C') for k in self.items) + 1}"
@@ -318,6 +333,12 @@ class RulesArgs(BaseModel):
         "if unsure (both are searched). Their rules differ (e.g. JAL partner awards can be "
         "changed after ticketing, JAL's own cannot)",
     )
+    itinerary: list[list[str]] | None = Field(
+        default=None,
+        description="When the question is about a specific trip (also one from earlier turns), "
+        "the whole trip in the same form as get_required_miles' itinerary. Used only to pick "
+        "Milewise's notes that apply to it",
+    )
 
 
 class SeasonArgs(BaseModel):
@@ -389,6 +410,7 @@ def build_tools(
     fares: FareStore, index: RulesIndex | None, evidence: Evidence
 ) -> list[StructuredTool]:
     def required_miles(**kwargs: Any) -> str:
+        evidence.add_itinerary(kwargs.get("itinerary"))
         res = get_required_miles(fares, **kwargs).to_dict()
         # "Not offered" (設定なし) and other definite answers are facts from the chart too,
         # and models cite them; only a clarification request carries no evidence.
@@ -402,9 +424,19 @@ def build_tools(
             res = {"evidence_id": evidence.add_chart(res), **res}
         return json.dumps(res, ensure_ascii=False, default=str)
 
-    def rules(question: str, airline: str | None = None, award_type: str | None = None) -> str:
+    def rules(
+        question: str,
+        airline: str | None = None,
+        award_type: str | None = None,
+        itinerary: list[list[str]] | None = None,
+    ) -> str:
+        evidence.add_itinerary(itinerary)
         res = search_rules(
-            index or get_rules_index(), question, airline=airline, award_type=award_type
+            index or get_rules_index(),
+            question,
+            airline=airline,
+            award_type=award_type,
+            itinerary_flags=frozenset(evidence.itinerary_flags),
         )
         for key in ("input_tokens", "output_tokens"):
             evidence.tool_usage[key] += res.usage.get(key, 0)
@@ -458,6 +490,9 @@ class AskResult:
     cost_usd: float
     latency_ms: int
     model: str
+    # the itinerary this turn's tools were given (else the latest one from history), for
+    # the client to send back with this answer (history "itinerary")
+    itinerary: list[list[str]] | None = None
 
 
 def _usage(messages: list[Any]) -> dict[str, int]:
@@ -609,14 +644,20 @@ def ask(
     paragraph. The returned answer is authoritative (it may carry the post-check warning).
 
     `history` is the earlier turns of the conversation, oldest first, as {"role": "user" |
-    "assistant", "content": text, "evidence": [chunk ids the answer cited]}; they only give
-    context (system prompt rule 16). An attempt that calls no tool at all is retried once
+    "assistant", "content": text, "evidence": [chunk ids the answer cited], "itinerary": the
+    trip that answer looked up}; they only give context (system prompt rule 16). Their
+    itineraries also decide which rule notes apply (§4.13). An attempt that calls no tool at all is retried once
     with RETRY_NOTE; its text is not streamed.
     """
     s = settings or get_settings()
     agent_model = model or s.chat_model
     lang = detect_language(question)
     evidence = Evidence()
+    for m in history or []:
+        if m.get("role") == "assistant":
+            evidence.add_itinerary(m.get("itinerary"))
+    carried = evidence.itinerary
+    evidence.itinerary = None
     tools = build_tools(fares or get_fare_store(), index, evidence)
     system_prompt = SYSTEM_PROMPT.format(
         today=today_jst().isoformat(),
@@ -687,4 +728,5 @@ def ask(
         cost_usd=round(cost, 6),
         latency_ms=latency_ms,
         model=agent_model,
+        itinerary=evidence.itinerary or carried,
     )

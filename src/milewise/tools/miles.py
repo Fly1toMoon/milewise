@@ -736,6 +736,10 @@ def _city_of(code: str) -> str:
 # mainland China (出発国へ戻り、さらに第三国へ…): the tool flags the case, the model must
 # not decide it (design.md §4.13).
 _CN_SEPARATE = {"HK", "MO", "TW"}
+# Flags itinerary_facts sets for points the official text leaves open. A rule note
+# (data/rule_notes.yaml, `when_itinerary`) can be limited to itineraries with one of them.
+CN_WITH_HK_MO_TW = "cn_with_hk_mo_tw"
+ITINERARY_FLAGS = frozenset({CN_WITH_HK_MO_TW})
 
 
 def itinerary_facts(runs: list[list[str]]) -> dict[str, Any]:
@@ -812,6 +816,7 @@ def itinerary_facts(runs: list[list[str]]) -> dict[str, Any]:
         "final_country": countries[-1] if countries else None,
         "returns_to_origin_country": returns or None,
         "city_visits": visits,
+        "flags": [],
         "notes": [
             "途中降機（24時間以上の滞在）の有無と回数は経路からは分からない（地上移動区間は1回の途中降機とみなされる）"
         ],
@@ -819,6 +824,7 @@ def itinerary_facts(runs: list[list[str]]) -> dict[str, Any]:
     seen = set(countries)
     if "CN" in seen and seen & _CN_SEPARATE:
         others = "・".join(sorted(seen & _CN_SEPARATE))
+        facts["flags"].append(CN_WITH_HK_MO_TW)
         facts["notes"].append(
             f"行程に CN（中国本土）と {others} が含まれる。国コードは別だが、ワンワールド特典の"
             "ご利用条件ページはこれらを同じ国（出発国）とみなすかどうかを定義していない"

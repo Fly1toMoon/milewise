@@ -6,6 +6,10 @@
 # from the official text. A match that is no longer on the page fails the index build, so
 # a note cannot outlive the sentence it is about.
 #
+# when_itinerary (optional) limits a note to conversations whose itinerary has that flag in
+# its itinerary_facts (milewise.tools.miles.ITINERARY_FLAGS), e.g. cn_with_hk_mo_tw: mainland
+# China together with Hong Kong, Macau or Taiwan. Without it the note is always attached.
+#
 # Notes are human conclusions: each one is checked by a person (checked_at / checked_by)
 # before it is merged.
 
@@ -25,6 +29,9 @@ notes:
     url: https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/oneworld/conditions.html
     section: 旅程について
     match: 出発国へ戻り、さらに第三国へ行く旅程は組めません。
+    # only for trips with CN and HK/MO/TW: attached to every trip, it pulled the model onto
+    # this rule where it does not apply (multi-06 3/5 -> 1/5, 2026-11-12)
+    when_itinerary: cn_with_hk_mo_tw
     note: >-
       原文は、香港・マカオ・台湾と中国本土を同じ「出発国」とみなすかどうかを定義していない。
       例えば香港出発で上海を経由して第三国へ行く旅程がこの条件に当たるかは、JALに確認が必要。

@@ -3,6 +3,11 @@
 A note belongs to one sentence of one section of one page. search_rules attaches it to an
 excerpt that contains that sentence (`editor_note`); the index build fails when a note's
 sentence is no longer on its page, so a note cannot outlive what it is about.
+
+A note with `when_itinerary: <flag>` is attached only when an itinerary of the conversation
+has that flag in its itinerary_facts (e.g. cn_with_hk_mo_tw): the note on 出発国 pulled the
+model onto that rule for trips it does not concern (multi-06, 2026-11-12). Which countries
+an itinerary has is decided by itinerary_facts alone, not here.
 """
 
 from __future__ import annotations
@@ -14,6 +19,7 @@ from typing import Any
 import yaml
 
 from milewise.config import data_dir
+from milewise.tools.miles import ITINERARY_FLAGS
 
 
 def notes_path() -> Path:
@@ -30,6 +36,9 @@ def load_notes(path: Path | None = None) -> tuple[dict[str, Any], ...]:
         missing = [k for k in ("id", "url", "section", "match", "note") if not n.get(k)]
         if missing:
             raise ValueError(f"rule note {n.get('id', '?')}: missing {missing}")
+        when = n.get("when_itinerary")
+        if when is not None and when not in ITINERARY_FLAGS:
+            raise ValueError(f"rule note {n['id']}: unknown when_itinerary {when!r}")
     return tuple(notes)
 
 
@@ -38,11 +47,19 @@ def _applies(note: dict[str, Any], url: str, section: str, text: str) -> bool:
 
 
 def notes_for(
-    url: str, section: str, text: str, notes: tuple[dict[str, Any], ...] | None = None
+    url: str,
+    section: str,
+    text: str,
+    notes: tuple[dict[str, Any], ...] | None = None,
+    itinerary_flags: frozenset[str] | set[str] = frozenset(),
 ) -> list[dict[str, Any]]:
-    """The notes whose page, section and sentence are those of this excerpt."""
+    """The notes whose page, section and sentence are those of this excerpt, and whose
+    `when_itinerary` flag (if any) is among the conversation's `itinerary_flags`."""
     return [
-        n for n in (load_notes() if notes is None else notes) if _applies(n, url, section, text)
+        n
+        for n in (load_notes() if notes is None else notes)
+        if _applies(n, url, section, text)
+        and (n.get("when_itinerary") is None or n["when_itinerary"] in itinerary_flags)
     ]
 
 

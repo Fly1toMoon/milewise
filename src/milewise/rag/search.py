@@ -167,6 +167,7 @@ def search_rules(
     k: int = 6,
     settings: Settings | None = None,
     award_type: str | None = None,
+    itinerary_flags: frozenset[str] | set[str] = frozenset(),
 ) -> RulesResult:
     s = settings or get_settings()
     rows = recall(index, question, airline, s, award=award_type)
@@ -192,7 +193,7 @@ def search_rules(
     ]
     for c, r in zip(chunks, expanded, strict=True):
         # Milewise's note on a sentence the official text leaves open (data/rule_notes.yaml)
-        notes = notes_for(c["url"], c["section"], r["text"])
+        notes = notes_for(c["url"], c["section"], r["text"], itinerary_flags=itinerary_flags)
         if notes:
             c["editor_note"] = "\n".join(n["note"].strip() for n in notes)
     return RulesResult("ok" if chunks else "no_evidence", chunks, usage)

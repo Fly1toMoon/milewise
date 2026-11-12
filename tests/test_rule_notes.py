@@ -112,7 +112,7 @@ def test_search_rules_attaches_the_note(monkeypatch: pytest.MonkeyPatch) -> None
 
     monkeypatch.setattr(search, "recall", lambda *a, **k: [row])
     monkeypatch.setattr(search, "rerank", lambda q, rows, s: ([0], {}))
-    monkeypatch.setattr(search, "notes_for", lambda u, s, t: notes_for(u, s, t, (NOTE,)))
+    monkeypatch.setattr(search, "notes_for", lambda u, s, t, **k: notes_for(u, s, t, (NOTE,)))
     res = search.search_rules(Index(), "q", settings=object())  # type: ignore[arg-type]
     assert res.chunks[0]["editor_note"] == "原文は定義していない。"
 
@@ -123,3 +123,106 @@ def test_evidence_card_shows_the_note_apart_from_the_text() -> None:
     card = evidence_card({"chunk_id": "c1", "url": OW, "text": "x", "editor_note": "注"})
     assert card["editor_note"] == "注" and "text" not in card
     assert evidence_card({"chunk_id": "c1", "url": OW})["editor_note"] is None
+
+
+CN_NOTE = {**NOTE, "id": "n2", "when_itinerary": "cn_with_hk_mo_tw"}
+
+
+def test_a_conditional_note_needs_its_itinerary_flag() -> None:
+    text = "ワンワールド特典航空券 > 旅程について\n" + NOTE["match"]
+    assert notes_for(OW, "旅程について", text, (CN_NOTE,)) == []
+    assert notes_for(OW, "旅程について", text, (CN_NOTE,), {"cn_with_hk_mo_tw"}) == [CN_NOTE]
+    # an unconditional note does not depend on the flags
+    assert notes_for(OW, "旅程について", text, (NOTE,), {"cn_with_hk_mo_tw"}) == [NOTE]
+
+
+def test_unknown_condition_is_rejected(tmp_path: Path) -> None:
+    p = tmp_path / "notes.yaml"
+    p.write_text(yaml.safe_dump({"notes": [{**NOTE, "when_itinerary": "nope"}]}), "utf-8")
+    with pytest.raises(ValueError, match="unknown when_itinerary"):
+        load_notes(p)
+
+
+def test_committed_origin_country_note_is_conditional() -> None:
+    by_id = {n["id"]: n for n in load_notes()}
+    assert by_id["ow-origin-country-cn"]["when_itinerary"] == "cn_with_hk_mo_tw"
+    assert "when_itinerary" not in by_id["ow-japan-hatsuchaku"]
+
+
+HK_SHA = [["香港", "東京", "ロンドン"], ["パリ", "上海", "東京"]]
+NO_CN = [["香港", "東京", "ロンドン"], ["パリ", "東京"]]
+
+
+def _flags_seen(
+    monkeypatch: pytest.MonkeyPatch,
+    fares: object,
+    search_args: dict[str, object],
+    history: list[dict[str, object]] | None = None,
+) -> tuple[list[frozenset[str]], object]:
+    """The itinerary flags search_rules is given in one ask() turn."""
+    from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
+    from langchain_core.messages import AIMessage
+
+    from milewise import agent
+    from milewise.rag.search import RulesResult
+
+    class Model(GenericFakeChatModel):
+        def bind_tools(self, tools: object, **kw: object) -> Model:
+            return self
+
+    seen: list[frozenset[str]] = []
+
+    def fake_search(*a: object, **k: object) -> RulesResult:
+        seen.append(frozenset(k.get("itinerary_flags") or ()))  # type: ignore[arg-type]
+        chunk = {"chunk_id": "c1", "url": OW, "section": "旅程について", "text": NOTE["match"]}
+        return RulesResult("ok", [chunk])  # some evidence, so ask() does not retry
+
+    model = Model(
+        messages=iter(
+            [
+                AIMessage(
+                    "",
+                    tool_calls=[
+                        {
+                            "name": "search_rules",
+                            "args": {"question": "q", **search_args},
+                            "id": "1",
+                        }
+                    ],
+                ),
+                AIMessage("答"),
+            ]
+        )
+    )
+    monkeypatch.setattr(agent.llm, "chat_model", lambda *a, **k: model)
+    monkeypatch.setattr(agent, "search_rules", fake_search)
+    res = agent.ask("可以吗？", fares=fares, index=object(), history=history)  # type: ignore[arg-type]
+    return seen, res
+
+
+def test_cn_with_hong_kong_in_this_turn_attaches(monkeypatch: pytest.MonkeyPatch, fares) -> None:  # type: ignore[no-untyped-def]
+    seen, res = _flags_seen(monkeypatch, fares, {"itinerary": HK_SHA})
+    assert seen == [frozenset({"cn_with_hk_mo_tw"})]
+    assert res.itinerary == HK_SHA  # type: ignore[attr-defined]
+
+
+def test_no_cn_with_hong_kong_does_not_attach(monkeypatch: pytest.MonkeyPatch, fares) -> None:  # type: ignore[no-untyped-def]
+    assert _flags_seen(monkeypatch, fares, {"itinerary": NO_CN})[0] == [frozenset()]
+    assert _flags_seen(monkeypatch, fares, {})[0] == [frozenset()]
+
+
+def test_an_itinerary_from_an_earlier_answer_attaches(
+    monkeypatch: pytest.MonkeyPatch, fares
+) -> None:  # type: ignore[no-untyped-def]
+    history = [
+        {"role": "user", "content": "香港→东京→伦敦，巴黎→上海，可以吗？"},
+        {
+            "role": "assistant",
+            "content": "可以。",
+            "itinerary": [["香港", "東京", "ロンドン"], ["パリ", "上海"]],
+        },
+    ]
+    seen, res = _flags_seen(monkeypatch, fares, {}, history)
+    assert seen == [frozenset({"cn_with_hk_mo_tw"})]
+    # carried on, so the next follow-up still has it
+    assert res.itinerary == history[1]["itinerary"]  # type: ignore[attr-defined]

@@ -768,7 +768,7 @@ function contextOf(c) {
     const evidence = cited.map((id) => detail[id] && detail[id].chunk).filter(Boolean).slice(0, 8);
     return [
       { role: "user", content: x.q },
-      { role: "assistant", content: splitAnswer(x.text).body, evidence },
+      { role: "assistant", content: splitAnswer(x.text).body, evidence, ...(x.done.itinerary ? { itinerary: x.done.itinerary } : {}) },
     ];
   });
 }

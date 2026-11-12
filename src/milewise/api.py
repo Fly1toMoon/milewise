@@ -159,6 +159,11 @@ class Turn(BaseModel):
     evidence: list[Annotated[str, Field(max_length=120)]] = Field(
         default_factory=list, max_length=8
     )
+    # the trip that answer looked up (done.itinerary): decides which rule notes apply to a
+    # follow-up that does not look the trip up again (design.md §4.13)
+    itinerary: (
+        list[Annotated[list[Annotated[str, Field(max_length=60)]], Field(max_length=12)]] | None
+    ) = Field(default=None, max_length=6)
 
 
 class AskBody(BaseModel):
@@ -321,7 +326,7 @@ async def ask_endpoint(
         def on_event(kind: str, data: dict[str, Any]) -> None:  # called on the worker thread
             loop.call_soon_threadsafe(events.put_nowait, (kind, data))
 
-        history = [t.model_dump() for t in body.history]
+        history = [t.model_dump(exclude_none=True) for t in body.history]
         task = asyncio.ensure_future(
             run_in_threadpool(ask, body.question, on_event=on_event, history=history)
         )
@@ -371,6 +376,7 @@ async def ask_endpoint(
             "latency_ms": res.latency_ms,
             "cost_usd": res.cost_usd,
             "model": res.model,
+            "itinerary": res.itinerary,
             "data": data_version(),
         }
         yield _sse("answer", {"request_id": request_id, "text": res.answer})
