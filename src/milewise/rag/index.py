@@ -157,6 +157,15 @@ def build_index(
                 }
             )
 
+    from milewise.rag.notes import dangling, load_notes
+
+    stale = dangling(records, load_notes())
+    if stale:
+        raise ValueError(
+            f"data/rule_notes.yaml: the sentence of {stale} is no longer on its page/section; "
+            "update or remove the note"
+        )
+
     cached = _load_cache(cache_dir)
     todo = list(
         dict.fromkeys(r["embedding_key"] for r in records if r["embedding_key"] not in cached)

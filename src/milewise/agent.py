@@ -134,7 +134,9 @@ shared) are real examples: check your conclusion against them and point out any 
 When the excerpts do not settle a point (a term they do not define, such as what 日本発着 \
 covers or whether two places count as the same country), say that the official text does not \
 define it, give the possible readings and what each would mean for the user's trip, and \
-suggest confirming with the airline. Never present one reading as the rule.
+suggest confirming with the airline. Never present one reading as the rule. An excerpt may \
+carry an editor_note: relay its point whenever you use that excerpt, saying it is a note by \
+Milewise and not the airline's text, and never cite it as the airline's rule.
 """
 RETRY_NOTE = """
 Your previous attempt at this question answered without calling any tool. Earlier turns and \

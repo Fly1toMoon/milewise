@@ -1,0 +1,32 @@
+# Milewise's own notes on rule sentences the official text leaves open (design.md §4.13).
+#
+# A note is attached to every search_rules excerpt whose page (url), heading (section) and
+# text (match, a sentence copied from the page) agree, as `editor_note`. The answer must
+# relay it as Milewise's note, never as the airline's rule; the web page shows it apart
+# from the official text. A match that is no longer on the page fails the index build, so
+# a note cannot outlive the sentence it is about.
+#
+# Notes are human conclusions: each one is checked by a person (checked_at / checked_by)
+# before it is merged.
+
+notes:
+  - id: ow-japan-hatsuchaku
+    url: https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/oneworld/conditions.html
+    section: 利用区間・途中降機について
+    match: 日本発着の旅程の場合、日本国内の途中降機はできません。
+    note: >-
+      原文は「日本発着の旅程」が日本を出発し日本に戻る旅程だけを指すのか、日本に到着するだけの旅程も含むのかを定義していない。
+      既知の実例：マニラ出発・東京到着で、途中に大阪で途中降機する旅程が発券されている（ネット上の投稿、2026-10）。
+      個別の旅程はJALに確認が必要。
+    checked_at: null  # waiting for the user's confirmation
+    checked_by: null
+
+  - id: ow-origin-country-cn
+    url: https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/oneworld/conditions.html
+    section: 旅程について
+    match: 出発国へ戻り、さらに第三国へ行く旅程は組めません。
+    note: >-
+      原文は、香港・マカオ・台湾と中国本土を同じ「出発国」とみなすかどうかを定義していない。
+      例えば香港出発で上海を経由して第三国へ行く旅程がこの条件に当たるかは、JALに確認が必要。
+    checked_at: null  # waiting for the user's confirmation
+    checked_by: null

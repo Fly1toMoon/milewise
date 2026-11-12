@@ -182,6 +182,7 @@ def test_rule_evidence_card() -> None:
         "title": "払い戻し",
         "section": "手数料",
         "fetched": "2026-10-17",
+        "editor_note": None,
     }
 
 

@@ -251,6 +251,8 @@ def evidence_card(v: dict[str, Any]) -> dict[str, Any]:
         "title": v.get("title"),
         "section": v.get("section") or None,
         "fetched": v.get("fetched_date"),
+        # Milewise's own note on a sentence the official text leaves open (rule_notes.yaml)
+        "editor_note": v.get("editor_note") or None,
     }
 
 
