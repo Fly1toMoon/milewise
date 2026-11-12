@@ -164,6 +164,7 @@ def _flags_seen(
     from langchain_core.messages import AIMessage
 
     from milewise import agent
+    from milewise.check import CheckResult
     from milewise.rag.search import RulesResult
 
     class Model(GenericFakeChatModel):
@@ -196,6 +197,8 @@ def _flags_seen(
     )
     monkeypatch.setattr(agent.llm, "chat_model", lambda *a, **k: model)
     monkeypatch.setattr(agent, "search_rules", fake_search)
+    # a follow-up that searched the rules is checked by a model: not in a unit test
+    monkeypatch.setattr(agent, "check_answer", lambda *a, **k: CheckResult(True, [], {}))
     res = agent.ask("可以吗？", fares=fares, index=object(), history=history)  # type: ignore[arg-type]
     return seen, res
 
