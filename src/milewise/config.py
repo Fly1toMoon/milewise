@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     # DeepSeek V3.2 since 2026-11-11: 70/70 on scripts/judge_selfcheck.py with per-point
     # verdicts, Nova Pro 53/70 (garbled quotes, missed a forbidden statement; design.md §4.13).
     judge_model: str = "bedrock:deepseek.v3.2"
+    # Checks answers to rule follow-ups before they stand (milewise.check, design.md §4.13).
+    # Not the answering model: a self-check by GLM-5 tends to repeat its own reading. The
+    # judge's model, so the IAM change for it covers this too; ~$0.004 per check.
+    check_model: str = "bedrock:deepseek.v3.2"
     # Cohere multilingual: best cross-lingual recall (zh/en questions, ja pages; §9.18)
     embedding_model: str = "bedrock:cohere.embed-multilingual-v3"
     embedding_dimensions: int = 1024

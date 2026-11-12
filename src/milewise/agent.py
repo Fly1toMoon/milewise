@@ -15,13 +15,19 @@ from datetime import date
 from typing import Any, Literal
 
 from langchain.agents import create_agent
-from langchain.agents.middleware import ModelCallLimitMiddleware, ToolCallLimitMiddleware
-from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
+from langchain.agents.middleware import (
+    AgentMiddleware,
+    ModelCallLimitMiddleware,
+    ModelRequest,
+    ToolCallLimitMiddleware,
+)
+from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, ToolMessage
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 
 from milewise import llm
 from milewise.charts.store import FareStore, get_fare_store
+from milewise.check import check_answer, revise_note, should_check
 from milewise.config import Settings, cost_usd, get_settings
 from milewise.locations import resolve_city
 from milewise.rag.index import RulesIndex, get_rules_index
@@ -490,6 +496,9 @@ class AskResult:
     cost_usd: float
     latency_ms: int
     model: str
+    # the post-answer check of a rule follow-up (design.md §4.13): issues found, whether the
+    # answer was rewritten, and what the check and the rewrite added; None when not run
+    check: dict[str, Any] | None = None
     # the itinerary this turn's tools were given (else the latest one from history), for
     # the client to send back with this answer (history "itinerary")
     itinerary: list[list[str]] | None = None
@@ -622,6 +631,31 @@ def answer_text(messages: list[Any]) -> str:
     return "\n\n".join(p for p in parts if p)
 
 
+class ForceTool(AgentMiddleware):
+    """Make the first model call of a run call `name` (Converse toolChoice; GLM-5 honours it,
+    checked 2026-11-12). Asking in the prompt was not enough: in multi-08 GLM-5 agreed with
+    the user's reading without looking it up in 2-3 of 5 runs, also after RETRY_NOTE."""
+
+    def __init__(self, tool: str) -> None:
+        super().__init__()
+        self.tool = tool
+
+    def wrap_model_call(self, request: ModelRequest, handler: Callable[[ModelRequest], Any]) -> Any:
+        start = max(
+            (i for i, m in enumerate(request.messages) if isinstance(m, HumanMessage)), default=-1
+        )
+        if not any(isinstance(m, ToolMessage) for m in request.messages[start + 1 :]):
+            request = request.override(tool_choice=self.tool)
+        return handler(request)
+
+
+def rule_follow_up(history: list[dict[str, Any]] | None) -> bool:
+    """The latest earlier answer was based on rule excerpts (the page sends the chunk ids it
+    cited): a follow-up to it, a dispute included, must look the rules up again (rule 16-17)."""
+    answers = [m for m in history or [] if m.get("role") == "assistant"]
+    return bool(answers and answers[-1].get("evidence"))
+
+
 def _excerpt_lookup(index: RulesIndex | None) -> Callable[[str], dict[str, Any] | None]:
     """chunk id -> indexed chunk; ids the index does not have (or a client made up) are None."""
     idx = index or get_rules_index()
@@ -665,35 +699,73 @@ def ask(
         official_urls="\n".join(f"- {k}: {v}" for k, v in OFFICIAL_URLS.items()),
     )
 
-    def run(prompt: str, hold: bool) -> list[Any]:
+    def run(
+        prompt: str, hold: bool, force: str | None = None, start: list[Any] | None = None
+    ) -> list[Any]:
         # Hard caps so a confused model cannot loop and run up cost (design.md R7).
         middleware: list[Any] = [
             ModelCallLimitMiddleware(run_limit=5, exit_behavior="end"),
             # 8: a period question across cabins needs a season lookup plus one call per cabin.
             ToolCallLimitMiddleware(run_limit=8, exit_behavior="continue"),
         ]
+        if force:
+            middleware.append(ForceTool(force))
         agent = create_agent(
             llm.chat_model(agent_model, s),
             tools=tools,
             system_prompt=prompt,
             middleware=middleware,
         )
+        payload: Any = inputs if start is None else {"messages": start}
         if on_event is None:
-            return list(agent.invoke(inputs)["messages"])
-        return list(_stream(agent, inputs, on_event, hold=hold)["messages"])
+            return list(agent.invoke(payload)["messages"])
+        return list(_stream(agent, payload, on_event, hold=hold)["messages"])
 
     t0 = time.perf_counter()
     excerpt = _excerpt_lookup(index) if any(m.get("evidence") for m in history or []) else None
     inputs: Any = {
         "messages": [*prior_turns(history, excerpt), {"role": "user", "content": question}]
     }
-    messages = run(system_prompt, hold=True)
+    # A follow-up to a rule answer looks the rules up first, whatever the model would do.
+    messages = run(
+        system_prompt, hold=True, force="search_rules" if rule_follow_up(history) else None
+    )
     spent = messages
     if not evidence.items:
         # Answered from memory (seen in follow-ups: invented rules, 2026-10-22). Retry once,
         # told to look things up; the first attempt's text was held back from the page.
         messages = run(system_prompt + RETRY_NOTE, hold=False)
         spent = spent + messages
+
+    review: dict[str, Any] | None = None
+    check_cost = 0.0
+    names = [tc["name"] for m in messages if isinstance(m, AIMessage) for tc in m.tool_calls]
+    if history and should_check(history, names):
+        # Checked against this turn's excerpts; rewritten once at most (design.md §4.13).
+        t1 = time.perf_counter()
+        if on_event:
+            on_event("status", {"stage": "checking"})
+        result = check_answer(
+            normalize_marks(answer_text(messages)), question, history, evidence.items, s
+        )
+        check_cost = cost_usd(
+            s.check_model,
+            result.usage.get("input_tokens", 0),
+            0,
+            result.usage.get("output_tokens", 0),
+        )
+        review = {"issues": result.issues, "revised": not result.ok}
+        if not result.ok:
+            if on_event:
+                on_event("revise", {})  # the page drops the streamed draft
+            before = len(messages)
+            messages = run(
+                system_prompt,
+                hold=False,
+                start=[*messages, HumanMessage(revise_note(result.issues))],
+            )
+            spent = spent + messages[before:]
+        review["latency_ms"] = round((time.perf_counter() - t1) * 1000)
     latency_ms = round((time.perf_counter() - t0) * 1000)
 
     answer = normalize_marks(answer_text(messages))
@@ -709,12 +781,22 @@ def ask(
         for tc in m.tool_calls
     ]
     usage = _usage(spent)
+    if review is not None:
+        # what the rewrite cost is in `usage` already; this is the check call itself
+        review["cost_usd"] = round(check_cost, 6)
     # The agent runs on agent_model; the reranker inside search_rules runs on rerank_model
     # (also when an A/B run overrides the agent model), so each is priced separately.
-    cost = cost_usd(
-        agent_model, usage["input_tokens"], usage["cached_input_tokens"], usage["output_tokens"]
-    ) + cost_usd(
-        s.rerank_model, evidence.tool_usage["input_tokens"], 0, evidence.tool_usage["output_tokens"]
+    cost = (
+        cost_usd(
+            agent_model, usage["input_tokens"], usage["cached_input_tokens"], usage["output_tokens"]
+        )
+        + cost_usd(
+            s.rerank_model,
+            evidence.tool_usage["input_tokens"],
+            0,
+            evidence.tool_usage["output_tokens"],
+        )
+        + check_cost
     )
     usage["input_tokens"] += evidence.tool_usage["input_tokens"]
     usage["output_tokens"] += evidence.tool_usage["output_tokens"]
@@ -729,4 +811,5 @@ def ask(
         latency_ms=latency_ms,
         model=agent_model,
         itinerary=evidence.itinerary or carried,
+        check=review,
     )

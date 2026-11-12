@@ -318,7 +318,7 @@ const I18N = {
     placeholder: "问里程或规则", followUp: "继续追问…",
     newChat: "新对话", conversations: "对话", historyEmpty: "对话会保存在这个浏览器里。", historyClear: "清空全部对话", del: "删除",
     theme: "切换深色/浅色", sources: "来源", turns: "{n} 问",
-    stage: { working: "正在理解问题", get_required_miles: "正在查里程表", search_rules: "正在检索规则", get_season: "正在查季节日历", writing: "正在撰写回答" },
+    stage: { working: "正在理解问题", get_required_miles: "正在查里程表", search_rules: "正在检索规则", get_season: "正在查季节日历", writing: "正在撰写回答", checking: "正在核对回答", revising: "核对发现问题，正在修改回答" },
     kinds: { miles: "查里程", season: "季节 × 舱位", partner: "合作航空", rule: "规则" },
     chart: "里程表", season: "季节日历", rule: "规则页", note: "Milewise 注（不是官方原文）", bookFrom: "{d} 起预订适用", fetched: "抓取于 {d}",
     cabins: { Y: "经济舱", PY: "超级经济舱", C: "商务舱", F: "头等舱" }, trips: { OW: "单程", RT: "往返" },
@@ -359,7 +359,7 @@ const I18N = {
     placeholder: "マイルや規則について質問", followUp: "続けて質問…",
     newChat: "新しい会話", conversations: "会話", historyEmpty: "会話はこのブラウザに保存されます。", historyClear: "すべての会話を消去", del: "削除",
     theme: "ダーク/ライト切り替え", sources: "出典", turns: "{n} 問",
-    stage: { working: "質問を読んでいます", get_required_miles: "チャートを確認中", search_rules: "規則を検索中", get_season: "シーズンカレンダーを確認中", writing: "回答を作成中" },
+    stage: { working: "質問を読んでいます", get_required_miles: "チャートを確認中", search_rules: "規則を検索中", get_season: "シーズンカレンダーを確認中", writing: "回答を作成中", checking: "回答を確認中", revising: "確認で問題が見つかったため回答を修正中" },
     kinds: { miles: "必要マイル", season: "シーズン × クラス", partner: "提携航空会社", rule: "規則" },
     chart: "チャート", season: "シーズンカレンダー", rule: "規則ページ", note: "Milewise の注（公式の文言ではありません）", bookFrom: "{d} 以降の予約に適用", fetched: "{d} 取得",
     cabins: { Y: "エコノミー", PY: "プレミアムエコノミー", C: "ビジネス", F: "ファースト" }, trips: { OW: "片道", RT: "往復" },
@@ -400,7 +400,7 @@ const I18N = {
     placeholder: "Ask about miles or rules", followUp: "Ask a follow-up…",
     newChat: "New chat", conversations: "Chats", historyEmpty: "Chats are kept in this browser.", historyClear: "Delete all chats", del: "Delete",
     theme: "Toggle dark/light", sources: "Sources", turns: "{n} questions",
-    stage: { working: "Reading the question", get_required_miles: "Checking the award chart", search_rules: "Searching the rules", get_season: "Checking the season calendar", writing: "Writing the answer" },
+    stage: { working: "Reading the question", get_required_miles: "Checking the award chart", search_rules: "Searching the rules", get_season: "Checking the season calendar", writing: "Writing the answer", checking: "Checking the answer", revising: "The check found problems: revising the answer" },
     kinds: { miles: "Miles", season: "Seasons × cabins", partner: "Partner airlines", rule: "Rules" },
     chart: "Award chart", season: "Season calendar", rule: "Rules page", note: "Milewise note (not the airline's text)", bookFrom: "bookings from {d}", fetched: "fetched {d}",
     cabins: { Y: "Economy", PY: "Premium Economy", C: "Business", F: "First" }, trips: { OW: "one way", RT: "round trip" },
@@ -820,7 +820,8 @@ async function submit() {
           if (turn.text.trim() && !turn.text.endsWith("\n\n")) turn.text += "\n\n";
           turn.stage = d.name;
         }
-        else if (ev === "delta") { turn.text += d.text; turn.stage = "writing"; }
+        else if (ev === "revise") { turn.text = ""; turn.stage = "revising"; }  // the draft failed the check
+        else if (ev === "delta") { turn.text += d.text; if (turn.stage !== "revising") turn.stage = "writing"; }
         else if (ev === "answer") turn.text = d.text;
         else if (ev === "done") { turn.done = d; turn.streaming = false; persist(c); if (conv === c) renderConvList(); }
         else if (ev === "error") { fail(fmt(L.error, { id: d.request_id })); }

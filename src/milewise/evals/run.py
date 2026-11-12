@@ -50,6 +50,7 @@ class CaseResult:
     error: str | None = None
     first_attempt: str | None = None  # why an unstable case failed the first time
     attempt: int = 0  # 0..N-1 with --repeat N
+    check: dict[str, Any] | None = None  # the post-answer check of a rule follow-up
 
 
 def load_cases(path: Path = CASES_PATH) -> list[dict[str, Any]]:
@@ -102,6 +103,7 @@ def _attempt(case: dict[str, Any], asker: Asker, s: Settings, judge_model: str) 
         input_tokens=res.usage["input_tokens"],
         output_tokens=res.usage["output_tokens"],
         cost_usd=res.cost_usd + judge_cost,
+        check=res.check,
     )
 
 
@@ -144,6 +146,7 @@ def summarize(results: list[CaseResult]) -> dict[str, Any]:
     abstain = [r.passed for r in by("abstain")]
     citation = [r.grade.citation_ok for r in results if r.grade and r.grade.citation_ok is not None]
     lat = sorted(r.latency_ms for r in results if not r.error)
+    checked = [r.check for r in results if r.check]
     per_case: dict[str, list[int]] = {}
     for r in results:
         k = per_case.setdefault(r.case_id, [0, 0])
@@ -167,6 +170,18 @@ def summarize(results: list[CaseResult]) -> dict[str, Any]:
         "cost_usd_total": round(sum(r.cost_usd for r in results), 4),
         # passes / runs per case (more than one run per case with --repeat)
         "per_case": {k: f"{p}/{n}" for k, (p, n) in per_case.items()},
+        # the post-answer check (design.md §4.13): how often it ran and rewrote, and what the
+        # check call cost and the check plus rewrite took, per checked question
+        "checks": {
+            "run": len(checked),
+            "revised": sum(bool(c["revised"]) for c in checked),
+            "check_cost_usd_avg": round(statistics.mean(c["cost_usd"] for c in checked), 6)
+            if checked
+            else None,
+            "latency_ms_avg": round(statistics.mean(c["latency_ms"] for c in checked))
+            if checked
+            else None,
+        },
     }
 
 

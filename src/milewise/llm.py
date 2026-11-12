@@ -81,6 +81,9 @@ def chat_model(model: str, s: Settings | None = None, max_tokens: int = 4000) ->
             # langchain-aws only streams providers it has verified (not zai, for GLM-5); the
             # Converse stream itself works for GLM-5 with tool use (checked 2026-10-21).
             disable_streaming=False,
+            # langchain-aws refuses tool_choice for models it has not listed; Converse honours
+            # it for GLM-5 (a named tool and "any", checked 2026-11-12). Used by ForceTool.
+            supports_tool_choice_values=("auto", "any", "tool") if mid.startswith("zai.") else None,
         )
     from langchain_openai import ChatOpenAI
 
