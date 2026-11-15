@@ -52,6 +52,7 @@ class CaseResult:
     first_attempt: str | None = None  # why an unstable case failed the first time
     attempt: int = 0  # 0..N-1 with --repeat N
     check: dict[str, Any] | None = None  # verification of the answer (AskResult.check)
+    model: str = ""  # the model that wrote the answer (AskResult.model; "" on an error)
 
 
 def load_cases(path: Path = CASES_PATH) -> list[dict[str, Any]]:
@@ -105,6 +106,7 @@ def _attempt(case: dict[str, Any], asker: Asker, s: Settings, judge_model: str) 
         output_tokens=res.usage["output_tokens"],
         cost_usd=res.cost_usd + judge_cost,
         check=res.check,
+        model=res.model,
     )
 
 
@@ -147,9 +149,11 @@ def summarize(results: list[CaseResult]) -> dict[str, Any]:
     abstain = [r.passed for r in by("abstain")]
     citation = [r.grade.citation_ok for r in results if r.grade and r.grade.citation_ok is not None]
     lat = sorted(r.latency_ms for r in results if not r.error)
-    checks = [r.check for r in results if r.check]
-    modeled = [c for c in checks if c["model_checked"]]
-    revised = [c for c in checks if c["revised"]]
+    revised = [r.check for r in results if r.check and r.check["revised"]]
+    by_model: dict[str, list[CaseResult]] = {}
+    for r in results:
+        if not r.error:
+            by_model.setdefault(r.model, []).append(r)
     per_case: dict[str, list[int]] = {}
     for r in results:
         k = per_case.setdefault(r.case_id, [0, 0])
@@ -173,24 +177,23 @@ def summarize(results: list[CaseResult]) -> dict[str, Any]:
         "cost_usd_total": round(sum(r.cost_usd for r in results), 4),
         # passes / runs per case (more than one run per case with --repeat)
         "per_case": {k: f"{p}/{n}" for k, (p, n) in per_case.items()},
-        # verification (design.md §4.13): how often the model check ran, how often an answer
-        # was rewritten and for what (code / model issues), what the check model cost per
-        # model-checked question, and what verify plus rewrite took per rewritten question
+        # verification (design.md §4.13): how often an answer was rewritten, and what verify
+        # plus rewrite took per rewritten question
         "checks": {
-            "model_checked": len(modeled),
             "revised": len(revised),
-            "revised_for_code": sum(
-                any(i["source"] == "code" for i in c["issues"]) for c in revised
-            ),
-            "revised_for_model": sum(
-                any(i["source"] == "model" for i in c["issues"]) for c in revised
-            ),
-            "check_cost_usd_avg": round(statistics.mean(c["cost_usd"] for c in modeled), 6)
-            if modeled
-            else None,
             "revise_latency_ms_avg": round(statistics.mean(c["latency_ms"] for c in revised))
             if revised
             else None,
+        },
+        # questions each model answered (ground.answer_model), with their average cost (the
+        # judge's call included, as in cost_usd_avg) and latency; errors are not counted
+        "by_model": {
+            m: {
+                "n": len(rs),
+                "cost_usd_avg": round(statistics.mean(r.cost_usd for r in rs), 6),
+                "latency_ms_avg": round(statistics.mean(r.latency_ms for r in rs)),
+            }
+            for m, rs in sorted(by_model.items())
         },
     }
 
@@ -266,7 +269,13 @@ def write_report(run: dict[str, Any], results: list[CaseResult]) -> Path:
     lines = [
         f"# Eval run {run['run_id'][:8]} ({run['started_at'][:16]}Z)",
         "",
-        f"model `{run['config']['model']}`, judge `{run['config']['judge_model']}`, "
+        f"model `{run['config']['model']}`"
+        + (
+            f" (follow-ups to rule answers: `{run['config']['follow_up_model']}`)"
+            if run["config"].get("follow_up_model")
+            else ""
+        )
+        + f", judge `{run['config']['judge_model']}`, "
         f"git `{run['git_sha']}`, {s['n_cases']} cases ({run['n_unverified']} not yet human-verified)"
         + (f", each run {run['repeat']} times" if run.get("repeat", 1) > 1 else ""),
         "",
@@ -280,6 +289,14 @@ def write_report(run: dict[str, Any], results: list[CaseResult]) -> Path:
         f"| overall | {pct(s['overall_accuracy'])} | |",
         f"| latency avg / p95 | {s['latency_ms_avg']} / {s['latency_ms_p95']} ms | |",
         f"| cost avg / total | ${s['cost_usd_avg']:.5f} / ${s['cost_usd_total']:.4f} | |",
+        f"| rewritten after the check | {s['checks']['revised']} | |",
+        "",
+        "| answered by | questions | cost avg | latency avg |",
+        "|---|---|---|---|",
+        *(
+            f"| `{m}` | {v['n']} | ${v['cost_usd_avg']:.5f} | {v['latency_ms_avg']} ms |"
+            for m, v in s["by_model"].items()
+        ),
         "",
         f"**{'PASSED' if run['passed'] else 'FAILED'}**"
         + (f" · unstable: {', '.join(s['unstable'])}" if s["unstable"] else "")
@@ -290,7 +307,7 @@ def write_report(run: dict[str, Any], results: list[CaseResult]) -> Path:
         lines += ["| case | passed |", "|---|---|"]
         lines += [f"| {k} | {v} |" for k, v in s["per_case"].items()]
         lines.append("")
-    lines += ["| case | cat | lang | result | notes |", "|---|---|---|---|---|"]
+    lines += ["| case | cat | lang | model | result | notes |", "|---|---|---|---|---|---|"]
     for r in results:
         note = r.error or (r.grade.judge_rationale if r.grade and not r.passed else "") or ""
         if r.grade and r.grade.check_notes:
@@ -301,7 +318,7 @@ def write_report(run: dict[str, Any], results: list[CaseResult]) -> Path:
             note = f"1st try failed: {r.first_attempt}"
         status = "✅" if r.passed else "❌"
         lines.append(
-            f"| {r.case_id}{f' #{r.attempt + 1}' if run.get('repeat', 1) > 1 else ''} | {r.category} | {r.lang} | {status}{' (unstable)' if r.unstable else ''} "
+            f"| {r.case_id}{f' #{r.attempt + 1}' if run.get('repeat', 1) > 1 else ''} | {r.category} | {r.lang} | {r.model.partition(':')[2] or r.model} | {status}{' (unstable)' if r.unstable else ''} "
             f"| {note[:160].replace('|', '/')} |"
         )
     md = RESULTS_DIR / "latest.md"
@@ -327,22 +344,26 @@ def run_eval(
     With repeat > 1 every case runs that many times (no retries) and the report gives each
     case's passes / runs: one run per case cannot tell a fix from sampling noise."""
     s = get_settings()
-    model = model or s.chat_model
     judge_model = judge_model or s.judge_model
     cases = [c for c in load_cases() if not only or c["id"] in only]
 
     asker: Asker
     if target == "local":
-
+        # without --model each question goes to the model ground.answer_model picks
         def asker(question: str, history: list[dict[str, str]] | None) -> AskResult:
             return ask(question, settings=s, model=model, history=history)
+
+        config_models = {
+            "model": model or s.chat_model,
+            "follow_up_model": None if model else s.follow_up_model,
+        }
     else:
         from milewise.evals.remote import ask_remote
 
         token = token or s.app_token
         if not token:
             raise SystemExit("remote eval needs an app token (APP_TOKEN or --token-secret-arn)")
-        model = "deployed"
+        config_models = {"model": "deployed", "follow_up_model": None}
 
         def asker(question: str, history: list[dict[str, str]] | None) -> AskResult:
             return ask_remote(target, str(token), question, history=history)
@@ -371,7 +392,7 @@ def run_eval(
         "target": target,
         "repeat": repeat,
         "config": {
-            "model": model,
+            **config_models,
             "judge_model": judge_model,
             "rerank_model": s.rerank_model,
             "reasoning_effort": s.reasoning_effort,

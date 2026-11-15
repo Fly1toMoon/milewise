@@ -22,15 +22,16 @@ class Settings(BaseSettings):
     # Models as "<provider>:<id>" (milewise.llm). Defaults run entirely on Amazon Bedrock,
     # billed to the AWS account (credits apply); OpenAI stays available for A/B runs.
     chat_model: str = "bedrock:zai.glm-5"  # agent + final answer (design.md §4.11)
+    # Answers follow-ups to an answer that cited rule excerpts (milewise.ground.answer_model,
+    # design.md §4.13). 2026-11-15, multi-05〜08 x5, judge DeepSeek V3.2: Kimi K3.1 with no
+    # forced lookup and no model check 20/20 (it called search_rules itself every time);
+    # GLM-5 14/19 with both, 8/15 with the forced lookup alone. ~$0.108 a question vs ~$0.02.
+    follow_up_model: str = "bedrock:global.moonshotai.kimi-k3.1"
     rerank_model: str = "bedrock:jp.amazon.nova-2-lite-v1:0"  # search_rules relevance filter
     # A different model family from the answering one, so the judge is not grading itself (R10).
     # DeepSeek V3.2 since 2026-11-11: 70/70 on scripts/judge_selfcheck.py with per-point
     # verdicts, Nova Pro 53/70 (garbled quotes, missed a forbidden statement; design.md §4.13).
     judge_model: str = "bedrock:deepseek.v3.2"
-    # Checks answers to rule follow-ups before they stand (milewise.verify, design.md §4.13).
-    # Not the answering model: a self-check by GLM-5 tends to repeat its own reading. The
-    # judge's model, so the IAM change for it covers this too; ~$0.004 per check.
-    check_model: str = "bedrock:deepseek.v3.2"
     # Cohere multilingual: best cross-lingual recall (zh/en questions, ja pages; §9.18)
     embedding_model: str = "bedrock:cohere.embed-multilingual-v3"
     embedding_dimensions: int = 1024

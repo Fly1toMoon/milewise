@@ -1,10 +1,10 @@
 from milewise.evidence import Evidence
 from milewise.prompt import detect_language
-from milewise.verify import code_issues
+from milewise.verify import verify
 
 
 def values(answer: str, ev: Evidence, kind: str) -> list[str]:
-    return [i.quote for i in code_issues(answer, ev) if i.kind == kind]
+    return [i.quote for i in verify(answer, ev) if i.kind == kind]
 
 
 def evidence() -> Evidence:
@@ -23,7 +23,7 @@ def evidence() -> Evidence:
 
 def test_numbers_from_evidence_pass() -> None:
     answer = "往復 45,000マイル [C1]（40,000マイル÷2=20,000マイル + 50,000マイル÷2=25,000マイル）"
-    assert code_issues(answer, evidence()) == []
+    assert verify(answer, evidence()) == []
 
 
 def test_invented_number_is_flagged() -> None:
@@ -31,7 +31,7 @@ def test_invented_number_is_flagged() -> None:
 
 
 def test_chinese_units_are_checked() -> None:
-    assert code_issues("需要 45,000 英里 [C1]", evidence()) == []
+    assert verify("需要 45,000 英里 [C1]", evidence()) == []
     assert values("需要 46,000 英里", evidence(), "number") == ["46,000 英里"]
     assert values("需要 46,000 里程", evidence(), "number") == ["46,000 里程"]
 
@@ -49,7 +49,7 @@ def test_invented_url_is_flagged() -> None:
 
 def test_source_url_and_markdown_link_pass() -> None:
     answer = "[ANA](https://www.ana.co.jp/ja/jp/guide/amc/award/international/terms/)。"
-    assert code_issues(answer, evidence()) == []
+    assert verify(answer, evidence()) == []
 
 
 def test_url_followed_by_cjk_punctuation_is_not_flagged() -> None:
@@ -60,7 +60,7 @@ def test_url_followed_by_cjk_punctuation_is_not_flagged() -> None:
         f"{url}，抓取日期：2026-10-17",
         f"{url}；取得日",
     ):
-        assert code_issues(answer, evidence()) == [], answer
+        assert verify(answer, evidence()) == [], answer
 
 
 def test_detect_language() -> None:
@@ -80,7 +80,7 @@ def test_every_chart_of_a_jal_partner_result_may_be_linked() -> None:
             },
         }
     )
-    assert code_issues("48,000マイル [C1] https://www.jal.co.jp/jmb.html", ev) == []
+    assert verify("48,000マイル [C1] https://www.jal.co.jp/jmb.html", ev) == []
 
 
 def test_full_width_marks_are_normalised() -> None:

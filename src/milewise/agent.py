@@ -3,11 +3,11 @@
 Facts come from code and data, the model only writes them up, and the system checks what it
 wrote. ask() is three stages, and each behaviour belongs to one of them:
 
-1. ground (ground.py): the tools, what this turn must look up first, and one retry of a
-   draft that looked nothing up;
+1. ground (ground.py): which model writes this turn, the tools, and one retry of a draft
+   that looked nothing up;
 2. write (prompt.py): the model writes the answer from this turn's evidence;
-3. verify (verify.py): code checks and, on rule follow-ups, a model check; an answer with
-   issues is rewritten once, and what the code checks still find is flagged.
+3. verify (verify.py): every figure, citation and link must come from this turn's evidence;
+   an answer with issues is rewritten once, and what is still found is flagged.
 """
 
 from __future__ import annotations
@@ -26,19 +26,11 @@ from milewise import llm
 from milewise.charts.store import FareStore, get_fare_store
 from milewise.config import Settings, cost_usd, get_settings
 from milewise.evidence import Evidence, normalize_marks
-from milewise.ground import ForceTool, build_tools, conversation_evidence, grounded_draft
+from milewise.ground import answer_model, build_tools, conversation_evidence, grounded_draft
 from milewise.prompt import detect_language, system_prompt
 from milewise.rag.index import RulesIndex, get_rules_index
 from milewise.rag.notes import notes_block, strip_notes_block
-from milewise.verify import (
-    POSTCHECK_WARNING,
-    UNCHECKED_NOTE,
-    Issue,
-    Verdict,
-    code_issues,
-    revise_note,
-    verify,
-)
+from milewise.verify import POSTCHECK_WARNING, UNCHECKED_NOTE, Issue, revise_note, verify
 
 
 @dataclass
@@ -52,11 +44,10 @@ class AskResult:
     usage: dict[str, int]
     cost_usd: float
     latency_ms: int
-    model: str
-    # verification (design.md §4.13): issues found on the draft (each with its source, code
-    # or model), whether it was rewritten, whether the model check ran, the code issues left
-    # on the final answer, the check model's cost and the time verify and rewrite took.
-    # None when the answer comes from a deployed endpoint.
+    model: str  # the model that wrote the answer (ground.answer_model, or ask(model=...))
+    # verification (design.md §4.13): issues found on the draft, whether it was rewritten,
+    # the issues left on the final answer and the time verify and rewrite took. None when
+    # the answer comes from a deployed endpoint.
     check: dict[str, Any] | None = None
     # the itinerary this turn's tools were given (else the latest one from history), for
     # the client to send back with this answer (history "itinerary")
@@ -73,9 +64,10 @@ def ask(
     history: list[dict[str, Any]] | None = None,
 ) -> AskResult:
     """Answer one question. With `on_event`, the run is streamed: ("tool", {"name"}) when the
-    model starts a tool call, ("delta", {"text"}) for answer text, ("status", {"stage":
-    "checking"}) when the model check starts and ("revise", {}) when the draft is dropped
-    for a rewrite. The returned answer is authoritative.
+    model starts a tool call, ("delta", {"text"}) for answer text and ("revise", {}) when
+    the draft is dropped for a rewrite. The returned answer is authoritative.
+
+    `model` overrides the choice of model (A/B runs): it writes the whole turn.
 
     `history` is the earlier turns, oldest first, as {"role": "user" | "assistant",
     "content": text, "evidence": [chunk ids the answer cited], "itinerary": the trip that
@@ -85,7 +77,7 @@ def ask(
     lang = detect_language(question)
     evidence, carried = conversation_evidence(history)
     turn = _Turn(
-        model or s.chat_model,
+        model or answer_model(history, index, s),
         s,
         system_prompt(lang),
         build_tools(fares or get_fare_store(), index, evidence, lang),
@@ -94,25 +86,17 @@ def ask(
     )
 
     # 1. Ground and 2. write: a draft that rests on this turn's lookups
-    messages = grounded_draft(turn.run, history, evidence)
+    messages = grounded_draft(turn.run, evidence)
 
-    # 3. Verify: every issue found goes into one rewrite; only code checks run after it
+    # 3. Verify: the issues found go into one rewrite, which is checked again
     t1 = time.perf_counter()
-    verdict = verify(
-        answer_text(messages),
-        evidence,
-        question=question,
-        history=history,
-        tools_called=[t["name"] for t in tool_calls(messages)],
-        settings=s,
-        on_event=on_event,
-    )
+    issues = verify(answer_text(messages), evidence)
     remaining: list[Issue] = []
-    if verdict.issues:
+    if issues:
         if on_event:
             on_event("revise", {})  # the page drops the streamed draft
-        messages = turn.run(start=[*messages, HumanMessage(revise_note(verdict.issues))])
-        remaining = code_issues(answer_text(messages), evidence)
+        messages = turn.run(start=[*messages, HumanMessage(revise_note(issues))])
+        remaining = verify(answer_text(messages), evidence)
     # rule notes are shown by the system, after the checks (they are not checked themselves)
     answer = answer_text(messages)
     answer += notes_block(answer, evidence.items, lang)
@@ -121,7 +105,7 @@ def ask(
     elif not evidence.items:
         answer += UNCHECKED_NOTE[lang]
     return turn.result(
-        question, answer, messages, evidence, verdict, remaining, t1, evidence.itinerary or carried
+        question, answer, messages, evidence, issues, remaining, t1, evidence.itinerary or carried
     )
 
 
@@ -146,7 +130,6 @@ class _Turn:
         self,
         *,
         note: str = "",
-        force: str | None = None,
         hold: bool = False,
         start: list[Any] | None = None,
     ) -> list[Any]:
@@ -157,8 +140,6 @@ class _Turn:
             # 8: a period question across cabins needs a season lookup plus one call per cabin.
             ToolCallLimitMiddleware(run_limit=8, exit_behavior="continue"),
         ]
-        if force:
-            middleware.append(ForceTool(force))
         agent = create_agent(
             llm.chat_model(self.model, self.settings),
             tools=self.tools,
@@ -179,7 +160,7 @@ class _Turn:
         answer: str,
         messages: list[Any],
         evidence: Evidence,
-        verdict: Verdict,
+        issues: list[Issue],
         remaining: list[Issue],
         t_verify: float,
         itinerary: list[list[str]] | None,
@@ -188,20 +169,16 @@ class _Turn:
         usage = _usage(self.spent)
         # The agent runs on self.model; the reranker inside search_rules on rerank_model (also
         # when an A/B run overrides the agent model), so each is priced separately.
-        cost = (
-            cost_usd(
-                self.model,
-                usage["input_tokens"],
-                usage["cached_input_tokens"],
-                usage["output_tokens"],
-            )
-            + cost_usd(
-                self.settings.rerank_model,
-                evidence.tool_usage["input_tokens"],
-                0,
-                evidence.tool_usage["output_tokens"],
-            )
-            + verdict.cost_usd
+        cost = cost_usd(
+            self.model,
+            usage["input_tokens"],
+            usage["cached_input_tokens"],
+            usage["output_tokens"],
+        ) + cost_usd(
+            self.settings.rerank_model,
+            evidence.tool_usage["input_tokens"],
+            0,
+            evidence.tool_usage["output_tokens"],
         )
         usage["input_tokens"] += evidence.tool_usage["input_tokens"]
         usage["output_tokens"] += evidence.tool_usage["output_tokens"]
@@ -216,12 +193,9 @@ class _Turn:
             latency_ms=round((now - self.t0) * 1000),
             model=self.model,
             check={
-                "issues": [asdict(i) for i in verdict.issues],
-                "revised": bool(verdict.issues),
-                "model_checked": verdict.model_checked,
+                "issues": [asdict(i) for i in issues],
+                "revised": bool(issues),
                 "remaining": [asdict(i) for i in remaining],
-                # what the rewrite cost is in `usage` already; this is the check model's call
-                "cost_usd": round(verdict.cost_usd, 6),
                 "latency_ms": round((now - t_verify) * 1000),
             },
             itinerary=itinerary,

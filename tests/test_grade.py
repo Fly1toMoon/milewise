@@ -146,6 +146,17 @@ def test_summary_counts_passes_per_case() -> None:
     assert summarize(rs)["per_case"] == {"a": "2/3", "b": "0/1"}
 
 
+def test_summary_counts_questions_per_model() -> None:
+    rs = [_result("a", True), _result("b", True), _result("c", False)]
+    rs[0].model, rs[0].cost_usd = "bedrock:global.moonshotai.kimi-k3.1", 0.1
+    rs[1].model, rs[1].cost_usd = "bedrock:zai.glm-5", 0.02
+    rs[2].error = "ReadTimeout"  # an error is not counted for any model
+    assert summarize(rs)["by_model"] == {
+        "bedrock:global.moonshotai.kimi-k3.1": {"n": 1, "cost_usd_avg": 0.1, "latency_ms_avg": 1},
+        "bedrock:zai.glm-5": {"n": 1, "cost_usd_avg": 0.02, "latency_ms_avg": 1},
+    }
+
+
 def test_history_evidence_ids_exist_in_the_index() -> None:
     """Chunk ids change with the page text: rebuild them in eval/cases.yaml when this fails."""
     if not (default_index_dir() / "manifest.json").exists():

@@ -1,26 +1,22 @@
-"""Grounding: what this turn must look up, the tools that do it, and the draft that rests on
-them (design.md §4.13).
+"""Grounding: which model writes this turn, the tools it looks things up with, and a draft
+that rests on them (design.md §4.13).
 
-Two guarantees are made here, in code, rather than asked for in the prompt:
-
-* a follow-up to an answer based on rule excerpts searches the rules first (`first_lookup`,
-  enforced with the Converse toolChoice by `ForceTool`); a dispute is always such a turn;
+* `answer_model` picks the model, in this one place: a follow-up to an answer that cited
+  rule excerpts goes to `follow_up_model`, everything else to `chat_model`;
 * a draft that looked nothing up at all is written once more with RETRY_NOTE.
 """
 
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
 from datetime import date
 from typing import Any, Literal, Protocol
 
-from langchain.agents.middleware import AgentMiddleware, ModelRequest
-from langchain_core.messages import HumanMessage, ToolMessage
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 
 from milewise.charts.store import FareStore
+from milewise.config import Settings
 from milewise.evidence import Evidence
 from milewise.locations import resolve_city
 from milewise.rag.index import RulesIndex, get_rules_index
@@ -45,29 +41,36 @@ Milewise's scope (rule 5) or is not about award tickets at all.
 
 
 class Run(Protocol):
-    """One agent run (agent.ask): `note` is added to the system prompt, `force` names the
-    tool the first model call must make, `hold` keeps streamed text back until a tool call."""
+    """One agent run (agent.ask): `note` is added to the system prompt, `hold` keeps
+    streamed text back until a tool call."""
 
-    def __call__(
-        self, *, note: str = "", force: str | None = None, hold: bool = False
-    ) -> list[Any]: ...
+    def __call__(self, *, note: str = "", hold: bool = False) -> list[Any]: ...
 
 
-def first_lookup(history: list[dict[str, Any]] | None) -> str | None:
-    """The tool this turn must call before anything else, if any.
+def answer_model(
+    history: list[dict[str, Any]] | None, index: RulesIndex | None, settings: Settings
+) -> str:
+    """The model that writes this turn's answer.
 
-    The latest earlier answer was based on rule excerpts (the page sends the chunk ids it
-    cited): a follow-up to it, a dispute included, looks the rules up again. Asking in the
-    prompt was not enough (multi-08: GLM-5 agreed with the user's reading without a lookup
-    in 2-3 of 5 runs, also after RETRY_NOTE)."""
+    `follow_up_model` when the latest earlier answer cited rule excerpts: its "evidence"
+    holds at least one chunk id the rules index has. Follow-ups (disputes included) to such
+    answers are where GLM-5 agreed with the user or stated rules without looking them up,
+    and Kimi K3.1 did not (config.follow_up_model). The ids come from the client, so one
+    the index does not have counts for nothing: a made-up id does not buy the dearer model.
+    """
     answers = [m for m in history or [] if m.get("role") == "assistant"]
-    return "search_rules" if answers and answers[-1].get("evidence") else None
+    cited = [str(i) for i in (answers[-1].get("evidence") or [])] if answers else []
+    if cited:
+        rules = index or get_rules_index()
+        if any(rules.chunk(i) for i in cited):
+            return settings.follow_up_model
+    return settings.chat_model
 
 
-def grounded_draft(run: Run, history: list[dict[str, Any]] | None, evidence: Evidence) -> list[Any]:
+def grounded_draft(run: Run, evidence: Evidence) -> list[Any]:
     """The first answer, made to rest on this turn's lookups. Its text is held back until
     the first tool call, so a draft written from memory never reaches the page."""
-    messages = run(force=first_lookup(history), hold=True)
+    messages = run(hold=True)
     if not evidence.items:
         # Answered from memory (seen in follow-ups: invented rules, 2026-10-22).
         messages = run(note=RETRY_NOTE)
@@ -83,23 +86,6 @@ def conversation_evidence(history: list[dict[str, Any]] | None) -> tuple[Evidenc
             evidence.add_itinerary(m.get("itinerary"))
     carried, evidence.itinerary = evidence.itinerary, None
     return evidence, carried
-
-
-class ForceTool(AgentMiddleware):
-    """Make the first model call of a run call `name` (Converse toolChoice; GLM-5 honours it,
-    checked 2026-11-12)."""
-
-    def __init__(self, tool: str) -> None:
-        super().__init__()
-        self.tool = tool
-
-    def wrap_model_call(self, request: ModelRequest, handler: Callable[[ModelRequest], Any]) -> Any:
-        start = max(
-            (i for i, m in enumerate(request.messages) if isinstance(m, HumanMessage)), default=-1
-        )
-        if not any(isinstance(m, ToolMessage) for m in request.messages[start + 1 :]):
-            request = request.override(tool_choice=self.tool)
-        return handler(request)
 
 
 # ---------- the tools ----------
