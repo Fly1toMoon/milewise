@@ -234,9 +234,10 @@ def season_periods(
 
 
 def build_tools(
-    fares: FareStore, index: RulesIndex | None, evidence: Evidence
+    fares: FareStore, index: RulesIndex | None, evidence: Evidence, lang: str
 ) -> list[StructuredTool]:
-    """The model's tools; every result it may cite is added to `evidence`."""
+    """The model's tools; every result it may cite is added to `evidence`. A rule note is
+    kept in the answer language `lang` only, the one the system shows the user."""
 
     def required_miles(**kwargs: Any) -> str:
         evidence.add_itinerary(kwargs.get("itinerary"))
@@ -271,6 +272,8 @@ def build_tools(
             evidence.tool_usage[key] += res.usage.get(key, 0)
         out: dict[str, Any] = {"status": res.status, "chunks": []}
         for chunk in res.chunks:
+            if chunk.get("editor_note"):
+                chunk = {**chunk, "editor_note": chunk["editor_note"][lang]}
             out["chunks"].append({"evidence_id": evidence.add_doc(chunk), **chunk})
         return json.dumps(out, ensure_ascii=False)
 

@@ -11,7 +11,14 @@ import yaml
 
 from milewise.config import Settings
 from milewise.rag.index import RulesIndex, build_index, default_index_dir
-from milewise.rag.notes import dangling, load_notes, notes_for
+from milewise.rag.notes import (
+    NOTES_HEADER,
+    dangling,
+    load_notes,
+    notes_block,
+    notes_for,
+    strip_notes_block,
+)
 
 OW = "https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/oneworld/conditions.html"
 NOTE = {
@@ -19,7 +26,11 @@ NOTE = {
     "url": OW,
     "section": "旅程について",
     "match": "出発国へ戻り、さらに第三国へ行く旅程は組めません。",
-    "note": "原文は定義していない。",
+    "note": {
+        "ja": "原文は定義していない。",
+        "zh": "原文没有定义。",
+        "en": "The text does not say.",
+    },
 }
 
 
@@ -38,6 +49,19 @@ def test_note_needs_page_section_and_sentence() -> None:
 def test_committed_notes_are_complete() -> None:
     notes = load_notes()
     assert {n["id"] for n in notes} == {"ow-japan-hatsuchaku", "ow-origin-country-cn"}
+    for n in notes:
+        assert set(n["note"]) == {"ja", "zh", "en"}
+        assert " " not in n["note"]["ja"]  # folded YAML lines are joined without spaces
+
+
+@pytest.mark.parametrize(
+    "note", [{"ja": "注", "zh": "注"}, {"ja": "注", "zh": "", "en": "n"}, "注"]
+)
+def test_a_note_without_every_language_is_rejected(tmp_path: Path, note: object) -> None:
+    p = tmp_path / "notes.yaml"
+    p.write_text(yaml.safe_dump({"notes": [{**NOTE, "note": note}]}), "utf-8")
+    with pytest.raises(ValueError, match="note needs a text in"):
+        load_notes(p)
 
 
 def test_committed_notes_match_the_index() -> None:
@@ -114,7 +138,7 @@ def test_search_rules_attaches_the_note(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setattr(search, "rerank", lambda q, rows, s: ([0], {}))
     monkeypatch.setattr(search, "notes_for", lambda u, s, t, **k: notes_for(u, s, t, (NOTE,)))
     res = search.search_rules(Index(), "q", settings=object())  # type: ignore[arg-type]
-    assert res.chunks[0]["editor_note"] == "原文は定義していない。"
+    assert res.chunks[0]["editor_note"] == NOTE["note"]
 
 
 def test_evidence_card_shows_the_note_apart_from_the_text() -> None:
@@ -228,3 +252,78 @@ def test_an_itinerary_from_an_earlier_answer_attaches(
     assert seen == [frozenset({"cn_with_hk_mo_tw"})]
     # carried on, so the next follow-up still has it
     assert res.itinerary == history[1]["itinerary"]  # type: ignore[attr-defined]
+
+
+# ---------- notes shown by the system ----------
+
+EV = {
+    "D1": {"text": "a", "editor_note": "原文没有定义。"},
+    "D2": {"text": "b"},
+    # two notes on one excerpt, one of them shared with D1
+    "D3": {"text": "c", "editor_note": "原文没有定义。\n另一条注释。"},
+}
+
+
+def test_a_cited_excerpt_s_note_is_appended_once() -> None:
+    block = notes_block("不行 [D1]，另见 [D3] 和 [D1]。", EV, "zh")
+    assert block == (
+        "\n\n" + NOTES_HEADER["zh"] + "\n- [D1][D3] 原文没有定义。\n- [D3] 另一条注释。"
+    )
+
+
+def test_no_note_without_a_cited_noted_excerpt() -> None:
+    assert notes_block("可以 [D2]，见 [C1]。", EV, "zh") == ""
+    assert notes_block("没有引用。", EV, "zh") == ""
+
+
+def test_the_notes_block_is_taken_out_of_history() -> None:
+    from milewise.agent import prior_turns
+    from milewise.verify import POSTCHECK_WARNING
+
+    answer = "不行 [D1]。" + notes_block("不行 [D1]。", EV, "zh") + POSTCHECK_WARNING["zh"]
+    assert strip_notes_block("不行。" + notes_block("[D1]", EV, "zh")) == "不行。"
+    [_, a] = prior_turns(
+        [{"role": "user", "content": "q"}, {"role": "assistant", "content": answer}]
+    )
+    assert a["content"] == "不行。"
+
+
+def _ask_noted(
+    monkeypatch: pytest.MonkeyPatch, fares: object, question: str, answer: str
+) -> object:
+    from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
+    from langchain_core.messages import AIMessage
+
+    from milewise import agent, ground
+    from milewise.rag.search import RulesResult
+
+    class Model(GenericFakeChatModel):
+        def bind_tools(self, tools: object, **kw: object) -> Model:
+            return self
+
+    chunk = {"chunk_id": "c1", "url": OW, "section": "旅程について", "text": NOTE["match"]}
+    chunk["editor_note"] = NOTE["note"]
+    search = {"name": "search_rules", "args": {"question": "q"}, "id": "1"}
+    model = Model(messages=iter([AIMessage("", tool_calls=[search]), AIMessage(answer)]))
+    monkeypatch.setattr(agent.llm, "chat_model", lambda *a, **k: model)
+    monkeypatch.setattr(ground, "search_rules", lambda *a, **k: RulesResult("ok", [chunk]))
+    return agent.ask(question, fares=fares, index=object())  # type: ignore[arg-type]
+
+
+def test_ask_appends_the_note_in_the_answer_language(
+    monkeypatch: pytest.MonkeyPatch, fares
+) -> None:  # type: ignore[no-untyped-def]
+    res = _ask_noted(monkeypatch, fares, "Can I return to the origin country?", "No [D1].")
+    assert res.answer == (  # type: ignore[attr-defined]
+        "No [D1].\n\n" + NOTES_HEADER["en"] + "\n- [D1] The text does not say."
+    )
+    # the evidence (and the page's source card) carries the same language
+    assert res.evidence["D1"]["editor_note"] == "The text does not say."  # type: ignore[attr-defined]
+    assert res.postcheck_ok and res.check["revised"] is False  # type: ignore[attr-defined]
+
+
+def test_ask_appends_no_note_when_the_excerpt_is_not_cited(
+    monkeypatch: pytest.MonkeyPatch, fares
+) -> None:  # type: ignore[no-untyped-def]
+    res = _ask_noted(monkeypatch, fares, "出発国に戻れますか？", "公式の文言を確認してください。")
+    assert res.answer == "公式の文言を確認してください。"  # type: ignore[attr-defined]

@@ -29,6 +29,7 @@ from milewise.evidence import Evidence, normalize_marks
 from milewise.ground import ForceTool, build_tools, conversation_evidence, grounded_draft
 from milewise.prompt import detect_language, system_prompt
 from milewise.rag.index import RulesIndex, get_rules_index
+from milewise.rag.notes import notes_block, strip_notes_block
 from milewise.verify import (
     POSTCHECK_WARNING,
     UNCHECKED_NOTE,
@@ -87,7 +88,7 @@ def ask(
         model or s.chat_model,
         s,
         system_prompt(lang),
-        build_tools(fares or get_fare_store(), index, evidence),
+        build_tools(fares or get_fare_store(), index, evidence, lang),
         [*prior_turns(history, _excerpts(history, index)), {"role": "user", "content": question}],
         on_event,
     )
@@ -112,7 +113,9 @@ def ask(
             on_event("revise", {})  # the page drops the streamed draft
         messages = turn.run(start=[*messages, HumanMessage(revise_note(verdict.issues))])
         remaining = code_issues(answer_text(messages), evidence)
+    # rule notes are shown by the system, after the checks (they are not checked themselves)
     answer = answer_text(messages)
+    answer += notes_block(answer, evidence.items, lang)
     if remaining:
         answer += POSTCHECK_WARNING[lang]
     elif not evidence.items:
@@ -325,8 +328,8 @@ def prior_turns(
     """The first and the last HISTORY_TURNS user/assistant pairs, trimmed, as chat messages.
 
     The first question stays because it often sets the topic (a shared post, an itinerary)
-    that later follow-ups test conclusions against. What the system added to an answer (the
-    post-check warning, the unchecked note) and earlier evidence ids ([C1]) are removed, so
+    that later follow-ups test conclusions against. What the system added to an answer (rule
+    notes, the post-check warning, the unchecked note) and earlier evidence ids ([C1]) are removed, so
     the model neither takes them for its own words nor cites evidence that does not exist in
     this turn. With `excerpt` (chunk id -> chunk), the rule excerpts an answer cited (its
     "evidence" chunk ids) are appended under it, so a follow-up sees the official text rather
@@ -340,7 +343,7 @@ def prior_turns(
         if role == "assistant":
             for w in [*POSTCHECK_WARNING.values(), *UNCHECKED_NOTE.values()]:
                 text = text.replace(w, "")
-            text = _CITE_MARK.sub("", normalize_marks(text))
+            text = _CITE_MARK.sub("", strip_notes_block(normalize_marks(text)))
         ids = [str(i) for i in (m.get("evidence") or [])] if role == "assistant" else []
         out.append({"role": role, "content": text.strip()[:HISTORY_CHARS], "evidence": ids})
     # the conversation must alternate and start with the user

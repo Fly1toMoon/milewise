@@ -10,7 +10,7 @@ from milewise import llm
 from milewise.config import Settings, get_settings
 from milewise.rag.embeddings import embed
 from milewise.rag.index import RulesIndex
-from milewise.rag.notes import notes_for
+from milewise.rag.notes import LANGS, notes_for
 
 RECALL_K = 20
 # Whole chunks go to the reranker and the model: chunks are up to MAX_CHARS of body plus
@@ -195,5 +195,6 @@ def search_rules(
         # Milewise's note on a sentence the official text leaves open (data/rule_notes.yaml)
         notes = notes_for(c["url"], c["section"], r["text"], itinerary_flags=itinerary_flags)
         if notes:
-            c["editor_note"] = "\n".join(n["note"].strip() for n in notes)
+            # one line per note, in each answer language (the agent passes on one)
+            c["editor_note"] = {lang: "\n".join(n["note"][lang] for n in notes) for lang in LANGS}
     return RulesResult("ok" if chunks else "no_evidence", chunks, usage)
