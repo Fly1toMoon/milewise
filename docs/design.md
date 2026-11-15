@@ -1107,20 +1107,20 @@ ADR 列表（M1 起逐步补齐，放在 `docs/adr/`）：
 
 ### 9.10 云端同步（2026-10-17）
 
-- 部署 `69e9670`（api 第 3 版）→ 上传 38 页 → ingest Lambda 处理：成功 31、内容未变 2、价目表页跳过 2、**失败 3**。
+- 部署 `7a4fab7`（api 第 3 版）→ 上传 38 页 → ingest Lambda 处理：成功 31、内容未变 2、价目表页跳过 2、**失败 3**。
 - **失败原因：`operator does not exist: uuid = text`**。Data API 把 uuid 列作为字符串返回，再作为参数传回时就成了 `uuid = text` 的比较。只有在"内容有变化、需要把旧版本标记为 superseded"时才会走到这段代码（本地的 psycopg 返回 UUID 对象，所以测试没有发现）。
-  - 对策（`d1c6b54`）：在 SQL 里加 `CAST(:d AS uuid)`；**同时把 DataApiDb 改成和 psycopg 一样**（读取时把 uuid 列转成 UUID，UUID 参数带 `typeHint: UUID`），并补了回归测试。
+  - 对策（`2d6ef95`）：在 SQL 里加 `CAST(:d AS uuid)`；**同时把 DataApiDb 改成和 psycopg 一样**（读取时把 uuid 列转成 UUID，UUID 参数带 `typeHint: UUID`），并补了回归测试。
   - 失败的 3 页通过原地复制 S3 对象重新触发 → 成功。DLQ 为 0。
 - **云端与本地对比**：文档都是 36 篇。chunk 数为云端 293、本地 289，有 3 个 JAL 页面不一致。
   - 原因：**样板文本去重依赖导入顺序**，并且多个 Lambda 并行导入时会发生竞争（两边都没看到对方，于是都写入了）。这不影响正确性，但会产生少量重复 chunk。
-  - **已修复（`13bebfb`）**：去掉导入时的去重（它依赖顺序、存在竞争，并且"所有者"页面更新后其他页面会丢失这段文本），改为每页完整保存，检索时用 HNSW 取 3k 个候选，再按 `body_sha256` 做 DISTINCT ON。CHUNKER_VERSION 升到 5（版本号纳入 content hash）后重新导入，**云端与本地完全一致**：36 篇、305 个 chunk、260 种正文。
+  - **已修复（`3c0ab8a`）**：去掉导入时的去重（它依赖顺序、存在竞争，并且"所有者"页面更新后其他页面会丢失这段文本），改为每页完整保存，检索时用 HNSW 取 3k 个候选，再按 `body_sha256` 做 DISTINCT ON。CHUNKER_VERSION 升到 5（版本号纳入 content hash）后重新导入，**云端与本地完全一致**：36 篇、305 个 chunk、260 种正文。
 - **Smoke**：冷启动时首字节 6.3 秒、总计 18.3 秒；预热后首字节 0.1 秒、总计 9.1 秒。JAL 规则问题在云端回答正确："发券后不能改；需要退票后重新预订，取消手续费 3,100 日元 [D1]"，并给出 JAL 官网链接，后置校验通过。
 - 运维上的小插曲：
   - OrbStack 的 Docker 引擎有几分钟没有响应（后来自动恢复）；
   - zsh 下 `export A=… B="$(terraform …)"` 中的命令替换会先于赋值执行，导致读不到 `AWS_PROFILE`（改成分两行写）；
   - `aws login` 的会话到期需要重新登录。
 
-### 9.11 JAL 国际线价目表（2026-10-17，`a2278b6`）
+### 9.11 JAL 国际线价目表（2026-10-17，`c481ef9`）
 
 - **页面结构**：一个页面里有 4 组共 25 张表。基本里程（Y/PY/C、单程、8 个地区）、头等舱季节日历、头等舱（L/R/H）、PLUS 最大值。全部是"日本发着（单程）"。
 - **与 ANA 的区别**：
@@ -1146,7 +1146,7 @@ ADR 列表（M1 起逐步补齐，放在 `docs/adr/`）：
 - **本地端到端验证**：`make release` → candidate v8 → **对 candidate URL 评测 25/25** → promote → live v8。
 - **工作流**：`ci.yml`（PR：ruff / mypy / pytest + pgvector service / 迁移 + 加载 / Terraform fmt + validate）、`deploy.yml`（main：ubuntu-24.04-arm 原生构建 arm64 镜像 → candidate → 评测 → promote；app 栈不存在时跳过）。用 GitHub 官方 schema 校验通过；GitHub 上的首次实际运行要等 push。
 - **未做**：PR 上的 `terraform plan`。只读的 plan 角色不能读取 secret 的值，`aws_secretsmanager_secret_version` 的 refresh 会失败，需要改为 `-refresh=false` 或调整资源结构。
-- **GitHub 上的首次运行**（PR #1 合并后）：第一次在 `configure-aws-credentials` 失败。原因是这个 repo 的 OIDC `sub` 采用**不可变格式** `repo:<owner>@<owner_id>/<repo>@<repo_id>:ref:…`，而信任策略按旧格式 `repo:<owner>/<repo>:…` 匹配。改为由变量 `github_oidc_subject_prefix` 指定前缀（值用 `gh api repos/<owner>/<repo>/actions/oidc/customization/sub` 查），apply bootstrap 后重跑：OIDC → candidate → **评测 25/25**（费用 $0.016）→ promote → **live v9（`de6bc95`）**。不可变格式在 repo 改名后仍然有效，也不会被之后同名的其他 repo 冒用。
+- **GitHub 上的首次运行**（PR #1 合并后）：第一次在 `configure-aws-credentials` 失败。原因是这个 repo 的 OIDC `sub` 采用**不可变格式** `repo:<owner>@<owner_id>/<repo>@<repo_id>:ref:…`，而信任策略按旧格式 `repo:<owner>/<repo>:…` 匹配。改为由变量 `github_oidc_subject_prefix` 指定前缀（值用 `gh api repos/<owner>/<repo>/actions/oidc/customization/sub` 查），apply bootstrap 后重跑：OIDC → candidate → **评测 25/25**（费用 $0.016）→ promote → **live v9（`5d530c0`）**。不可变格式在 repo 改名后仍然有效，也不会被之后同名的其他 repo 冒用。
 
 ### 9.13 去掉 Aurora：数据随镜像发布（2026-10-18，设计见 §4.6）
 
@@ -1179,7 +1179,7 @@ ADR 列表（M1 起逐步补齐，放在 `docs/adr/`）：
 
 结论：Nova 2 Lite 的指令遵循比 Luna 弱，需要把规则写得更明确，但修正后质量相当；输出 token 约是 Luna 的 4 倍（平均 1,400 对 330），加上单价，每问成本约 4.4 倍。按每月 600 问约 $5.5，加上每次发布的评测约 $0.3，**全部由 AWS 抵扣额度支付**，仍在 $15–30 的目标内。
 
-**上线（2026-10-18）**：先把 Aurora 中的评测历史（eval.runs / results / cases、ops.daily_usage）导出为 JSONL 存到 `s3://milewise-artifacts-<account>/eval/aurora-export-2026-10-18/`，再 `terraform apply`（1 新增 / 3 修改 / 18 删除），随后 `make deploy` → live v12（`725fb8d`）。冒烟测试：东京→伦敦商务舱，ANA + JAL 两家都答，7.1 s，$0.0063，后置校验通过；DynamoDB 计数正确写入。中途 OrbStack 的 Docker 引擎无响应（`docker login` 卡住 1 小时），`orb stop && orb start` 后恢复——apply 删掉数据库配置后到新镜像上线之前，线上是不可用的，下次应该先构建并推送镜像，再 apply。
+**上线（2026-10-18）**：先把 Aurora 中的评测历史（eval.runs / results / cases、ops.daily_usage）导出为 JSONL 存到 `s3://milewise-artifacts-<account>/eval/aurora-export-2026-10-18/`，再 `terraform apply`（1 新增 / 3 修改 / 18 删除），随后 `make deploy` → live v12（`201d5f1`）。冒烟测试：东京→伦敦商务舱，ANA + JAL 两家都答，7.1 s，$0.0063，后置校验通过；DynamoDB 计数正确写入。中途 OrbStack 的 Docker 引擎无响应（`docker login` 卡住 1 小时），`orb stop && orb start` 后恢复——apply 删掉数据库配置后到新镜像上线之前，线上是不可用的，下次应该先构建并推送镜像，再 apply。
 
 ### 9.15 合作航空价目表、默认单程、标准答案复核（2026-10-18）
 
