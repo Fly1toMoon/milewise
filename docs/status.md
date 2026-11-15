@@ -43,7 +43,7 @@
 - [x] ~~确认 SNS 订阅邮件~~（2026-10-18 已确认）
 - [x] ~~是否下载 OurAirports 机场坐标~~：已下载，只提交用到的 77 个机场
 - [ ] 确认第一张出现 Cohere（"AWS Marketplace software usage"）的账单是否被 credit 抵扣
-- [ ] 部署前：部署角色（CI 评测）和 Lambda 执行角色都要有调用 Bedrock `global.moonshotai.kimi-k3.1`（Kimi K3.1，global 跨区域推理配置文件）的权限，否则规则追问会 AccessDenied（`infra/app/lambda.tf` 的 `bedrock_chat` 现在只放行 `chat_model` 和 `rerank_model`；Lambda 环境变量没有 `FOLLOW_UP_MODEL`，用的是 `config.py` 的默认值）；同时把 `judge_model` 改成 `deepseek.v3.2`（见待办第 14 项）。这次没有改 infra，怎么改由你决定
+- [ ] 部署前：`infra/app` 已改好但还没有 apply（2026-11-15）：Lambda 执行角色放行 `global.moonshotai.kimi-k3.1`、Lambda 环境变量加 `FOLLOW_UP_MODEL`、部署角色的裁判模型从 Nova Pro 换成 `deepseek.v3.2`（`terraform plan`：3 处修改，无新增和删除）。部署角色不需要 Kimi 的权限：CI 评测调用的是已部署的 candidate，Kimi 由 Lambda 调用。仓库重建后 repo id 变了，`infra/bootstrap/terraform.tfvars` 的 `github_oidc_subject_prefix` 末尾要从 `1422251219` 改成 `1458799954` 再 apply（plan：只改 `milewise-github-deploy` 和 `milewise-github-plan` 两个角色的信任条件）。顺序：合并本分支 → apply 两个栈 → `gh workflow enable deploy` → 手动运行 deploy。在那之前 deploy 工作流保持禁用
 - [ ] 核对 Kimi K3.1 的实际账单：`config.PRICES` 里 `global.moonshotai.kimi-k3.1` 用的是 Kimi K3 global 的报价（$3.00 / $0.30 / $15.00 每百万 token），评测和每日预算里的费用都按它算
 - [ ] （可选）在 Cloudflare 创建 Turnstile 小组件，把 site key 告诉我、secret 放进 `.env` 的 `TURNSTILE_SECRET`，然后 `make put-turnstile-secret`
 - [x] ~~给云端单独建一个 OpenAI key~~：不再需要（模型都在 Bedrock；OpenAI 只用于本地 A/B）
