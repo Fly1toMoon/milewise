@@ -6,15 +6,17 @@ locals {
   image_uri  = "${local.bootstrap.ecr_repository_url}:${var.image_tag}"
   account_id = data.aws_caller_identity.current.account_id
   common_env = {
-    QUOTA_TABLE  = aws_dynamodb_table.quota.name
-    CHAT_MODEL   = "bedrock:${var.chat_model}"
-    RERANK_MODEL = "bedrock:${var.rerank_model}"
+    QUOTA_TABLE     = aws_dynamodb_table.quota.name
+    CHAT_MODEL      = "bedrock:${var.chat_model}"
+    FOLLOW_UP_MODEL = "bedrock:${var.follow_up_model}"
+    RERANK_MODEL    = "bedrock:${var.rerank_model}"
     # Only read when a model is switched to openai:* for an A/B run (milewise.api).
     OPENAI_API_KEY_SECRET_ARN = aws_secretsmanager_secret.openai.arn
   }
-  # A geo inference profile (jp. / apac.) routes to the foundation model in any of its
-  # regions, so the model ARN is allowed in every region and the profile in this one.
-  bedrock_chat = flatten([for m in [var.chat_model, var.rerank_model] : [
+  # A geo inference profile (jp. / apac. / global.) routes to the foundation model in any of
+  # its regions, so the model ARN is allowed in every region and the profile in this one.
+  # (A global profile also names a model ARN with no region; "*" matches that too.)
+  bedrock_chat = flatten([for m in [var.chat_model, var.follow_up_model, var.rerank_model] : [
     "arn:aws:bedrock:${var.region}:${local.account_id}:inference-profile/${m}",
     "arn:aws:bedrock:*::foundation-model/${replace(m, "/^(jp|apac|global)\\./", "")}",
   ]])

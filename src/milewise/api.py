@@ -28,7 +28,7 @@ import uuid
 from collections.abc import AsyncIterator
 from functools import cache
 from pathlib import Path
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
@@ -61,7 +61,7 @@ CHARTS_VERSION = _charts_version()
 
 @cache
 def _prompt_sha() -> str:
-    from milewise.agent import SYSTEM_PROMPT
+    from milewise.prompt import SYSTEM_PROMPT
 
     return hashlib.sha256(SYSTEM_PROMPT.encode()).hexdigest()[:16]
 
@@ -154,11 +154,22 @@ data_version()
 class Turn(BaseModel):
     role: Literal["user", "assistant"]
     content: str = Field(max_length=20000)
+    # an answer's cited rule chunks (evidence_detail[...].chunk); their text is shown to the
+    # model under the answer. Ids not in the index are ignored.
+    evidence: list[Annotated[str, Field(max_length=120)]] = Field(
+        default_factory=list, max_length=8
+    )
+    # the trip that answer looked up (done.itinerary): decides which rule notes apply to a
+    # follow-up that does not look the trip up again (design.md §4.13)
+    itinerary: (
+        list[Annotated[list[Annotated[str, Field(max_length=60)]], Field(max_length=12)]] | None
+    ) = Field(default=None, max_length=6)
 
 
 class AskBody(BaseModel):
     question: str = Field(min_length=2, max_length=500)
-    # earlier turns of the conversation, oldest first; the agent keeps the last 3 (trimmed)
+    # earlier turns of the conversation, oldest first; the agent keeps the first and the
+    # last 3 (trimmed)
     history: list[Turn] = Field(default_factory=list, max_length=12)
 
 
@@ -240,10 +251,13 @@ def evidence_card(v: dict[str, Any]) -> dict[str, Any]:
         }
     return {
         "kind": "rule",
+        "chunk": v.get("chunk_id"),
         "url": v.get("url"),
         "title": v.get("title"),
         "section": v.get("section") or None,
         "fetched": v.get("fetched_date"),
+        # Milewise's own note on a sentence the official text leaves open (rule_notes.yaml)
+        "editor_note": v.get("editor_note") or None,
     }
 
 
@@ -312,7 +326,7 @@ async def ask_endpoint(
         def on_event(kind: str, data: dict[str, Any]) -> None:  # called on the worker thread
             loop.call_soon_threadsafe(events.put_nowait, (kind, data))
 
-        history = [t.model_dump() for t in body.history]
+        history = [t.model_dump(exclude_none=True) for t in body.history]
         task = asyncio.ensure_future(
             run_in_threadpool(ask, body.question, on_event=on_event, history=history)
         )
@@ -358,15 +372,16 @@ async def ask_endpoint(
             "evidence_detail": {eid: evidence_card(v) for eid, v in res.evidence.items()},
             "tools": [t["name"] for t in res.tool_calls],
             "usage": res.usage,
-            "postcheck_ok": res.postcheck.ok,
+            "postcheck_ok": res.postcheck_ok,
             "latency_ms": res.latency_ms,
             "cost_usd": res.cost_usd,
             "model": res.model,
+            "itinerary": res.itinerary,
             "data": data_version(),
         }
         yield _sse("answer", {"request_id": request_id, "text": res.answer})
         yield _sse("done", {"request_id": request_id, "cached": False, **done})
-        if res.postcheck.ok and not owner and not body.history:
+        if res.postcheck_ok and not owner and not body.history:
             # only answers that passed the post-check are reused, and not owner/eval runs
             await run_in_threadpool(
                 g.remember, key, json.dumps({"text": res.answer, "done": done}, ensure_ascii=False)
@@ -379,7 +394,7 @@ async def ask_endpoint(
             cost_usd=res.cost_usd,
             input_tokens=res.usage["input_tokens"],
             output_tokens=res.usage["output_tokens"],
-            postcheck_failed=int(not res.postcheck.ok),
+            postcheck_failed=int(not res.postcheck_ok),
             pool=pool,
             tools=[t["name"] for t in res.tool_calls],
             question_sha256=hashlib.sha256(body.question.encode()).hexdigest()[:16],

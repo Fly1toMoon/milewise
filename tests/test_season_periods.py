@@ -6,14 +6,14 @@ from datetime import date
 
 import pytest
 
-from milewise import agent
-from milewise.agent import season_periods
+from milewise import ground
 from milewise.charts.store import FareStore
+from milewise.ground import season_periods
 
 
 @pytest.fixture(autouse=True)
 def today(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(agent, "today_jst", lambda: date(2026, 10, 19))
+    monkeypatch.setattr(ground, "today_jst", lambda: date(2026, 10, 19))
 
 
 def test_a_period_already_over_is_sent_back(fares: FareStore) -> None:

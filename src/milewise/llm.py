@@ -64,12 +64,15 @@ def chat_model(model: str, s: Settings | None = None, max_tokens: int = 4000) ->
     if provider == "bedrock":
         from langchain_aws import ChatBedrockConverse
 
-        # reasoningConfig is Nova 2's own field; other models reject it (Nova Pro does too)
-        extra = (
-            {"reasoningConfig": {"type": "enabled", "maxReasoningEffort": s.reasoning_effort}}
-            if "nova-2" in mid
-            else None
-        )
+        # reasoningConfig is Nova 2's own field; other models reject it (Nova Pro does too).
+        # GLM takes "reasoning_effort" instead (checked 2026-11-11); unknown fields are ignored.
+        extra: dict[str, Any] | None = None
+        if "nova-2" in mid:
+            extra = {
+                "reasoningConfig": {"type": "enabled", "maxReasoningEffort": s.reasoning_effort}
+            }
+        elif mid.startswith("zai.") and s.chat_reasoning_effort:
+            extra = {"reasoning_effort": s.chat_reasoning_effort}
         return ChatBedrockConverse(
             model=mid,
             client=_bedrock(s.bedrock_region),
@@ -99,11 +102,13 @@ def structured(
     schema: dict[str, Any],
     s: Settings | None = None,
     max_tokens: int = 2000,
+    temperature: float | None = None,
 ) -> tuple[dict[str, Any], dict[str, int]]:
     """One call whose answer is a JSON object matching `schema`; returns (object, usage).
 
     OpenAI: structured outputs. Bedrock: a single tool the model is forced to call, whose
     input is the object (Converse has no response_format; verified on Nova 2 Lite).
+    `temperature` applies to Bedrock only (OpenAI reasoning models reject it).
     """
     s = s or get_settings()
     provider, mid = parse(model)
@@ -124,7 +129,10 @@ def structured(
                 ],
                 "toolChoice": {"tool": {"name": name}},
             },
-            inferenceConfig={"maxTokens": max_tokens},
+            inferenceConfig={
+                "maxTokens": max_tokens,
+                **({"temperature": temperature} if temperature is not None else {}),
+            },
         )
         out = next(
             c["toolUse"]["input"] for c in r["output"]["message"]["content"] if "toolUse" in c

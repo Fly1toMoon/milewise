@@ -42,7 +42,7 @@ def test_remote_answer_is_parsed_into_ask_result() -> None:
     res = ask_remote(
         "https://candidate.example/", "tok", "東京→ロンドン", client=client_returning(body)
     )
-    assert res.answer == "110,000マイル [C1]" and res.postcheck.ok and res.cost_usd == 0.0004
+    assert res.answer == "110,000マイル [C1]" and res.postcheck_ok and res.cost_usd == 0.0004
     assert [t["name"] for t in res.tool_calls] == ["get_required_miles"]
     assert cited_urls(res) == ["https://www.ana.co.jp/x"]  # citation check works remotely too
 

@@ -3,11 +3,13 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
 
 from milewise.config import Settings
+from milewise.rag import search
 from milewise.rag.chunking import chunk_sections, extract_sections
 from milewise.rag.index import RulesIndex, build_index
 
@@ -251,3 +253,82 @@ def test_whole_chunks_reach_the_model(tmp_path: Path) -> None:
     )
     chunks = RulesIndex.load(tmp_path / "index").chunks
     assert rep.longest_chunk == max(len(c["text"]) for c in chunks) <= SNIPPET_CHARS
+
+
+# ---- search_rules returns short pages whole (design.md §4.13)
+
+OW = {
+    "airline": "JL",
+    "url": "https://example.test/ow/conditions",
+    "lang": "ja",
+    "doc_type": "partner",
+}
+CONDITIONS = """<h1>ワンワールド特典航空券</h1>
+<h2>重要なお知らせ</h2><p>特典航空券について 必要なマイル数 予約お申し込み</p>
+<h2>クラスについて</h2><p>全旅程とも同じクラスでのご利用が前提です。</p>
+<h2>利用区間・途中降機について</h2><p>日本発着の旅程の場合、日本国内の途中降機はできません。</p>
+<h2>旅程について</h2><p>出発国へ戻り、さらに第三国へ行く旅程は組めません。</p>
+<h2>ご利用いただけない例</h2><p>運送権を持たない区間のご利用はできません。</p>"""
+
+
+def _long_page(n: int) -> str:
+    return "<h1>長いページ</h1>" + "".join(
+        f"<h2>節{i}</h2><p>{'規則の本文です。' * 60}{i}</p>" for i in range(n)
+    )
+
+
+@pytest.fixture
+def index(tmp_path: Path) -> RulesIndex:
+    long = {"airline": "JL", "url": "https://example.test/long", "lang": "ja"}
+    sources = write_site(
+        tmp_path, {"jal-ow-conditions": (OW, CONDITIONS), "jal-long": (long, _long_page(8))}
+    )
+    return build(tmp_path, sources, CountingEmbed())
+
+
+def _hit(index: RulesIndex, url: str, section: str) -> dict[str, Any]:
+    row = next(r for r in index.page(url) if r["section"] == section)
+    return {**row, "score": 0.5}
+
+
+def test_a_hit_on_one_section_brings_the_whole_short_page(index: RulesIndex) -> None:
+    out = search.expand_pages(index, [_hit(index, OW["url"], "旅程について")])
+    assert [r["section"] for r in out] == [
+        "クラスについて",
+        "利用区間・途中降機について",
+        "旅程について",
+        "ご利用いただけない例",
+    ]  # page order; the navigation-only notice is left out
+    assert [r.get("score") for r in out] == [None, None, 0.5, None]
+
+
+def test_a_long_page_gives_the_hit_and_its_neighbours(index: RulesIndex) -> None:
+    url = "https://example.test/long"
+    out = search.expand_pages(index, [_hit(index, url, "節4")])
+    assert [r["section"] for r in out] == ["節3", "節4", "節5"]
+
+
+def test_total_is_capped_and_hits_keep_their_order(index: RulesIndex) -> None:
+    url = "https://example.test/long"
+    hits = [_hit(index, url, "節6"), _hit(index, OW["url"], "旅程について")]
+    out = search.expand_pages(index, hits, max_chars=1500)
+    assert all(len(r["text"]) > 400 for r in out[:2])
+    assert sum(len(r["text"]) for r in out) <= 1500
+    assert "旅程について" not in [r["section"] for r in out]  # did not fit: not reordered
+
+
+def test_search_rules_expands_and_does_not_filter_award_by_default(
+    index: RulesIndex, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: dict[str, Any] = {}
+
+    def fake_recall(idx: RulesIndex, q: str, airline: Any, s: Any, award: Any = None) -> Any:
+        seen["award"] = award
+        return [_hit(index, OW["url"], "旅程について")]
+
+    monkeypatch.setattr(search, "recall", fake_recall)
+    monkeypatch.setattr(search, "rerank", lambda q, rows, s: ([0], {}))
+    res = search.search_rules(index, "香港出発で上海経由は？", settings=object())  # type: ignore[arg-type]
+    assert seen["award"] is None
+    sections = [c["section"] for c in res.chunks]
+    assert "利用区間・途中降機について" in sections and "旅程について" in sections

@@ -156,6 +156,8 @@
   .sources .what { font-size:14px; line-height:1.55; }
   .sources .what a { color:inherit; font-weight:500; }
   .sources .facts { display:block; font-size:13px; opacity:.85; }
+  .sources .note { display:block; font-size:13px; margin-top:4px; padding-left:8px; border-left:2px solid var(--rule); }
+  .sources .note b { font-weight:600; }
   .sources li.uncited .n { color:inherit; opacity:.6; }
   .meta { color:var(--contour); font-size:12.5px; margin:4px 0 0; }
 
@@ -316,9 +318,9 @@ const I18N = {
     placeholder: "问里程或规则", followUp: "继续追问…",
     newChat: "新对话", conversations: "对话", historyEmpty: "对话会保存在这个浏览器里。", historyClear: "清空全部对话", del: "删除",
     theme: "切换深色/浅色", sources: "来源", turns: "{n} 问",
-    stage: { working: "正在理解问题", get_required_miles: "正在查里程表", search_rules: "正在检索规则", get_season: "正在查季节日历", writing: "正在撰写回答" },
+    stage: { working: "正在理解问题", get_required_miles: "正在查里程表", search_rules: "正在检索规则", get_season: "正在查季节日历", writing: "正在撰写回答", revising: "核对发现问题，正在修改回答" },
     kinds: { miles: "查里程", season: "季节 × 舱位", partner: "合作航空", rule: "规则" },
-    chart: "里程表", season: "季节日历", rule: "规则页", bookFrom: "{d} 起预订适用", fetched: "抓取于 {d}",
+    chart: "里程表", season: "季节日历", rule: "规则页", note: "Milewise 注（非航司条文）", bookFrom: "{d} 起预订适用", fetched: "抓取于 {d}",
     cabins: { Y: "经济舱", PY: "超级经济舱", C: "商务舱", F: "头等舱" }, trips: { OW: "单程", RT: "往返" },
     cached: "来自当日缓存", warnPost: "自动检查：回答里有依据数据之外的数字、引用或链接，请务必以官网为准。",
     limits: "免费演示：每个网络 10 分钟内 5 次、每天 20 次（追问也算一次）。全站当日额度用完后，日本时间 0 点恢复。不带上文的同一问题当天从缓存回答。",
@@ -357,9 +359,9 @@ const I18N = {
     placeholder: "マイルや規則について質問", followUp: "続けて質問…",
     newChat: "新しい会話", conversations: "会話", historyEmpty: "会話はこのブラウザに保存されます。", historyClear: "すべての会話を消去", del: "削除",
     theme: "ダーク/ライト切り替え", sources: "出典", turns: "{n} 問",
-    stage: { working: "質問を読んでいます", get_required_miles: "チャートを確認中", search_rules: "規則を検索中", get_season: "シーズンカレンダーを確認中", writing: "回答を作成中" },
+    stage: { working: "質問を読んでいます", get_required_miles: "チャートを確認中", search_rules: "規則を検索中", get_season: "シーズンカレンダーを確認中", writing: "回答を作成中", revising: "確認で問題が見つかったため回答を修正中" },
     kinds: { miles: "必要マイル", season: "シーズン × クラス", partner: "提携航空会社", rule: "規則" },
-    chart: "チャート", season: "シーズンカレンダー", rule: "規則ページ", bookFrom: "{d} 以降の予約に適用", fetched: "{d} 取得",
+    chart: "チャート", season: "シーズンカレンダー", rule: "規則ページ", note: "Milewise 注（航空会社の規定ではありません）", bookFrom: "{d} 以降の予約に適用", fetched: "{d} 取得",
     cabins: { Y: "エコノミー", PY: "プレミアムエコノミー", C: "ビジネス", F: "ファースト" }, trips: { OW: "片道", RT: "往復" },
     cached: "当日キャッシュから回答", warnPost: "自動チェック：根拠データにない数値・引用・リンクが含まれています。公式サイトで必ずご確認ください。",
     limits: "無料デモ：1つのネットワークにつき10分間に5回・1日20回まで（続けての質問も1回）。全体の1日の上限に達すると翌日0時（日本時間）まで停止します。会話の流れによらない同じ質問は当日中キャッシュから回答します。",
@@ -398,9 +400,9 @@ const I18N = {
     placeholder: "Ask about miles or rules", followUp: "Ask a follow-up…",
     newChat: "New chat", conversations: "Chats", historyEmpty: "Chats are kept in this browser.", historyClear: "Delete all chats", del: "Delete",
     theme: "Toggle dark/light", sources: "Sources", turns: "{n} questions",
-    stage: { working: "Reading the question", get_required_miles: "Checking the award chart", search_rules: "Searching the rules", get_season: "Checking the season calendar", writing: "Writing the answer" },
+    stage: { working: "Reading the question", get_required_miles: "Checking the award chart", search_rules: "Searching the rules", get_season: "Checking the season calendar", writing: "Writing the answer", revising: "The check found problems: revising the answer" },
     kinds: { miles: "Miles", season: "Seasons × cabins", partner: "Partner airlines", rule: "Rules" },
-    chart: "Award chart", season: "Season calendar", rule: "Rules page", bookFrom: "bookings from {d}", fetched: "fetched {d}",
+    chart: "Award chart", season: "Season calendar", rule: "Rules page", note: "Milewise note (not the airline's rules)", bookFrom: "bookings from {d}", fetched: "fetched {d}",
     cabins: { Y: "Economy", PY: "Premium Economy", C: "Business", F: "First" }, trips: { OW: "one way", RT: "round trip" },
     cached: "from today's cache", warnPost: "Automatic check: this answer contains numbers, citations or links not backed by the source data. Please verify on the official site.",
     limits: "Free demo: 5 questions per 10 minutes and 20 per day per network (a follow-up counts as one). When the site-wide daily budget is used up it reopens at midnight Japan time. A standalone question asked again the same day is answered from cache.",
@@ -564,7 +566,7 @@ function inline(s, ctx) {
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     .replace(/`([^`]+)`/g, "<code>$1</code>")
     .replace(/(\d{1,3}(?:[,，]\d{3})+|\d{4,})(\s?)(マイル|里程|英里|miles?)/gi, '<span class="num">$1</span>$2$3')
-    .replace(/\[([CD]\d+)\]/g, (_, id) => {
+    .replace(/[\[［【]\s*([CD]\d+)\s*[\]］】]/g, (_, id) => {  // 【D1】 too (GLM-5)
       if (!ctx.cites.has(id)) ctx.cites.set(id, ctx.cites.size + 1);
       const n = ctx.cites.get(id);
       return `<sup class="cite"><a href="#src-${ctx.turn}-${id}" data-cite="${ctx.turn}-${id}" aria-label="${n}">${n}</a></sup>`;
@@ -646,7 +648,9 @@ function sourceItem(key, id, n, card, url, cited) {
   try { host = link ? new URL(link).host.replace(/^www\./, "") : ""; } catch {}
   return `<li id="src-${key}"${cited ? "" : ' class="uncited"'}><span class="n">${cited ? n : "·"}</span><span class="what">`
     + (link ? `<a href="${esc(link)}" target="_blank" rel="noopener">${esc(name)}</a>` : esc(name))
-    + `<span class="facts">${esc([host, ...facts].filter(Boolean).join("　"))}</span></span></li>`;
+    + `<span class="facts">${esc([host, ...facts].filter(Boolean).join("　"))}</span>`
+    + (c.editor_note ? `<span class="note"><b>${esc(L.note)}</b>${esc(c.editor_note)}</span>` : "")
+    + `</span></li>`;
 }
 function sourcesHtml(turnKey, done, cites) {
   const ev = (done && done.evidence) || {}, detail = (done && done.evidence_detail) || {};
@@ -754,11 +758,19 @@ function tickElapsed() {
 setInterval(tickElapsed, 500);
 
 function contextOf(c) {
-  // the last few finished turns, as the API's history (answers without the sources section)
-  return c.turns.filter((x) => x.done && x.text).slice(-CONTEXT_TURNS).flatMap((x) => [
-    { role: "user", content: x.q },
-    { role: "assistant", content: splitAnswer(x.text).body },
-  ]);
+  // the first and the last few finished turns, as the API's history (answers without the
+  // sources section, with the rule chunks they cited so the model sees the official text)
+  const done = c.turns.filter((x) => x.done && x.text);
+  const kept = done.length > CONTEXT_TURNS + 1 ? [done[0], ...done.slice(-CONTEXT_TURNS)] : done;
+  return kept.flatMap((x) => {
+    const detail = x.done.evidence_detail || {};
+    const cited = [...new Set([...x.text.matchAll(/[\[［【]\s*(D\d+)\s*[\]］】]/g)].map((m) => m[1]))];
+    const evidence = cited.map((id) => detail[id] && detail[id].chunk).filter(Boolean).slice(0, 8);
+    return [
+      { role: "user", content: x.q },
+      { role: "assistant", content: splitAnswer(x.text).body, evidence, ...(x.done.itinerary ? { itinerary: x.done.itinerary } : {}) },
+    ];
+  });
 }
 
 async function submit() {
@@ -808,7 +820,8 @@ async function submit() {
           if (turn.text.trim() && !turn.text.endsWith("\n\n")) turn.text += "\n\n";
           turn.stage = d.name;
         }
-        else if (ev === "delta") { turn.text += d.text; turn.stage = "writing"; }
+        else if (ev === "revise") { turn.text = ""; turn.stage = "revising"; }  // the draft failed the check
+        else if (ev === "delta") { turn.text += d.text; if (turn.stage !== "revising") turn.stage = "writing"; }
         else if (ev === "answer") turn.text = d.text;
         else if (ev === "done") { turn.done = d; turn.streaming = false; persist(c); if (conv === c) renderConvList(); }
         else if (ev === "error") { fail(fmt(L.error, { id: d.request_id })); }

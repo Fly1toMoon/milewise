@@ -19,6 +19,12 @@ variable "chat_model" {
   default     = "zai.glm-5"
 }
 
+variable "follow_up_model" {
+  description = "Bedrock model or inference profile that answers follow-ups to rule answers (design.md §4.13)."
+  type        = string
+  default     = "global.moonshotai.kimi-k3.1"
+}
+
 variable "rerank_model" {
   description = "Bedrock model or inference profile for the search_rules relevance filter."
   type        = string
@@ -26,9 +32,9 @@ variable "rerank_model" {
 }
 
 variable "judge_model" {
-  description = "Bedrock inference profile for the eval judge (CI deploy role only)."
+  description = "Bedrock model or inference profile for the eval judge (CI deploy role only; must match the app's JUDGE_MODEL default)."
   type        = string
-  default     = "apac.amazon.nova-pro-v1:0"
+  default     = "deepseek.v3.2"
 }
 
 variable "embedding_model" {

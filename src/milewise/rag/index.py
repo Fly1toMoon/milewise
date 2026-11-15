@@ -157,6 +157,15 @@ def build_index(
                 }
             )
 
+    from milewise.rag.notes import dangling, load_notes
+
+    stale = dangling(records, load_notes())
+    if stale:
+        raise ValueError(
+            f"data/rule_notes.yaml: the sentence of {stale} is no longer on its page/section; "
+            "update or remove the note"
+        )
+
     cached = _load_cache(cache_dir)
     todo = list(
         dict.fromkeys(r["embedding_key"] for r in records if r["embedding_key"] not in cached)
@@ -202,6 +211,12 @@ class RulesIndex:
         self._airline = np.array([c["airline"] for c in chunks])
         self._award = np.array([c.get("award", "general") for c in chunks])
         self._url = np.array([c["url"] for c in chunks])
+        self._by_id = {c["chunk_id"]: c for c in chunks}
+        self._by_url: dict[str, list[dict[str, Any]]] = {}
+        for c in chunks:
+            self._by_url.setdefault(c["url"], []).append(c)
+        for page in self._by_url.values():
+            page.sort(key=lambda c: c.get("ord", 0))
 
     @classmethod
     def load(cls, index_dir: Path | None = None) -> RulesIndex:
@@ -218,6 +233,13 @@ class RulesIndex:
     def version(self) -> dict[str, Any]:
         m = self.manifest
         return {k: m.get(k) for k in ("content_sha256", "built_at", "n_chunks", "embedding_model")}
+
+    def chunk(self, chunk_id: str) -> dict[str, Any] | None:
+        return self._by_id.get(chunk_id)
+
+    def page(self, url: str) -> list[dict[str, Any]]:
+        """Every chunk of one page, in page order, in the shape recall() returns (no score)."""
+        return [row(c) for c in self._by_url.get(url, [])]
 
     def recall(
         self, vec: Sequence[float], airline: str | None, k: int, award: str | None = None
@@ -243,23 +265,27 @@ class RulesIndex:
             if c["body_sha256"] in seen:
                 continue
             seen.add(c["body_sha256"])
-            out.append(
-                {
-                    "chunk_id": c["chunk_id"],
-                    "text": c["text"],
-                    "title": c["title"],
-                    "source_url": c["url"],
-                    "airline": c["airline"],
-                    "doc_type": c["doc_type"],
-                    "award": c.get("award", "general"),
-                    "section": " > ".join(c.get("section_path", [])[1:]),
-                    "fetched_date": c["fetched_date"],
-                    "score": float(scores[i]),
-                }
-            )
+            out.append({**row(c), "score": float(scores[i])})
             if len(out) == k:
                 break
         return out
+
+
+def row(c: dict[str, Any]) -> dict[str, Any]:
+    """A stored chunk as search sees it: its heading path below the page title is "section"."""
+    return {
+        "chunk_id": c["chunk_id"],
+        "text": c["text"],
+        "title": c["title"],
+        "source_url": c["url"],
+        "airline": c["airline"],
+        "doc_type": c["doc_type"],
+        "award": c.get("award", "general"),
+        "section": " > ".join(c.get("section_path", [])[1:]),
+        "fetched_date": c["fetched_date"],
+        "ord": c.get("ord", 0),
+        "body_sha256": c["body_sha256"],
+    }
 
 
 @cache

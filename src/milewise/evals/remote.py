@@ -11,7 +11,7 @@ from typing import Any
 
 import httpx
 
-from milewise.agent import AskResult, PostCheck
+from milewise.agent import AskResult
 
 
 def ask_remote(
@@ -47,13 +47,20 @@ def ask_remote(
     if "error" in events or "answer" not in events or "done" not in events:
         raise RuntimeError(f"incomplete response from {url}: {sorted(events)}")
     done = events["done"]
+    detail = done.get("evidence_detail") or {}
     usage = {"input_tokens": 0, "output_tokens": 0, "cached_input_tokens": 0, "model_calls": 0}
     usage |= done.get("usage", {})
     return AskResult(
         question=question,
         answer=events["answer"]["text"],
-        evidence={eid: {"url": u} for eid, u in (done.get("evidence") or {}).items() if u},
-        postcheck=PostCheck(bool(done["postcheck_ok"]), [], [], []),
+        evidence={
+            eid: {"url": u}
+            # the rule section an excerpt came from, for the gold_sections check
+            | ({"section": d["section"] or ""} if "section" in (d := detail.get(eid) or {}) else {})
+            for eid, u in (done.get("evidence") or {}).items()
+            if u
+        },
+        postcheck_ok=bool(done["postcheck_ok"]),
         tool_calls=[{"name": n, "args": {}} for n in done.get("tools", [])],
         usage=usage,
         cost_usd=float(done["cost_usd"]),

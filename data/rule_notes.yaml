@@ -1,0 +1,62 @@
+# Milewise's own notes on rule sentences the official text leaves open (design.md §4.13).
+#
+# A note is attached to every search_rules excerpt whose page (url), heading (section) and
+# text (match, a sentence copied from the page) agree, as `editor_note`. The model sees it in
+# the answer language while it reasons; the system itself shows it to the user, at the end of
+# an answer that cites the excerpt and in the page's source details, marked as Milewise's
+# note and not the airline's text. A match that is no longer on the page fails the index
+# build, so a note cannot outlive the sentence it is about.
+#
+# note has one text per answer language (ja, zh, en), all required, saying the same thing.
+#
+# when_itinerary (optional) limits a note to conversations whose itinerary has that flag in
+# its itinerary_facts (milewise.tools.miles.ITINERARY_FLAGS), e.g. cn_with_hk_mo_tw: mainland
+# China together with Hong Kong, Macau or Taiwan. Without it the note is always attached.
+#
+# Notes are human conclusions: each one is checked by a person (checked_at / checked_by)
+# before it is merged.
+
+notes:
+  - id: ow-japan-hatsuchaku
+    url: https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/oneworld/conditions.html
+    section: 利用区間・途中降機について
+    match: 日本発着の旅程の場合、日本国内の途中降機はできません。
+    note:
+      ja: >-
+        原文は「日本発着の旅程」が日本を出発し日本に戻る旅程だけを指すのか、日本に到着するだけの旅程も含むのかを定義していない。
+        既知の実例：マニラ出発・東京到着で、途中に大阪で途中降機する旅程が発券されている（ネット上の投稿、2026-10）。
+        個別の旅程はJALに確認が必要。
+      zh: >-
+        原文没有定义「日本発着の旅程」是只指从日本出发并回到日本的行程，还是也包括只到达日本的行程。
+        已知实例：马尼拉出发、到达东京、途中在大阪中途停留的行程已经出票（网上的帖子，2026-10）。
+        具体行程需要向 JAL 确认。
+      en: >-
+        The official text does not define whether "日本発着の旅程" means only itineraries that
+        depart from Japan and return to Japan, or also itineraries that only arrive in Japan.
+        Known example: an itinerary from Manila to Tokyo with a stopover in Osaka on the way
+        has been ticketed (an online post, 2026-10). Each itinerary needs to be confirmed
+        with JAL.
+    checked_at: null  # waiting for the user's confirmation
+    checked_by: null
+
+  - id: ow-origin-country-cn
+    url: https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/oneworld/conditions.html
+    section: 旅程について
+    match: 出発国へ戻り、さらに第三国へ行く旅程は組めません。
+    # only for trips with CN and HK/MO/TW: attached to every trip, it pulled the model onto
+    # this rule where it does not apply (multi-06 3/5 -> 1/5, 2026-11-12)
+    when_itinerary: cn_with_hk_mo_tw
+    note:
+      ja: >-
+        原文は、香港・マカオ・台湾と中国本土を同じ「出発国」とみなすかどうかを定義していない。
+        例えば香港出発で上海を経由して第三国へ行く旅程がこの条件に当たるかは、JALに確認が必要。
+      zh: >-
+        原文没有定义香港、澳门、台湾与中国大陆是否算作同一个「出発国」。
+        例如从香港出发、经上海前往第三国的行程是否属于这一条件，需要向 JAL 确认。
+      en: >-
+        The official text does not define whether Hong Kong, Macau and Taiwan count as the
+        same country of departure (出発国) as mainland China. Whether, for example, an
+        itinerary from Hong Kong via Shanghai to a third country falls under this condition
+        needs to be confirmed with JAL.
+    checked_at: null  # waiting for the user's confirmation
+    checked_by: null

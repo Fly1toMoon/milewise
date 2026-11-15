@@ -49,6 +49,9 @@ def main(argv: list[str] | None = None) -> int:
     p_eval.add_argument("--only", action="append", help="case id (repeatable)")
     p_eval.add_argument("--workers", type=int, default=4)
     p_eval.add_argument("--no-retry", action="store_true", help="do not re-run failed cases once")
+    p_eval.add_argument(
+        "--repeat", type=int, default=1, help="run every case N times (no retries), report passes/N"
+    )
     p_eval.add_argument("--upload", help="also copy the run to this S3 prefix (s3://bucket/eval/)")
     p_eval.add_argument("--trigger", default="local")
     p_eval.add_argument("--target", default="local", help='"local" or a deployed https URL')
@@ -101,6 +104,7 @@ def main(argv: list[str] | None = None) -> int:
             retries=0 if args.no_retry else 1,
             trigger=args.trigger,
             upload_to=args.upload,
+            repeat=args.repeat,
         )
         print(
             json.dumps(
@@ -123,7 +127,7 @@ def main(argv: list[str] | None = None) -> int:
                 f"\n---\nmodel={res.model} latency={res.latency_ms}ms "
                 f"tokens in/out={res.usage['input_tokens']}/{res.usage['output_tokens']} "
                 f"calls={res.usage['model_calls']} cost=${res.cost_usd:.5f} "
-                f"tools={[t['name'] for t in res.tool_calls]} postcheck={'ok' if res.postcheck.ok else res.postcheck}",
+                f"tools={[t['name'] for t in res.tool_calls]} postcheck={'ok' if res.postcheck_ok else (res.check or {}).get('remaining')}",
                 file=sys.stderr,
             )
     return 0

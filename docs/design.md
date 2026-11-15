@@ -163,7 +163,7 @@ sequenceDiagram
 6. **后置校验（确定性代码，不用 LLM）**：
    - 从回答中提取所有"数字 + マイル/miles/里程"，逐个核对是否出现在本次 C 类证据里。数字规范化成半角加千分位；prompt 要求不写"8万5千"这类写法
    - 所有 `[Xn]` 标记必须真实存在
-   - 校验失败时，把回答降级为 `confidence=low`，并在末尾追加警告；同时记一条 `postcheck_failed` 指标。第一版不自动重试（省钱），评测会统计失败率。
+   - 校验发现问题时先带着问题清单重写一次，重写后仍不通过才在末尾追加警告，并记一条 `postcheck_failed` 指标；评测会统计失败率（现在的做法见 §4.13）。
 7. **完成**：SSE `done` 事件里带上引用列表（URL、标题、≤200 字的引用片段、取得日期）、价目表版本，以及本次 token 用量和成本。
 
 ---
@@ -681,6 +681,38 @@ Data API 的代价（会如实写进 README 的已知局限）：
   - 被限流拒绝的问题不再留在对话里，下次发送时去掉。
 - **评测**：用例可带 `history`（固定的前几轮），本地和远程评测都会发送，裁判也能看到前文。新增 multi-01（换航司）、multi-02（往返→单程）、multi-03（接着问退票规则），标准答案沿用 miles-01/09/15、rules-01 的官网数字。首次本地运行 3/3 通过。
 
+### 4.12 追问规则时先查再答（2026-11-11）
+
+起因：一次多轮追问 JAL oneworld 票规的对话里，追问不查资料、编规则、被反驳就附和（[findings/2026-10-22-multiturn-rules.md](findings/2026-10-22-multiturn-rules.md)）。
+
+- **没查资料就重答一次**：一次回答里没调用任何工具时，`ask()` 带 `RETRY_NOTE`（"之前的轮次不是依据，现在调用工具"）重跑一次；第一次的文字先压住不推给页面（`_stream(hold=True)`：第一次工具调用之前的文字缓存起来，有工具调用就照常放出）。第二次仍然没查，回答末尾加一行"本回答没有查阅官方资料"（`UNCHECKED_NOTE`；问题不在范围内时也会出现，属实）。两次的 token 都计入费用。
+- **上文带规则原文**：证据卡片多了 `chunk`（规则块 id）。页面发送上文时，每条回答附上它引用过的规则块 id（`evidence`，最多 8 个）；服务端按 id 从索引取原文，接在那条回答下面给模型看（全部上文合计最多 6 块，同一块只出现在最近引用它的回答下；索引里没有的 id 直接忽略，所以客户端编不出"原文"）。模型要引用仍须本轮重新 `search_rules`。
+- **保留第一问**：上文 = 第一轮 + 最近 3 轮（第一问常常是话题本身，如用户贴的帖子、行程，后面的结论要拿它检验）。
+- **系统提示第 10、11 条**：用户反驳或给出自己的理解时，重新查并引用决定问题的那句原文，原文支持才改口，否则说明理由、维持原答，不能只附和；用户说已出票的行程是真实例子，结论要和它对照。只说本轮摘录里有的规则；原文没有定义的点（如"日本発着"的范围、两个地方算不算同一国）要说明原文未定义、列出几种理解及各自后果、建议向航司确认。
+- **评测**：新增 multi-05〜08（来自那次对话，含用户反驳的一轮），标准答案待人工确认。
+
+### 4.13 多轮票规：评测、按页检索、行程事实、歧义注释（2026-11-11）
+
+起因与计划：[findings/2026-11-11-multiturn-plan.md](findings/2026-11-11-multiturn-plan.md)（§4.12 之后 multi-05〜08 仍常错）。每步的评测数字见 [findings/2026-10-22-multiturn-rules.md](findings/2026-10-22-multiturn-rules.md) 末尾。
+
+- **评测（步骤 1）**：裁判对每条 must_mention / must_not_say 分别判定，并给出所依据的回答原句（`quote`）；是否通过由代码计算（must_mention 全真、must_not_say 全假）。must_mention 判真但原句在回答里找不到时按未满足处理。比对原句时忽略空白、全半角、标点、markdown 和引用编号，并容许约 10% 的字不同（裁判会把"值"改成"値"、换引号、跳过从句），但字散落在回答各处的不算（`QUOTE_MATCH` 0.9、`QUOTE_SPAN` 2.0）。不经裁判的检查：`must_call`（本轮必须调用的工具）、`gold_sections`（本轮证据里必须有的规则小节）、`must_not_match`（回答不得匹配的正则）。`milewise eval --repeat N` 每题跑 N 次（不重试），报告"通过次数/N"。multi-05〜08 的上文回答带 `evidence`（规则块 id），评测里也能用上 §4.12 的"上文带原文"；测试保证这些 id 都在索引里。
+- **裁判换成 DeepSeek V3.2**（`judge_model`，温度 0）：本账号可用且比 Nova Pro 强的有 DeepSeek V3.2、Kimi K3.1、Qwen3 235B、Mistral Large 3（GPT-5.x/6.x、Grok 4.6/4.7 不开放）。Kimi K3.1 是回答模型候选，不用作裁判。`scripts/judge_selfcheck.py`（参考答案应过、must_not_say 句应不过，共 70 项）：DeepSeek V3.2 70/70，Nova Pro 53/70（逐条格式下常给出乱码引用、漏判禁止项）。两个已知误判样本（Kimi 的 multi-06 应过、`98911f92` 的 multi-05 应不过）各判 5 次，DeepSeek 5/5 判对且理由正确。每次判定约 $0.003、5–8 秒。**CI 部署角色的 IAM 只放行 `infra/app/variables.tf` 的 `judge_model`（仍是 Nova Pro），下次部署前要把它改成 `deepseek.v3.2` 并 apply，否则部署评测会 AccessDenied。**
+- **按页检索（步骤 2）**：重排后每个命中块带上同页其他块：页面正文不超过 `PAGE_EXPAND_CHARS`（3,000 字）返回整页，否则返回命中块及前后各一块；总量 `MAX_RESULT_CHARS`（8,000 字）按重排顺序填充，命中块本身放不下就停止（排在后面的不插队）。只有导航文字（正文没有「。」）的块不展开进来。每块仍有自己的证据 id 和 `section`。`search_rules` 的 `award_type` 默认不过滤（原来默认 `own`，模型不传时查成自社便规则）。上文附带的原文改为按字数限制（合计 6,000 字），不再按块数。
+- **行程事实（步骤 3）**：`itinerary_facts(runs)`（`tools/miles.py`）与 `estimate_itinerary` 输入相同，只数数：飞行段（含两端国家代码）、地面移动、两端都在 JP 的段数、依次经过的国家、出发国与终点国、第几段回到出发国及之后去了哪些国家、各城市出现次数；行程同时有 CN 和 HK / MO / TW 时在 `notes` 写明"代码不同，但条件页没有定义是否同一国"。**不判断合法与否**（把规则写进代码已否决）。JAL 合作航空带 `itinerary` 查询时随结果返回；提示词第 10 条要求判断多段行程是否符合条件时先带行程调用拿到它（舱位未知沿用上文，否则用 Y 且不报里程），第 15 条要求段数、地面移动、日本国内段、国家顺序只能引用它。
+- **歧义注释（步骤 4）**：`data/rule_notes.yaml` 每条注释绑定一个页面（`url`）、小节（`section`）和原文里的一句话（`match`），正文有日、中、英三种（`note.ja` / `note.zh` / `note.en`，缺任何一种加载即报错）。`search_rules` 返回的块含这句话时附上 `editor_note`；构建索引时如果某条注释的原句已不在该页该小节，直接报错，注释不会悬空。怎样给模型、怎样展示给用户见下面的"取证 / 写 / 校验"。现有两条（"日本発着"的范围、港澳台与中国大陆是否同一"出発国"）是人工结论；中文和英文由日文起草，`checked_at` 为空，等用户确认。
+- **小修（步骤 5）**：模型有时写全角【D1】/［D1］，回答在后置校验、上文处理、评测引用检查和网页解析之前统一成 [D1]。系统提示分成"General / Required miles / Rules and follow-ups"三段并按顺序重编号为 1–18，规则文字不变（脚本比对过），交叉引用随之更新。
+- **"出発国"注释收窄（2026-11-12）**：注释条目可以带 `when_itinerary`（可选，取值见 `tools/miles.py` 的 `ITINERARY_FLAGS`），只有本次对话的行程在 `itinerary_facts.flags` 里有这个标记时才附上；不带的照旧总是附上。`itinerary_facts` 在行程同时有 CN 和 HK / MO / TW 时加标记 `cn_with_hk_mo_tw`（与 `notes` 里那句说明同一判断，国家判断只此一处）。`ow-origin-country-cn` 改为 `when_itinerary: cn_with_hk_mo_tw`，`ow-japan-hatsuchaku` 不变。"本次对话的行程"取三处的并集：本轮 `get_required_miles` 收到的 `itinerary`；`search_rules` 新增的可选参数 `itinerary`（同一格式，说明里写明只用于挑选适用的注释——同一轮里两个工具可能并行调用，`search_rules` 不能等 `get_required_miles` 的结果）；上文回答查过的行程。最后一项靠客户端带回：`done` 事件新增 `itinerary`（本轮工具收到的最后一个行程，本轮没有就沿用上文的），网页把它放进那条回答的 history（`Turn.itinerary`，最多 6 段、每段 12 个地点）；服务端用 `itinerary_facts` 重新计算标记，不信任客户端给的结论。评测的 multi-05、07、08 上文回答按同样格式带上当时查过的行程（`eval/cases.yaml`）。
+- **取证 / 写 / 校验（步骤 6 及 2026-11-15 的收敛）**：一次回答的原则是事实由代码和数据给出，模型只负责写成话，写完由系统查一遍。`agent.ask()` 就是这三段，每种行为只归一段负责：
+  - **取证**（`milewise.ground`）：决定这一轮由哪个模型写，给它工具，并保证回答查过资料。
+    - **选模型**只在 `answer_model()` 一处决定：上文最后一条回答引用过规则块（history 里那条回答的 `evidence` 中至少有一个 id 能在规则索引里查到）时用 `follow_up_model`（Kimi K3.1，`bedrock:global.moonshotai.kimi-k3.1`），否则用 `chat_model`（GLM-5）。id 由客户端发来，查不到的不算，编造的 id 不会把请求送到更贵的模型。只问里程的追问、第一问都用 GLM-5。选定的模型负责整轮，包括下面的重写和无证据重试。`ask(model=...)`（评测的 `--model` A/B）显式指定时不走路由，全程用指定的模型。`AskResult.model` 和费用都按实际使用的模型计算。
+    - 整轮没有得到任何证据时，带 `RETRY_NOTE` 再写一次；第一次的文字在第一次工具调用之前压住，不推给页面（§4.12）。
+    - 为什么不再用代码强制先查、也不再用模型核对：2026-11-15 实测 multi-05〜08 各 5 次（裁判 DeepSeek V3.2），GLM-5 带"规则追问强制先调 `search_rules`"和"DeepSeek 逐句核对后重写"两层时 14/19，只留强制先查时 8/15；Kimi K3.1 两层都不用是 20/20，且每次都自己调用了 `search_rules`。Kimi 在 Bedrock 上不支持 `tool_choice`，强制先查本来也用不上；它每问约 $0.108，GLM-5 约 $0.02，所以只把规则追问交给它，两层机制删除。
+  - **写**（`milewise.prompt`）：模型根据本轮证据写回答。系统提示描述输入各是什么（摘录的 `section` 表示适用的特典和情形、`itinerary_facts` 是段数和国家的唯一来源、上文只用来理解追问并沿用航线 / 舱位 / 行程类型）、回答的格式和引用方式。第 13〜18 条恢复了重构前原文的信息量（Kimi 的 20/20 是在那版提示词上测得的），用陈述句写明原因：上文的数字、引用编号和上文下面附带的原文都不是本轮证据，追问要重新调用工具、引用规则要重新 `search_rules`；用户反驳时重新查，以决定问题的那句原文为准，原文不支持就说明理由并维持结论，把原文未定义的词当成已定的读法不算依据；原文没有解决的点要说明未定义、列出各种读法及后果、建议向航司确认，依赖这一点的结论不写成确定的。`editor_note` 在摘录里按回答语言给模型看，提示词说明它是 Milewise 对原文留白处的注释、由系统展示给用户，模型推理时考虑它，不负责转述。
+  - **校验**（`milewise.verify.verify()`）：只有确定性检查，返回 `Issue` 列表（`kind` 为 `number` / `citation` / `url`、回答里的原值、问题说明）：回答里的里程数字、引用标记、URL 必须出自本轮证据（数字也可以是规则原文里的数字）。有 issue 时把清单（`REVISE_NOTE`）接在本轮消息（含工具结果和初稿）后面，让模型重写整个回答，最多一次，需要时可以再调用工具；回答只取重写部分。重写之后再查一次，仍不通过才在末尾加 `POSTCHECK_WARNING`；整轮没有任何证据时加 `UNCHECKED_NOTE`。行程是否合规从不由代码判断。
+  - **注释由系统展示**：回答定稿后，如果回答引用了带 `editor_note` 的证据块，代码在回答末尾按回答语言附上一段固定格式的注释：标题"📝 Milewise 注（非航司条文）"（日文、英文各有对应写法），每条注释一行、前面是带它的证据 id，同一条注释只附一次。这一段在校验之后附加，不参与校验，所以注释里的数字和日期不会触发警告；警告语总在它后面，页面切掉警告时不会连带切掉注释。网页来源详情里仍单独显示注释，标签用同样的措辞，用户看到的是回答末尾一次、来源卡片里一次。`prior_turns` 清理上文时和警告语一样去掉这一段，免得下一轮模型把它当成自己说过的话。
+  - **流式**：初稿照常逐字推送。需要重写时推送 `revise`，页面清空已显示的初稿，进度改为"核对发现问题，正在修改回答"，然后逐字显示重写。最后的 `answer` 事件仍是准文本。不压住初稿：多数回答能通过校验，压住会让所有回答都多等一段；代价是需要重写时用户会看到初稿被替换，页面说明了原因。
+  - **记录**：`AskResult.postcheck_ok` 表示返回的回答是否通过确定性检查（API 的 `postcheck_ok`、缓存和指标都看它）。`AskResult.check` 每次本地回答都有：`issues`（初稿上找到的问题）、`revised`、`remaining`（重写后仍在的问题）、`latency_ms`（校验加重写的耗时）；远程评测拿不到，为 `None`。重写的 token 计入每问费用。评测结果每次尝试记录回答用的模型（`model`），报告的 `summary.checks` 给出重写次数和重写的平均耗时，`summary.by_model` 给出每个模型回答的问题数、平均费用（含裁判调用，与 `cost_usd_avg` 口径一致）和平均延迟。
+
 ## 5. 对象航司的数据调研
 
 调研日期 2026-10-16。以下 URL 都是公开页面，不需要登录。
@@ -1075,20 +1107,20 @@ ADR 列表（M1 起逐步补齐，放在 `docs/adr/`）：
 
 ### 9.10 云端同步（2026-10-17）
 
-- 部署 `69e9670`（api 第 3 版）→ 上传 38 页 → ingest Lambda 处理：成功 31、内容未变 2、价目表页跳过 2、**失败 3**。
+- 部署 `7a4fab7`（api 第 3 版）→ 上传 38 页 → ingest Lambda 处理：成功 31、内容未变 2、价目表页跳过 2、**失败 3**。
 - **失败原因：`operator does not exist: uuid = text`**。Data API 把 uuid 列作为字符串返回，再作为参数传回时就成了 `uuid = text` 的比较。只有在"内容有变化、需要把旧版本标记为 superseded"时才会走到这段代码（本地的 psycopg 返回 UUID 对象，所以测试没有发现）。
-  - 对策（`d1c6b54`）：在 SQL 里加 `CAST(:d AS uuid)`；**同时把 DataApiDb 改成和 psycopg 一样**（读取时把 uuid 列转成 UUID，UUID 参数带 `typeHint: UUID`），并补了回归测试。
+  - 对策（`2d6ef95`）：在 SQL 里加 `CAST(:d AS uuid)`；**同时把 DataApiDb 改成和 psycopg 一样**（读取时把 uuid 列转成 UUID，UUID 参数带 `typeHint: UUID`），并补了回归测试。
   - 失败的 3 页通过原地复制 S3 对象重新触发 → 成功。DLQ 为 0。
 - **云端与本地对比**：文档都是 36 篇。chunk 数为云端 293、本地 289，有 3 个 JAL 页面不一致。
   - 原因：**样板文本去重依赖导入顺序**，并且多个 Lambda 并行导入时会发生竞争（两边都没看到对方，于是都写入了）。这不影响正确性，但会产生少量重复 chunk。
-  - **已修复（`13bebfb`）**：去掉导入时的去重（它依赖顺序、存在竞争，并且"所有者"页面更新后其他页面会丢失这段文本），改为每页完整保存，检索时用 HNSW 取 3k 个候选，再按 `body_sha256` 做 DISTINCT ON。CHUNKER_VERSION 升到 5（版本号纳入 content hash）后重新导入，**云端与本地完全一致**：36 篇、305 个 chunk、260 种正文。
+  - **已修复（`3c0ab8a`）**：去掉导入时的去重（它依赖顺序、存在竞争，并且"所有者"页面更新后其他页面会丢失这段文本），改为每页完整保存，检索时用 HNSW 取 3k 个候选，再按 `body_sha256` 做 DISTINCT ON。CHUNKER_VERSION 升到 5（版本号纳入 content hash）后重新导入，**云端与本地完全一致**：36 篇、305 个 chunk、260 种正文。
 - **Smoke**：冷启动时首字节 6.3 秒、总计 18.3 秒；预热后首字节 0.1 秒、总计 9.1 秒。JAL 规则问题在云端回答正确："发券后不能改；需要退票后重新预订，取消手续费 3,100 日元 [D1]"，并给出 JAL 官网链接，后置校验通过。
 - 运维上的小插曲：
   - OrbStack 的 Docker 引擎有几分钟没有响应（后来自动恢复）；
   - zsh 下 `export A=… B="$(terraform …)"` 中的命令替换会先于赋值执行，导致读不到 `AWS_PROFILE`（改成分两行写）；
   - `aws login` 的会话到期需要重新登录。
 
-### 9.11 JAL 国际线价目表（2026-10-17，`a2278b6`）
+### 9.11 JAL 国际线价目表（2026-10-17，`c481ef9`）
 
 - **页面结构**：一个页面里有 4 组共 25 张表。基本里程（Y/PY/C、单程、8 个地区）、头等舱季节日历、头等舱（L/R/H）、PLUS 最大值。全部是"日本发着（单程）"。
 - **与 ANA 的区别**：
@@ -1114,7 +1146,7 @@ ADR 列表（M1 起逐步补齐，放在 `docs/adr/`）：
 - **本地端到端验证**：`make release` → candidate v8 → **对 candidate URL 评测 25/25** → promote → live v8。
 - **工作流**：`ci.yml`（PR：ruff / mypy / pytest + pgvector service / 迁移 + 加载 / Terraform fmt + validate）、`deploy.yml`（main：ubuntu-24.04-arm 原生构建 arm64 镜像 → candidate → 评测 → promote；app 栈不存在时跳过）。用 GitHub 官方 schema 校验通过；GitHub 上的首次实际运行要等 push。
 - **未做**：PR 上的 `terraform plan`。只读的 plan 角色不能读取 secret 的值，`aws_secretsmanager_secret_version` 的 refresh 会失败，需要改为 `-refresh=false` 或调整资源结构。
-- **GitHub 上的首次运行**（PR #1 合并后）：第一次在 `configure-aws-credentials` 失败。原因是这个 repo 的 OIDC `sub` 采用**不可变格式** `repo:<owner>@<owner_id>/<repo>@<repo_id>:ref:…`，而信任策略按旧格式 `repo:<owner>/<repo>:…` 匹配。改为由变量 `github_oidc_subject_prefix` 指定前缀（值用 `gh api repos/<owner>/<repo>/actions/oidc/customization/sub` 查），apply bootstrap 后重跑：OIDC → candidate → **评测 25/25**（费用 $0.016）→ promote → **live v9（`de6bc95`）**。不可变格式在 repo 改名后仍然有效，也不会被之后同名的其他 repo 冒用。
+- **GitHub 上的首次运行**（PR #1 合并后）：第一次在 `configure-aws-credentials` 失败。原因是这个 repo 的 OIDC `sub` 采用**不可变格式** `repo:<owner>@<owner_id>/<repo>@<repo_id>:ref:…`，而信任策略按旧格式 `repo:<owner>/<repo>:…` 匹配。改为由变量 `github_oidc_subject_prefix` 指定前缀（值用 `gh api repos/<owner>/<repo>/actions/oidc/customization/sub` 查），apply bootstrap 后重跑：OIDC → candidate → **评测 25/25**（费用 $0.016）→ promote → **live v9（`5d530c0`）**。不可变格式在 repo 改名后仍然有效，也不会被之后同名的其他 repo 冒用。
 
 ### 9.13 去掉 Aurora：数据随镜像发布（2026-10-18，设计见 §4.6）
 
@@ -1147,7 +1179,7 @@ ADR 列表（M1 起逐步补齐，放在 `docs/adr/`）：
 
 结论：Nova 2 Lite 的指令遵循比 Luna 弱，需要把规则写得更明确，但修正后质量相当；输出 token 约是 Luna 的 4 倍（平均 1,400 对 330），加上单价，每问成本约 4.4 倍。按每月 600 问约 $5.5，加上每次发布的评测约 $0.3，**全部由 AWS 抵扣额度支付**，仍在 $15–30 的目标内。
 
-**上线（2026-10-18）**：先把 Aurora 中的评测历史（eval.runs / results / cases、ops.daily_usage）导出为 JSONL 存到 `s3://milewise-artifacts-<account>/eval/aurora-export-2026-10-18/`，再 `terraform apply`（1 新增 / 3 修改 / 18 删除），随后 `make deploy` → live v12（`725fb8d`）。冒烟测试：东京→伦敦商务舱，ANA + JAL 两家都答，7.1 s，$0.0063，后置校验通过；DynamoDB 计数正确写入。中途 OrbStack 的 Docker 引擎无响应（`docker login` 卡住 1 小时），`orb stop && orb start` 后恢复——apply 删掉数据库配置后到新镜像上线之前，线上是不可用的，下次应该先构建并推送镜像，再 apply。
+**上线（2026-10-18）**：先把 Aurora 中的评测历史（eval.runs / results / cases、ops.daily_usage）导出为 JSONL 存到 `s3://milewise-artifacts-<account>/eval/aurora-export-2026-10-18/`，再 `terraform apply`（1 新增 / 3 修改 / 18 删除），随后 `make deploy` → live v12（`201d5f1`）。冒烟测试：东京→伦敦商务舱，ANA + JAL 两家都答，7.1 s，$0.0063，后置校验通过；DynamoDB 计数正确写入。中途 OrbStack 的 Docker 引擎无响应（`docker login` 卡住 1 小时），`orb stop && orb start` 后恢复——apply 删掉数据库配置后到新镜像上线之前，线上是不可用的，下次应该先构建并推送镜像，再 apply。
 
 ### 9.15 合作航空价目表、默认单程、标准答案复核（2026-10-18）
 

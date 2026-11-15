@@ -22,13 +22,22 @@ class Settings(BaseSettings):
     # Models as "<provider>:<id>" (milewise.llm). Defaults run entirely on Amazon Bedrock,
     # billed to the AWS account (credits apply); OpenAI stays available for A/B runs.
     chat_model: str = "bedrock:zai.glm-5"  # agent + final answer (design.md §4.11)
+    # Answers follow-ups to an answer that cited rule excerpts (milewise.ground.answer_model,
+    # design.md §4.13). 2026-11-15, multi-05〜08 x5, judge DeepSeek V3.2: Kimi K3.1 with no
+    # forced lookup and no model check 20/20 (it called search_rules itself every time);
+    # GLM-5 14/19 with both, 8/15 with the forced lookup alone. ~$0.108 a question vs ~$0.02.
+    follow_up_model: str = "bedrock:global.moonshotai.kimi-k3.1"
     rerank_model: str = "bedrock:jp.amazon.nova-2-lite-v1:0"  # search_rules relevance filter
     # A different model family from the answering one, so the judge is not grading itself (R10).
-    judge_model: str = "bedrock:apac.amazon.nova-pro-v1:0"
+    # DeepSeek V3.2 since 2026-11-11: 70/70 on scripts/judge_selfcheck.py with per-point
+    # verdicts, Nova Pro 53/70 (garbled quotes, missed a forbidden statement; design.md §4.13).
+    judge_model: str = "bedrock:deepseek.v3.2"
     # Cohere multilingual: best cross-lingual recall (zh/en questions, ja pages; §9.18)
     embedding_model: str = "bedrock:cohere.embed-multilingual-v3"
     embedding_dimensions: int = 1024
     reasoning_effort: str = "low"
+    # GLM on Bedrock thinks only when asked (Converse field "reasoning_effort"); "" = off
+    chat_reasoning_effort: str = ""
     bedrock_region: str = "ap-northeast-1"
     openai_api_key: str = ""  # only needed when a model above is openai:*
 
@@ -74,6 +83,10 @@ PRICES: dict[str, tuple[float, float, float]] = {
     "openai.gpt-oss-120b-1:0": (0.18, 0.18, 0.73),
     "moonshotai.kimi-k2.5": (0.72, 0.72, 3.60),
     "zai.glm-5": (1.20, 1.20, 3.84),
+    # 2026-11-11 A/B candidates (Pricing API, ap-northeast-1). Kimi K3.1 has no price entry
+    # yet: Kimi K3 global-standard is used.
+    "minimax.minimax-m2.5": (0.36, 0.36, 1.44),
+    "global.moonshotai.kimi-k3.1": (3.00, 0.30, 15.00),
     "mistral.mistral-large-3-675b-instruct": (0.61, 0.61, 1.82),
     # Anthropic is billed through AWS Marketplace (not in the Bedrock price list): list price
     # plus 10% for the jp. regional profile.

@@ -15,6 +15,16 @@
 #   rules    LLM judge with a key-point rubric (must_mention / must_not_say)
 #   both     both of the above
 #   abstain  the answer must decline or say it is unsure, and give no mileage figure
+# The judge rules on every must_mention / must_not_say point separately and quotes the answer;
+# a required point whose quote is not in the answer counts as missing (grade.py).
+# Optional checks without the judge (expected.*):
+#   must_call       tools that must be called in this turn, e.g. [search_rules]
+#   gold_sections   rule sections that must be in this turn's evidence (chunk "section")
+#   must_not_match  regular expressions the answer must not match
+# history turns may carry evidence: [chunk ids] (as the web page sends them); a test checks
+# that every id is in build/index, so rebuild the ids when the page text changes.
+# An assistant turn may also carry itinerary: the trip that answer looked up, as the page
+# sends it back (done.itinerary); it decides which rule notes apply (design.md §4.13).
 # Citation accuracy: at least one cited source URL is in gold_urls.
 
 defaults:
@@ -25,6 +35,7 @@ defaults:
   ana_partner: &ana_partner https://www.ana.co.jp/ja/jp/guide/amc/award/tk/usage/
   ana_partner_chart: &ana_partner_chart https://www.ana.co.jp/ja/jp/guide/amc/award/tk/zone/
   jal_ow_chart: &jal_ow_chart https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/oneworld/miles.html
+  jal_ow_conditions: &jal_ow_conditions https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/oneworld/conditions.html
   jal_ow_refund: &jal_ow_refund https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/oneworld/cancel.html
   jal_jmbp_chart: &jal_jmbp_chart https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/p_jmb/jmb_mile.html
   ana_revision: &ana_revision https://www.ana.co.jp/ja/jp/guide/amc/award/tk/zone/info/250415/
@@ -702,4 +713,122 @@ cases:
       利用区間は地上移動区間を除き8区間まで（利用区間・途中降機について）
     verified_at: null
     crosschecked_at: 2026-10-21
+    verified_by: null
+
+  # ---------------------------------------------------------------- rule follow-ups (2026-11-11)
+  # From a real conversation (docs/findings/2026-10-22-multiturn-rules.md): follow-ups were
+  # answered from memory, rules were invented, and a pushback flipped a correct answer.
+  # Gold answers keep to the oneworld conditions page; where it does not define a term
+  # (日本発着, whether Hong Kong is the same country as mainland China) the answer must say so.
+  # DRAFT: gold answers are waiting for the user's confirmation (verified_at).
+  - id: multi-05
+    category: rules
+    lang: zh
+    history:
+      - {role: user, content: "这个用的是什么规则啊：日航12w里7趟商务舱OW套票。1️⃣马尼拉➡️吉隆坡；新加坡➡️吉隆坡➡️上海（其中新马之间开口）2️⃣上海➡️大阪 3️⃣大阪➡️赫尔辛基；赫尔辛基➡️首尔➡️东京。第一次尝试非日本出发到达，在上海做了一个停留并开拆旅途。"}
+      - {role: assistant, itinerary: [[マニラ, クアラルンプール], [シンガポール, クアラルンプール, 上海, 大阪, ヘルシンキ, ソウル, 東京]], content: "这是 JAL 的ワンワールド特典航空券（距离制）：所需里程按各飞行区间距离之和分档，商务舱单程 14,001–20,000 英里档为 120,000 里程。一张特典最多 8 个飞行区间（不含地面移动），全程最多 7 次中途停留，地面移动全程 1 次。", evidence: [9d9125013b7e472cfb9bd701ded691a80280ff19bf843906ba88c0670241d395]}
+    question: "如果中国出发，最多可以在日本停留几次？日本出发呢？"
+    expected:
+      reference: >-
+        ワンワールド特典航空券的条件里没有"在日本最多停留几次"的单独规定：中途停留（24 小时以上或地面移动）全程最多 7 次，
+        同一城市最多停留 1 次，日本国内区间全程最多 2 段。中国出发时，在日本的停留受这些总限制。
+        原文写"日本発着の旅程の場合、日本国内の途中降機はできません"：日本出发的行程不能在日本国内中途停留。
+        "日本発着"是否也包括只是终点在日本的行程，原文没有定义；帖子里的票（马尼拉出发、东京到达、在大阪停留）已经出票。
+      must_mention:
+        - "日本出发的行程不能在日本国内中途停留（日本発着の旅程の場合、日本国内の途中降機はできません）"
+        - "中国出发时，在日本的停留没有单独的次数上限，受全程 7 次停留、同一城市 1 次停留、日本国内区间 2 段的限制"
+      must_not_say:
+        - "中国出发时在日本最多只能停留 1 次"
+        - "终点在日本的行程一定不能在日本停留（作为确定的规则）"
+      must_call: [search_rules]
+      gold_sections: ["利用区間・途中降機について"]
+    gold_urls: [*jal_ow_conditions]
+    source_note: "ワンワールド特典航空券 > 利用区間・途中降機について（7回、1都市1回、日本国内2区間、日本発着）"
+    revision_note: "2026-11-11: 実際の会話の第2問から作成。草案、ユーザー確認待ち"
+    verified_at: null
+    crosschecked_at: 2026-11-11
+    verified_by: null
+
+  - id: multi-06
+    category: rules
+    lang: zh
+    history:
+      - {role: user, content: "JAL 寰宇一家套票，中国出发，中间在日本停留，又去别的地方，最后回到日本，可以吗"}
+      - {role: assistant, content: "可以在日本停留，但需遵守全程中途停留次数、同一城市只能停留 1 次、日本国内区间最多 2 段等限制。", evidence: [9d9125013b7e472cfb9bd701ded691a80280ff19bf843906ba88c0670241d395]}
+    question: "这样呢：中国→日本（停留一次）；日本→别的地方；别的地方→日本"
+    expected:
+      reference: >-
+        ワンワールド特典航空券可以单程使用，出发地和最终目的地可以是不同的城市、不同的国家（旅程について），
+        所以"中国出发、终点日本"本身是允许的。还要逐项检查：飞行区间不超过 8 段、中途停留不超过 7 次、
+        同一城市只停留 1 次、日本国内区间不超过 2 段，以及"出発国へ戻り、さらに第三国へ行く旅程は組めません"。
+        终点在日本时能否在日本中途停留，取决于"日本発着"是否包括只到达日本的行程，原文没有定义，建议向 JAL 确认。
+      must_mention:
+        - "出发地和最终目的地可以在不同国家（引用旅程について的原文）"
+      must_not_say:
+        - "全程需要同一个出发地和目的地"
+        - "出发地和最终目的地必须在同一个国家"
+      must_call: [search_rules]
+      gold_sections: ["旅程について", "利用区間・途中降機について"]
+    gold_urls: [*jal_ow_conditions]
+    source_note: "ワンワールド特典航空券 > 旅程について（片道可、出発地と最終帰着地が異なる国でも可）"
+    revision_note: "2026-11-11: 実際の会話の第4問（「同じ出発地と目的地が必要」と誤答）から作成。草案、ユーザー確認待ち"
+    verified_at: null
+    crosschecked_at: 2026-11-11
+    verified_by: null
+
+  - id: multi-07
+    category: rules
+    lang: zh
+    history:
+      - {role: user, content: "JAL 寰宇一家套票：香港→东京（停留）→伦敦，然后巴黎→上海（伦敦到巴黎走陆路），这样可以吗？"}
+      - {role: assistant, itinerary: [[香港, 東京, ロンドン], [パリ, 上海]], content: "可以：出发地和最终目的地可以在不同国家；伦敦–巴黎是全程唯一一次地面移动，算作一次中途停留；东京停留一次。", evidence: [cbcd8145eb17c61929f6837a287f6d64ad176db07f6e60bf325299cab6696737, 9d9125013b7e472cfb9bd701ded691a80280ff19bf843906ba88c0670241d395]}
+    question: "如果最后再加一段上海→东京，还可以吗？"
+    expected:
+      reference: >-
+        关键是"出発国へ戻り、さらに第三国へ行く旅程は組めません"（回到出发国后不能再去第三国）。
+        香港出发，经上海再飞东京是否违反这条，取决于香港和中国大陆是否算同一个"出発国"，原文没有定义，需要向 JAL 确认。
+        其他条件：伦敦–巴黎是唯一一次地面移动（算一次中途停留），飞行区间 4 段在 8 段以内，没有日本国内区间。
+        终点改为东京后，东京的中途停留是否受"日本発着"限制，原文同样没有定义。
+      must_mention:
+        - "风险在于'出発国へ戻り、さらに第三国へ行く旅程は組めません'"
+        - "香港与中国大陆是否算同一个出发国，原文没有定义，需要向 JAL 确认"
+      must_not_say:
+        - "港澳台单独计算（作为官方规则断言）"
+        - "肯定可以 / 肯定不行（不说明香港与中国大陆的问题）"
+      must_call: [search_rules]
+      gold_sections: ["旅程について", "利用区間・途中降機について"]
+    gold_urls: [*jal_ow_conditions]
+    source_note: "ワンワールド特典航空券 > 旅程について / 利用区間・途中降機について"
+    revision_note: "2026-11-11: 実際の会話の第6–7問（「港澳台は別計算」と創作）から作成。草案、ユーザー確認待ち"
+    verified_at: null
+    crosschecked_at: 2026-11-11
+    verified_by: null
+
+  - id: multi-08
+    category: rules
+    lang: zh
+    history:
+      - {role: user, content: "这个用的是什么规则啊：日航12w里7趟商务舱OW套票。1️⃣马尼拉➡️吉隆坡；新加坡➡️吉隆坡➡️上海（其中新马之间开口）2️⃣上海➡️大阪 3️⃣大阪➡️赫尔辛基；赫尔辛基➡️首尔➡️东京。第一次尝试非日本出发到达，在上海做了一个停留并开拆旅途。"}
+      - {role: assistant, itinerary: [[マニラ, クアラルンプール], [シンガポール, クアラルンプール, 上海, 大阪, ヘルシンキ, ソウル, 東京]], content: "这是 JAL 的ワンワールド特典航空券（距离制），商务舱单程 14,001–20,000 英里档为 120,000 里程。出发地和最终目的地可以在不同国家，全程最多 7 次中途停留，地面移动 1 次。", evidence: [cbcd8145eb17c61929f6837a287f6d64ad176db07f6e60bf325299cab6696737, 9d9125013b7e472cfb9bd701ded691a80280ff19bf843906ba88c0670241d395]}
+      - {role: user, content: "香港→东京（停留）→伦敦，巴黎→上海，最后再加一段上海→东京，可以吗？"}
+      - {role: assistant, itinerary: [[香港, 東京, ロンドン], [パリ, 上海, 東京]], content: "关键在于'出発国へ戻り、さらに第三国へ行く旅程は組めません'：香港和中国大陆是否算同一个出发国，官方原文没有定义，建议向 JAL 确认。", evidence: [cbcd8145eb17c61929f6837a287f6d64ad176db07f6e60bf325299cab6696737]}
+    question: "不是吧，如果最后上海到东京，违反的应该是如果出发或最终地是日本，不能在日本停留的规则吧"
+    expected:
+      reference: >-
+        不应直接附和。原文是"日本発着の旅程の場合、日本国内の途中降機はできません"，没有定义只到达日本（终点在日本）的行程是否算"日本発着"。
+        第一轮帖子里的票是马尼拉出发、东京到达、中途在大阪停留，并且已经出票，与"终点在日本就不能在日本停留"的理解不符。
+        所以这一点不能断定违反；另一个不确定点仍是香港与中国大陆是否算同一出发国。建议向 JAL 确认。
+      must_mention:
+        - "引用'日本発着の旅程の場合、日本国内の途中降機はできません'，并指出原文没有说只到达日本是否算日本発着"
+        - "指出帖子里已出票的行程（终点东京、在大阪停留）与这种理解不符"
+      must_not_say:
+        - "你说得对（并直接改判为不可行）"
+      must_call: [search_rules]
+      gold_sections: ["旅程について", "利用区間・途中降機について"]
+      must_not_match: ["^\\W*(你说得对|您说得对|你说的对|您说的对)"]
+    gold_urls: [*jal_ow_conditions]
+    source_note: "ワンワールド特典航空券 > 利用区間・途中降機について（日本発着の旅程の場合…）。実例: 網上の投稿（2026-10）"
+    revision_note: "2026-11-11: 実際の会話の第8問（ユーザーの反論に同意して誤った結論へ）から作成。草案、ユーザー確認待ち"
+    verified_at: null
+    crosschecked_at: 2026-11-11
     verified_by: null
