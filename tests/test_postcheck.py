@@ -1,4 +1,10 @@
-from milewise.agent import Evidence, detect_language, postcheck
+from milewise.evidence import Evidence
+from milewise.prompt import detect_language
+from milewise.verify import code_issues
+
+
+def values(answer: str, ev: Evidence, kind: str) -> list[str]:
+    return [i.quote for i in code_issues(answer, ev) if i.kind == kind]
 
 
 def evidence() -> Evidence:
@@ -17,34 +23,33 @@ def evidence() -> Evidence:
 
 def test_numbers_from_evidence_pass() -> None:
     answer = "往復 45,000マイル [C1]（40,000マイル÷2=20,000マイル + 50,000マイル÷2=25,000マイル）"
-    assert postcheck(answer, evidence()).ok
+    assert code_issues(answer, evidence()) == []
 
 
 def test_invented_number_is_flagged() -> None:
-    check = postcheck("必要なのは 60,000 miles [C1] です", evidence())
-    assert not check.ok and check.unsupported_numbers == [60_000]
+    assert values("必要なのは 60,000 miles [C1] です", evidence(), "number") == ["60,000 miles"]
 
 
 def test_chinese_units_are_checked() -> None:
-    assert postcheck("需要 45,000 英里 [C1]", evidence()).ok
-    assert postcheck("需要 46,000 英里", evidence()).unsupported_numbers == [46_000]
-    assert postcheck("需要 46,000 里程", evidence()).unsupported_numbers == [46_000]
+    assert code_issues("需要 45,000 英里 [C1]", evidence()) == []
+    assert values("需要 46,000 英里", evidence(), "number") == ["46,000 英里"]
+    assert values("需要 46,000 里程", evidence(), "number") == ["46,000 里程"]
 
 
 def test_unknown_citation_is_flagged() -> None:
-    assert postcheck("40,000マイル [C2]", evidence()).unknown_marks == ["C2"]
+    assert values("40,000マイル [C2]", evidence(), "citation") == ["[C2]"]
 
 
 def test_invented_url_is_flagged() -> None:
     answer = "詳しくは https://www.ana.co.jp/ja/jp/guide/amc/award/ticket/ を参照"
-    assert postcheck(answer, evidence()).unknown_urls == [
+    assert values(answer, evidence(), "url") == [
         "https://www.ana.co.jp/ja/jp/guide/amc/award/ticket/"
     ]
 
 
 def test_source_url_and_markdown_link_pass() -> None:
     answer = "[ANA](https://www.ana.co.jp/ja/jp/guide/amc/award/international/terms/)。"
-    assert postcheck(answer, evidence()).ok
+    assert code_issues(answer, evidence()) == []
 
 
 def test_url_followed_by_cjk_punctuation_is_not_flagged() -> None:
@@ -55,7 +60,7 @@ def test_url_followed_by_cjk_punctuation_is_not_flagged() -> None:
         f"{url}，抓取日期：2026-10-17",
         f"{url}；取得日",
     ):
-        assert postcheck(answer, evidence()).ok, answer
+        assert code_issues(answer, evidence()) == [], answer
 
 
 def test_detect_language() -> None:
@@ -75,11 +80,12 @@ def test_every_chart_of_a_jal_partner_result_may_be_linked() -> None:
             },
         }
     )
-    assert postcheck("48,000マイル [C1] https://www.jal.co.jp/jmb.html", ev).ok
+    assert code_issues("48,000マイル [C1] https://www.jal.co.jp/jmb.html", ev) == []
 
 
 def test_full_width_marks_are_normalised() -> None:
-    from milewise.agent import normalize_marks, prior_turns
+    from milewise.agent import prior_turns
+    from milewise.evidence import normalize_marks
 
     assert normalize_marks("不可以【D1】，见［D2］和[ C3 ]") == "不可以[D1]，见[D2]和[C3]"
     turns = prior_turns(
@@ -89,14 +95,14 @@ def test_full_width_marks_are_normalised() -> None:
 
 
 def test_full_width_marks_count_as_citations() -> None:
-    from milewise.agent import AskResult, PostCheck
+    from milewise.agent import AskResult
     from milewise.evals.grade import cited_urls, quote_in
 
     res = AskResult(
         "q",
         "不能【D1】",
         {"D1": {"url": "https://x.example/"}},
-        PostCheck(True, [], [], []),
+        True,
         [],
         {},
         0.0,

@@ -11,7 +11,7 @@ from typing import Any
 
 import httpx
 
-from milewise.agent import AskResult, PostCheck
+from milewise.agent import AskResult
 
 
 def ask_remote(
@@ -60,7 +60,7 @@ def ask_remote(
             for eid, u in (done.get("evidence") or {}).items()
             if u
         },
-        postcheck=PostCheck(bool(done["postcheck_ok"]), [], [], []),
+        postcheck_ok=bool(done["postcheck_ok"]),
         tool_calls=[{"name": n, "args": {}} for n in done.get("tools", [])],
         usage=usage,
         cost_usd=float(done["cost_usd"]),

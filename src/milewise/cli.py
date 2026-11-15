@@ -127,7 +127,7 @@ def main(argv: list[str] | None = None) -> int:
                 f"\n---\nmodel={res.model} latency={res.latency_ms}ms "
                 f"tokens in/out={res.usage['input_tokens']}/{res.usage['output_tokens']} "
                 f"calls={res.usage['model_calls']} cost=${res.cost_usd:.5f} "
-                f"tools={[t['name'] for t in res.tool_calls]} postcheck={'ok' if res.postcheck.ok else res.postcheck}",
+                f"tools={[t['name'] for t in res.tool_calls]} postcheck={'ok' if res.postcheck_ok else (res.check or {}).get('remaining')}",
                 file=sys.stderr,
             )
     return 0

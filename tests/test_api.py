@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from milewise import api
-from milewise.agent import AskResult, PostCheck
+from milewise.agent import AskResult
 from milewise.config import get_settings
 from milewise.guard import Guard, Limits, MemoryStore, client_key
 
@@ -80,7 +80,7 @@ def client(
                     },
                 }
             },
-            postcheck=PostCheck(True, [], [], []),
+            postcheck_ok=True,
             tool_calls=[{"name": "get_required_miles", "args": {}}],
             usage={
                 "input_tokens": 10,

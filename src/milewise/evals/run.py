@@ -23,9 +23,10 @@ from typing import Any
 
 import yaml
 
-from milewise.agent import SYSTEM_PROMPT, AskResult, ask
+from milewise.agent import AskResult, ask
 from milewise.config import Settings, cost_usd, get_settings
 from milewise.evals.grade import Grade, grade
+from milewise.prompt import SYSTEM_PROMPT
 
 CASES_PATH = Path(__file__).resolve().parents[3] / "eval" / "cases.yaml"
 RESULTS_DIR = CASES_PATH.parent / "results"
@@ -50,7 +51,7 @@ class CaseResult:
     error: str | None = None
     first_attempt: str | None = None  # why an unstable case failed the first time
     attempt: int = 0  # 0..N-1 with --repeat N
-    check: dict[str, Any] | None = None  # the post-answer check of a rule follow-up
+    check: dict[str, Any] | None = None  # verification of the answer (AskResult.check)
 
 
 def load_cases(path: Path = CASES_PATH) -> list[dict[str, Any]]:
@@ -98,7 +99,7 @@ def _attempt(case: dict[str, Any], asker: Asker, s: Settings, judge_model: str) 
         answer=res.answer,
         tool_calls=res.tool_calls,
         grade=g,
-        postcheck_ok=res.postcheck.ok,
+        postcheck_ok=res.postcheck_ok,
         latency_ms=res.latency_ms,
         input_tokens=res.usage["input_tokens"],
         output_tokens=res.usage["output_tokens"],
@@ -146,7 +147,9 @@ def summarize(results: list[CaseResult]) -> dict[str, Any]:
     abstain = [r.passed for r in by("abstain")]
     citation = [r.grade.citation_ok for r in results if r.grade and r.grade.citation_ok is not None]
     lat = sorted(r.latency_ms for r in results if not r.error)
-    checked = [r.check for r in results if r.check]
+    checks = [r.check for r in results if r.check]
+    modeled = [c for c in checks if c["model_checked"]]
+    revised = [c for c in checks if c["revised"]]
     per_case: dict[str, list[int]] = {}
     for r in results:
         k = per_case.setdefault(r.case_id, [0, 0])
@@ -170,16 +173,23 @@ def summarize(results: list[CaseResult]) -> dict[str, Any]:
         "cost_usd_total": round(sum(r.cost_usd for r in results), 4),
         # passes / runs per case (more than one run per case with --repeat)
         "per_case": {k: f"{p}/{n}" for k, (p, n) in per_case.items()},
-        # the post-answer check (design.md §4.13): how often it ran and rewrote, and what the
-        # check call cost and the check plus rewrite took, per checked question
+        # verification (design.md §4.13): how often the model check ran, how often an answer
+        # was rewritten and for what (code / model issues), what the check model cost per
+        # model-checked question, and what verify plus rewrite took per rewritten question
         "checks": {
-            "run": len(checked),
-            "revised": sum(bool(c["revised"]) for c in checked),
-            "check_cost_usd_avg": round(statistics.mean(c["cost_usd"] for c in checked), 6)
-            if checked
+            "model_checked": len(modeled),
+            "revised": len(revised),
+            "revised_for_code": sum(
+                any(i["source"] == "code" for i in c["issues"]) for c in revised
+            ),
+            "revised_for_model": sum(
+                any(i["source"] == "model" for i in c["issues"]) for c in revised
+            ),
+            "check_cost_usd_avg": round(statistics.mean(c["cost_usd"] for c in modeled), 6)
+            if modeled
             else None,
-            "latency_ms_avg": round(statistics.mean(c["latency_ms"] for c in checked))
-            if checked
+            "revise_latency_ms_avg": round(statistics.mean(c["latency_ms"] for c in revised))
+            if revised
             else None,
         },
     }

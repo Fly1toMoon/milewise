@@ -61,7 +61,7 @@ CHARTS_VERSION = _charts_version()
 
 @cache
 def _prompt_sha() -> str:
-    from milewise.agent import SYSTEM_PROMPT
+    from milewise.prompt import SYSTEM_PROMPT
 
     return hashlib.sha256(SYSTEM_PROMPT.encode()).hexdigest()[:16]
 
@@ -372,7 +372,7 @@ async def ask_endpoint(
             "evidence_detail": {eid: evidence_card(v) for eid, v in res.evidence.items()},
             "tools": [t["name"] for t in res.tool_calls],
             "usage": res.usage,
-            "postcheck_ok": res.postcheck.ok,
+            "postcheck_ok": res.postcheck_ok,
             "latency_ms": res.latency_ms,
             "cost_usd": res.cost_usd,
             "model": res.model,
@@ -381,7 +381,7 @@ async def ask_endpoint(
         }
         yield _sse("answer", {"request_id": request_id, "text": res.answer})
         yield _sse("done", {"request_id": request_id, "cached": False, **done})
-        if res.postcheck.ok and not owner and not body.history:
+        if res.postcheck_ok and not owner and not body.history:
             # only answers that passed the post-check are reused, and not owner/eval runs
             await run_in_threadpool(
                 g.remember, key, json.dumps({"text": res.answer, "done": done}, ensure_ascii=False)
@@ -394,7 +394,7 @@ async def ask_endpoint(
             cost_usd=res.cost_usd,
             input_tokens=res.usage["input_tokens"],
             output_tokens=res.usage["output_tokens"],
-            postcheck_failed=int(not res.postcheck.ok),
+            postcheck_failed=int(not res.postcheck_ok),
             pool=pool,
             tools=[t["name"] for t in res.tool_calls],
             question_sha256=hashlib.sha256(body.question.encode()).hexdigest()[:16],

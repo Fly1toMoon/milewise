@@ -19,8 +19,9 @@ from difflib import SequenceMatcher
 from typing import Any
 
 from milewise import llm
-from milewise.agent import URL_RE, AskResult, normalize_marks
+from milewise.agent import AskResult
 from milewise.config import Settings
+from milewise.evidence import URL_RE, normalize_marks
 
 _NUMBER_WITH_UNIT = re.compile(
     r"(\d{1,3}(?:[,，]\d{3})+|\d{4,})\s*(?:マイル|miles?|英里|里程|哩)", re.IGNORECASE
@@ -274,7 +275,7 @@ def grade(case: dict[str, Any], res: AskResult, s: Settings, judge_model: str) -
     miles_ok: bool | None = None
     if exp.get("miles"):
         found = figures(res.answer)
-        miles_ok = set(exp["miles"]) <= found and res.postcheck.ok
+        miles_ok = set(exp["miles"]) <= found and res.postcheck_ok
 
     judge_ok: bool | None = None
     rationale: str | None = None

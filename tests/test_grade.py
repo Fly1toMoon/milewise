@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from milewise.agent import AskResult, PostCheck
+from milewise.agent import AskResult
 from milewise.config import Settings
 from milewise.evals import grade as g
 from milewise.evals.run import CaseResult, load_cases, summarize
@@ -32,7 +32,7 @@ def res(answer: str = ANSWER, evidence: dict[str, Any] | None = None, tools: Any
         question="q",
         answer=answer,
         evidence=evidence or {},
-        postcheck=PostCheck(True, [], [], []),
+        postcheck_ok=True,
         tool_calls=[{"name": t, "args": {}} for t in tools],
         usage={},
         cost_usd=0.0,

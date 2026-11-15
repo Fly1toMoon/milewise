@@ -1,6 +1,7 @@
 from typing import Any
 
-from milewise.agent import HISTORY_CHARS, POSTCHECK_WARNING, prior_turns
+from milewise.agent import HISTORY_CHARS, prior_turns
+from milewise.verify import POSTCHECK_WARNING, UNCHECKED_NOTE
 
 
 def turn(role: str, content: str) -> dict[str, str]:
@@ -97,8 +98,6 @@ def test_cited_rule_excerpts_follow_their_answer_once() -> None:
 
 
 def test_unchecked_note_is_not_carried_into_history() -> None:
-    from milewise.agent import UNCHECKED_NOTE
-
     [_, a] = prior_turns([turn("user", "你好"), turn("assistant", "你好！" + UNCHECKED_NOTE["zh"])])
     assert a["content"] == "你好！"
 
@@ -158,7 +157,7 @@ class FakeChat:
 
 
 def _ask_with(monkeypatch: object, fares: object, replies: list[Any]) -> object:
-    from milewise import agent
+    from milewise import agent, ground
     from milewise.rag.search import RulesResult
 
     chunk = {
@@ -174,7 +173,7 @@ def _ask_with(monkeypatch: object, fares: object, replies: list[Any]) -> object:
     }
     fake = FakeChat(replies)
     monkeypatch.setattr(agent.llm, "chat_model", lambda *a, **k: fake.model)  # type: ignore[attr-defined]
-    monkeypatch.setattr(agent, "search_rules", lambda *a, **k: RulesResult("ok", [chunk]))  # type: ignore[attr-defined]
+    monkeypatch.setattr(ground, "search_rules", lambda *a, **k: RulesResult("ok", [chunk]))  # type: ignore[attr-defined]
     return agent.ask("出发地和终点可以在不同国家吗？", fares=fares, index=object(), history=[])  # type: ignore[arg-type]
 
 
@@ -198,8 +197,6 @@ def test_an_answer_from_memory_is_retried_with_a_lookup(monkeypatch, fares) -> N
 
 def test_a_second_answer_without_lookup_is_marked(monkeypatch, fares) -> None:  # type: ignore[no-untyped-def]
     from langchain_core.messages import AIMessage
-
-    from milewise.agent import UNCHECKED_NOTE
 
     res = _ask_with(monkeypatch, fares, [AIMessage("答一"), AIMessage("答二")])
     assert res.answer == "答二" + UNCHECKED_NOTE["zh"]  # type: ignore[attr-defined]
