@@ -10,6 +10,8 @@
 #   scripts/release.sh candidate-url       URL of the candidate alias
 #   scripts/release.sh promote             point `live` at the version `candidate` serves, and keep
 #                                          its index as the embedding cache for the next build
+#   scripts/release.sh needs-eval          after `index`: print "true" unless the change since the
+#                                          live commit cannot affect answers (see below)
 #
 # Everything is resolved through AWS APIs (no Terraform state), so the CI deploy role
 # needs no access to the state bucket.
@@ -71,6 +73,30 @@ case "$cmd" in
     # The index now serving users is the embedding cache for the next build.
     if [ -f build/index/manifest.json ]; then
       aws s3 sync build/index/ "$(artifacts)/index/live/" --only-show-errors --delete
+    fi
+    ;;
+  needs-eval)
+    # The eval may be skipped only when every file changed since the commit `live` serves is
+    # on the list below (page, bot check, logging, infra, tests, docs) AND the rules index
+    # just built is the one live serves. Anything else, or anything we cannot tell, evals:
+    # a path missing from the list costs one extra eval, never an untested release.
+    # The base is the live commit, not the previous push, so a release whose eval failed
+    # cannot ride along with a later docs-only push.
+    say() { echo "needs-eval: $*" >&2; }
+    v=$(aws lambda get-alias --function-name "$API" --name live --query FunctionVersion --output text 2>/dev/null) || { say "no live alias"; echo true; exit 0; }
+    desc=$(aws lambda get-function-configuration --function-name "$API" --qualifier "$v" --query Description --output text)
+    base=${desc%% *}
+    git cat-file -e "$base^{commit}" 2>/dev/null || { say "live commit '$base' not in history"; echo true; exit 0; }
+    built=$(python3 -c 'import json; print(json.load(open("build/index/manifest.json"))["content_sha256"])')
+    live=$(python3 -c 'import json; print(json.load(open("build/index-cache/manifest.json"))["content_sha256"])' 2>/dev/null || true)
+    [ "$built" = "$live" ] || { say "rules index differs from live"; echo true; exit 0; }
+    safe='^([^/]*\.md|docs/.*|src/milewise/static/.*|src/milewise/(guard|obs)\.py|infra/.*|\.github/.*|tests/.*|eval/results/.*|scripts/.*|edge/.*|Makefile|\.gitignore|\.env\.example|\.claude/.*)$'
+    changed=$(git diff --name-only "$base" HEAD)
+    other=$(printf '%s\n' "$changed" | grep -Ev "$safe" | grep -v '^$' || true)
+    if [ -n "$other" ]; then
+      say "changed since live ($base):"; printf '  %s\n' $other >&2; echo true
+    else
+      say "only page/infra/docs/test files changed since live ($base); skipping eval"; echo false
     fi
     ;;
   *)
