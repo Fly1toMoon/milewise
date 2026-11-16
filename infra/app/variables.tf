@@ -52,7 +52,13 @@ variable "public_daily_request_limit" {
 variable "public_daily_cost_limit_usd" {
   description = "Public model spend per JST day; with the request limit, whichever is reached first closes the day."
   type        = number
-  default     = 2
+  default     = 5
+}
+
+variable "public_monthly_cost_limit_usd" {
+  description = "Public model spend per JST calendar month; reaching it closes the public endpoint until the next month."
+  type        = number
+  default     = 50
 }
 
 variable "ip_window_limit" {

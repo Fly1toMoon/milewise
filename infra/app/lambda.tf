@@ -24,11 +24,8 @@ locals {
     "arn:aws:bedrock:${var.region}:${local.account_id}:inference-profile/${var.judge_model}",
     "arn:aws:bedrock:*::foundation-model/${replace(var.judge_model, "/^(jp|apac|global)\\./", "")}",
   ]
-  # The previous embedding model stays allowed until `live` serves an index built with the
-  # new one: queries are embedded with the model recorded in the shipped index (§9.18).
   bedrock_embedding = [
     "arn:aws:bedrock:${var.region}::foundation-model/${var.embedding_model}",
-    "arn:aws:bedrock:${var.region}::foundation-model/amazon.titan-embed-text-v2:0",
   ]
 }
 
@@ -116,16 +113,17 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = merge(local.common_env, {
-      APP_TOKEN_SECRET_ARN        = aws_secretsmanager_secret.app_token.arn
-      DAILY_REQUEST_LIMIT         = tostring(var.daily_request_limit) # owner pool
-      DAILY_COST_LIMIT_USD        = tostring(var.daily_cost_limit_usd)
-      PUBLIC_DAILY_REQUEST_LIMIT  = tostring(var.public_daily_request_limit)
-      PUBLIC_DAILY_COST_LIMIT_USD = tostring(var.public_daily_cost_limit_usd)
-      IP_WINDOW_LIMIT             = tostring(var.ip_window_limit)
-      IP_DAILY_LIMIT              = tostring(var.ip_daily_limit)
-      ALERT_TOPIC_ARN             = aws_sns_topic.alerts.arn
-      TURNSTILE_SITE_KEY          = var.turnstile_site_key
-      TURNSTILE_SECRET_ARN        = aws_secretsmanager_secret.turnstile.arn
+      APP_TOKEN_SECRET_ARN          = aws_secretsmanager_secret.app_token.arn
+      DAILY_REQUEST_LIMIT           = tostring(var.daily_request_limit) # owner pool
+      DAILY_COST_LIMIT_USD          = tostring(var.daily_cost_limit_usd)
+      PUBLIC_DAILY_REQUEST_LIMIT    = tostring(var.public_daily_request_limit)
+      PUBLIC_DAILY_COST_LIMIT_USD   = tostring(var.public_daily_cost_limit_usd)
+      PUBLIC_MONTHLY_COST_LIMIT_USD = tostring(var.public_monthly_cost_limit_usd)
+      IP_WINDOW_LIMIT               = tostring(var.ip_window_limit)
+      IP_DAILY_LIMIT                = tostring(var.ip_daily_limit)
+      ALERT_TOPIC_ARN               = aws_sns_topic.alerts.arn
+      TURNSTILE_SITE_KEY            = var.turnstile_site_key
+      TURNSTILE_SECRET_ARN          = aws_secretsmanager_secret.turnstile.arn
     })
   }
 

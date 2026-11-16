@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+
 from milewise.guard import DynamoStore
 
 
@@ -42,3 +44,25 @@ def test_dynamo_put_if_absent_is_conditional() -> None:
     assert "attribute_not_exists(pk)" in kw["ConditionExpression"] and kw["Item"]["sent"] == {
         "BOOL": True
     }
+
+
+def test_public_month_budget_closes_until_next_month() -> None:
+    from milewise.guard import Denied, Guard, Limits, MemoryStore
+
+    sent: list[str] = []
+    g = Guard(
+        MemoryStore(),
+        Limits(public_cost_usd=5, public_month_cost_usd=10),
+        alert=lambda subject, message: sent.append(subject),
+    )
+    for day in ("2026-11-01", "2026-11-02", "2026-11-03"):
+        g.reserve("public", day)
+        g.record_cost("public", day, 4.0)  # under the daily limit every day
+    for _ in range(2):  # 12 >= 10: closed for the rest of November, one email
+        with pytest.raises(Denied) as e:
+            g.reserve("public", "2026-11-04")
+        assert e.value.code == "public_month_budget"
+    assert sent == ["Milewise: public monthly limit reached (2026-11)"]
+    g.reserve("public", "2026-12-01")  # a new month
+    g.record_cost("owner", "2026-11-04", 100.0)  # the owner pool has no month limit
+    g.reserve("owner", "2026-11-05")

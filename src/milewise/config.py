@@ -44,7 +44,8 @@ class Settings(BaseSettings):
     # Public-endpoint guards (milewise.guard, design.md §4.8). QUOTA_TABLE empty = in-process.
     quota_table: str = ""
     public_daily_request_limit: int = 1000  # all public users together, per JST day
-    public_daily_cost_limit_usd: float = 2.0  # whichever is reached first closes the day
+    public_daily_cost_limit_usd: float = 5.0  # whichever is reached first closes the day
+    public_monthly_cost_limit_usd: float = 50.0  # closes the public endpoint until next month
     ip_window_limit: int = 5  # per IP (IPv6 /64) per 10 minutes
     ip_daily_limit: int = 20  # per IP per JST day
     alert_topic_arn: str = ""  # SNS topic: one email when the public budget closes a day

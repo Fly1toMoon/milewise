@@ -5,7 +5,7 @@
 # Each case starts with verified_at: null. A person checks it against the official page
 # (source_note says where) and sets verified_at / verified_by. The runner reports how many
 # cases are still unverified.
-# crosschecked_at: the author of the cases (Claude) re-read every expected figure, season
+# crosschecked_at: the author of the cases (an AI model) re-read every expected figure, season
 # range and rubric point in the saved official pages (raw/…, 2026-10-17), independently of
 # data/charts and of the tools. That is a second pass by the same author, not the human
 # verification above, so verified_at stays null until a person signs it off.

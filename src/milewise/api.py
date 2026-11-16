@@ -121,6 +121,7 @@ def guard() -> Guard:
     limits = Limits(
         public_requests=s.public_daily_request_limit,
         public_cost_usd=s.public_daily_cost_limit_usd,
+        public_month_cost_usd=s.public_monthly_cost_limit_usd,
         ip_window=s.ip_window_limit,
         ip_daily=s.ip_daily_limit,
         owner_requests=s.daily_request_limit,

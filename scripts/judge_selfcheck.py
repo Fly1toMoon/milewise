@@ -6,7 +6,7 @@ For every rubric-graded case the judge sees two synthetic answers:
 and we report how often it agrees. A judge that passes everything would make the
 rules/abstain accuracy meaningless.
 
-    uv run --env-file .env python scripts/judge_selfcheck.py [--judge-model gpt-6.1-sol]
+    uv run --env-file .env python scripts/judge_selfcheck.py [--judge-model bedrock:deepseek.v3.2]
 """
 
 from __future__ import annotations

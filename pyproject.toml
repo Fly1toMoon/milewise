@@ -1,7 +1,7 @@
 [project]
 name = "milewise"
 version = "0.1.0"
-description = "Award-ticket (mileage) assistant for ANA Mileage Club and JAL Mileage Bank, on AWS with the OpenAI API."
+description = "Award-ticket (mileage) assistant for ANA Mileage Club and JAL Mileage Bank, on AWS with Amazon Bedrock."
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
