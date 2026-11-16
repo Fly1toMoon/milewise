@@ -23,8 +23,10 @@ OFFICIAL_URLS = {
 URL_RE = re.compile(r"https?://[A-Za-z0-9\-._~:/?#@!$&*+=%]+")
 ANY_NUMBER = re.compile(r"\d{1,3}(?:[,，]\d{3})+|\d+")
 # Models sometimes write full-width marks (【D1】, ［D1］; seen with GLM-5): the answer is
-# normalised to [D1] before any check, so they are neither missed nor shown raw.
-_ANY_MARK = re.compile(r"[\[［【]\s*([CD]\d+)\s*[\]］】]")
+# normalised to [D1] before any check, so they are neither missed nor shown raw. Any one
+# letter is matched, not only C and D: GLM-5 has also invented ids such as [U1], which the
+# check must see (verify.py).
+_ANY_MARK = re.compile(r"[\[［【]\s*([A-Z]\d+)\s*[\]］】]")
 
 
 def normalize_marks(text: str) -> str:
