@@ -37,6 +37,27 @@ make import-raw index      # saved pages -> raw/ -> build/index (chunks + embedd
 make ask Q="東京→ロンドンのビジネスクラス特典航空券は何マイル必要？"
 ```
 
+## In the cloud
+
+```
+browser ─▶ milewise-ai.pages.dev (Cloudflare Pages Function, edge/)
+              │  forwards everything; adds the visitor IP + a shared secret
+              ▼
+           Lambda Function URL ─▶ FastAPI (page + /ask, streamed) ─▶ Bedrock
+                                     │
+                                     └─ DynamoDB: per-IP limits, answer cache, site budget
+```
+
+- **Open to anyone, with a hard cost ceiling** (design.md §4.8): per-IP limits (5 per 10 min,
+  20 per day), cached answers, a site budget ($5 a day, $50 a month), and a kill switch
+  (`make public-off`). Cloudflare Turnstile runs once per visit, in the background; the pass
+  is a 6-hour cookie bound to the visitor's IP.
+- **Eval-gated releases** (`.github/workflows/deploy.yml`): a push to `main` builds the image
+  (code + rules index), deploys it to a `candidate` alias, runs the eval set against it, and
+  moves `live` only if it passes. Docs-only pushes don't release; a change that cannot affect
+  answers (page, bot check, infra, tests) releases without the eval, judged against the
+  commit `live` serves.
+
 ## How it evolved
 
 The first version stored everything in Aurora PostgreSQL Serverless v2 with pgvector, reached
