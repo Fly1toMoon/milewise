@@ -53,8 +53,9 @@ browser ─▶ milewise-ai.pages.dev (Cloudflare Pages Function, edge/)
   (`make public-off`). Cloudflare Turnstile runs once per visit, in the background; the pass
   is a 6-hour cookie bound to the visitor's IP.
 - **Eval-gated releases** (`.github/workflows/deploy.yml`): a push to `main` builds the image
-  (code + rules index), deploys it to a `candidate` alias, runs the eval set against it, and
-  moves `live` only if it passes. Docs-only pushes don't release; a change that cannot affect
+  (code + rules index), deploys it to a `candidate` alias, runs two smoke cases against it
+  (charts, rules, citations, a follow-up; about $0.05), and moves `live` only if they pass.
+  The full 44 cases run locally (`make eval`) or in a manual run with `full_eval`. Docs-only pushes don't release; a change that cannot affect
   answers (page, bot check, infra, tests) releases without the eval, judged against the
   commit `live` serves.
 
