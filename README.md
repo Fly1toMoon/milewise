@@ -80,7 +80,8 @@ searched in memory (<3 ms per query); see design.md §4.6 for the trade-offs.
 ## Evaluation (2026-11-15)
 
 44 cases (miles 24 / rules 15 / both 2 / abstain 3; ja, zh, en; 8 of them multi-turn), gold answers
-taken from the airlines' official pages, not from Milewise's own tools. Miles are checked in code.
+taken from the airlines' official pages, not from Milewise's own tools, and checked against
+those pages by hand (2026-11-16; `verified_at` / `verified_by` in `eval/cases.yaml`). Miles are checked in code.
 Rules and abstain cases are graded by an LLM judge that rules on each required and each forbidden
 point and must quote the sentence it relied on; pass or fail is then computed in code.
 
