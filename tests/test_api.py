@@ -145,7 +145,9 @@ def test_public_question_needs_no_token_and_is_counted(
     assert events[-1][1]["cached"] is False and events[-1][1]["sources"] == [
         "https://www.ana.co.jp/x"
     ]
-    [day] = [v for k, v in store.items.items() if k.startswith("public#")]
+    [day] = [
+        v for k, v in store.items.items() if k.startswith("public#2")
+    ]  # the day, not public#m#<month>
     assert day["requests"] == 1 and day["cost_usd"] == pytest.approx(0.0003)
 
 
@@ -216,7 +218,9 @@ def test_same_question_is_answered_from_cache_for_free(
     done = sse_events(r.text)[-1][1]
     assert done["cached"] is True and done["cost_usd"] == 0.0
     assert calls.asked == ["東京→ロンドン"]  # the model ran once
-    [day] = [v for k, v in store.items.items() if k.startswith("public#")]
+    [day] = [
+        v for k, v in store.items.items() if k.startswith("public#2")
+    ]  # the day, not public#m#<month>
     assert day["requests"] == 1  # the cached answer did not use the site budget
 
 

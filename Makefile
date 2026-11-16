@@ -138,8 +138,8 @@ public-on:  ## Reopen the public endpoint
 	  '{"pk":{"S":"config#public"},"enabled":{"BOOL":true},"expires_at":{"N":"4102444800"}}'
 	@echo "public endpoint open (takes effect within 30 s)"
 
-public-status:  ## Kill switch and today's public / owner usage
-	@day=$$(TZ=Asia/Tokyo date +%F); for pk in config#public public#$$day owner#$$day alert#public#$$day; do \
+public-status:  ## Kill switch, today's public / owner usage, this month's public spend
+	@day=$$(TZ=Asia/Tokyo date +%F); for pk in config#public public#$$day public#m#$${day:0:7} owner#$$day alert#public#$$day; do \
 	  printf '%-26s ' $$pk; aws dynamodb get-item --table-name $(QUOTA_TABLE) --key "{\"pk\":{\"S\":\"$$pk\"}}" \
 	    --query 'Item.[enabled.BOOL, requests.N, cost_usd.N]' --output text; done
 

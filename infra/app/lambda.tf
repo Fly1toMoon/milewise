@@ -113,16 +113,17 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = merge(local.common_env, {
-      APP_TOKEN_SECRET_ARN        = aws_secretsmanager_secret.app_token.arn
-      DAILY_REQUEST_LIMIT         = tostring(var.daily_request_limit) # owner pool
-      DAILY_COST_LIMIT_USD        = tostring(var.daily_cost_limit_usd)
-      PUBLIC_DAILY_REQUEST_LIMIT  = tostring(var.public_daily_request_limit)
-      PUBLIC_DAILY_COST_LIMIT_USD = tostring(var.public_daily_cost_limit_usd)
-      IP_WINDOW_LIMIT             = tostring(var.ip_window_limit)
-      IP_DAILY_LIMIT              = tostring(var.ip_daily_limit)
-      ALERT_TOPIC_ARN             = aws_sns_topic.alerts.arn
-      TURNSTILE_SITE_KEY          = var.turnstile_site_key
-      TURNSTILE_SECRET_ARN        = aws_secretsmanager_secret.turnstile.arn
+      APP_TOKEN_SECRET_ARN          = aws_secretsmanager_secret.app_token.arn
+      DAILY_REQUEST_LIMIT           = tostring(var.daily_request_limit) # owner pool
+      DAILY_COST_LIMIT_USD          = tostring(var.daily_cost_limit_usd)
+      PUBLIC_DAILY_REQUEST_LIMIT    = tostring(var.public_daily_request_limit)
+      PUBLIC_DAILY_COST_LIMIT_USD   = tostring(var.public_daily_cost_limit_usd)
+      PUBLIC_MONTHLY_COST_LIMIT_USD = tostring(var.public_monthly_cost_limit_usd)
+      IP_WINDOW_LIMIT               = tostring(var.ip_window_limit)
+      IP_DAILY_LIMIT                = tostring(var.ip_daily_limit)
+      ALERT_TOPIC_ARN               = aws_sns_topic.alerts.arn
+      TURNSTILE_SITE_KEY            = var.turnstile_site_key
+      TURNSTILE_SECRET_ARN          = aws_secretsmanager_secret.turnstile.arn
     })
   }
 

@@ -329,7 +329,7 @@ const I18N = {
     error: "出错了（{id}）。可以再发一次。", network: "网络错误：{e}", httpError: "错误（{s}）", tooLong: "问题最多 500 字。",
     denied: {
       ip_window: "提问太频繁了，请几分钟后再试。", ip_daily: "这个网络今天的提问次数已用完，请明天再来。",
-      public_budget: "今天的免费额度已用完，日本时间 0 点恢复。", owner_budget: "站长额度今天已用完。",
+      public_budget: "今天的免费额度已用完，日本时间 0 点恢复。", public_month_budget: "本月的免费额度已用完，下月恢复。", owner_budget: "站长额度今天已用完。",
       public_off: "公开演示暂停中，请稍后再试。", bot_check: "人机验证未完成，请完成后再发送。",
     },
     examples: [
@@ -370,7 +370,7 @@ const I18N = {
     error: "エラーが発生しました（{id}）。もう一度送信できます。", network: "通信エラー：{e}", httpError: "エラー（{s}）", tooLong: "質問は500文字までです。",
     denied: {
       ip_window: "短時間に質問が多すぎます。数分後にもう一度お試しください。", ip_daily: "このネットワークからの本日の質問回数の上限に達しました。明日またお試しください。",
-      public_budget: "本日の無料デモの上限に達しました。日本時間の0時に再開します。", owner_budget: "オーナー枠の本日の上限に達しました。",
+      public_budget: "本日の無料デモの上限に達しました。日本時間の0時に再開します。", public_month_budget: "今月の無料デモの上限に達しました。来月に再開します。", owner_budget: "オーナー枠の本日の上限に達しました。",
       public_off: "公開デモは一時停止中です。しばらくしてからお試しください。", bot_check: "確認が完了していません。チェックを済ませてからもう一度送信してください。",
     },
     examples: [
@@ -411,7 +411,7 @@ const I18N = {
     error: "Something went wrong ({id}). You can send it again.", network: "Network error: {e}", httpError: "Error ({s})", tooLong: "Questions are limited to 500 characters.",
     denied: {
       ip_window: "Too many questions in a short time. Try again in a few minutes.", ip_daily: "This network has reached today's question limit. Please come back tomorrow.",
-      public_budget: "Today's free demo budget is used up. It reopens at midnight Japan time.", owner_budget: "The owner budget for today is used up.",
+      public_budget: "Today's free demo budget is used up. It reopens at midnight Japan time.", public_month_budget: "This month's free demo budget is used up. It reopens next month.", owner_budget: "The owner budget for today is used up.",
       public_off: "The public demo is paused. Please try again later.", bot_check: "The check is not complete. Finish it and send again.",
     },
     examples: [
@@ -800,7 +800,7 @@ async function submit() {
     const res = await fetch("/ask", { method: "POST", headers, body: JSON.stringify({ question, history }) });
     if (!res.ok) {
       let code = ""; try { code = (await res.json()).code || ""; } catch {}
-      fail(L.denied[code] || fmt(L.httpError, { s: res.status }), /^(ip_|public_budget|owner_budget)/.test(code)); return;
+      fail(L.denied[code] || fmt(L.httpError, { s: res.status }), /^(ip_|public_budget|public_month_budget|owner_budget)/.test(code)); return;
     }
     const reader = res.body.getReader(), dec = new TextDecoder(); let buf = "";
     let frame = 0;

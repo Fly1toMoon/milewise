@@ -9,7 +9,8 @@ Every question to POST /ask passes, in order:
                       cache: free, and it does not count against the site budget
   5. site budget      requests/day and model USD/day for all public users together; the
                       first to be reached closes the public endpoint until midnight JST,
-                      and the owner gets one email the first time it happens that day
+                      and the owner gets one email the first time it happens that day.
+                      Model USD per calendar month (JST) closes it until the next month.
 
 A request with the private owner token (you, and CI evals) skips 1-5 and uses its own
 daily budget, so a drained public budget never locks the owner out.
@@ -29,6 +30,7 @@ from decimal import Decimal
 from typing import Any, Protocol
 
 DAY_TTL = 2 * 86400
+MONTH_TTL = 40 * 86400
 WINDOW_S = 600
 
 
@@ -160,7 +162,8 @@ def question_key(question: str, *parts: str) -> str:
 @dataclass(frozen=True)
 class Limits:
     public_requests: int = 1000
-    public_cost_usd: float = 2.0
+    public_cost_usd: float = 5.0
+    public_month_cost_usd: float = 50.0
     ip_window: int = 5  # per WINDOW_S
     ip_daily: int = 20
     owner_requests: int = 300
@@ -216,6 +219,16 @@ class Guard:
     def reserve(self, pool: str, day: str) -> None:
         """Count one request against the pool's day; raise when the pool is closed."""
         req_limit, cost_limit = self._pool_limits(pool)
+        if pool == "public":
+            month, limit = day[:7], self.limits.public_month_cost_usd
+            spent = float((self.store.get(f"public#m#{month}") or {}).get("cost_usd", 0))
+            if spent >= limit:
+                self._alert_once(month, [f"model cost ${spent:.2f}/${limit:.2f} this month"])
+                raise Denied(
+                    429,
+                    "public_month_budget",
+                    "this month's free quota is used up; back next month",
+                )
         u = self.store.add(f"{pool}#{day}", {"requests": 1}, DAY_TTL)
         over = []
         if u["requests"] > req_limit:
@@ -232,6 +245,8 @@ class Guard:
     def record_cost(self, pool: str, day: str, cost_usd: float) -> None:
         if cost_usd > 0:
             self.store.add(f"{pool}#{day}", {"cost_usd": cost_usd}, DAY_TTL)
+            if pool == "public":
+                self.store.add(f"public#m#{day[:7]}", {"cost_usd": cost_usd}, MONTH_TTL)
 
     def usage(self, pool: str, day: str) -> dict[str, Any]:
         return self.store.get(f"{pool}#{day}") or {"requests": 0, "cost_usd": 0}
@@ -242,14 +257,19 @@ class Guard:
             return lim.public_requests, lim.public_cost_usd
         return lim.owner_requests, lim.owner_cost_usd
 
-    def _alert_once(self, day: str, reasons: list[str]) -> None:
+    def _alert_once(self, period: str, reasons: list[str]) -> None:
+        """One email per day ("2026-11-16") or month ("2026-11") the public endpoint closes."""
+        monthly = len(period) == 7
+        ttl = MONTH_TTL if monthly else DAY_TTL
         if self.alert and self.store.put(
-            f"alert#public#{day}", {"sent": True}, DAY_TTL, if_absent=True
+            f"alert#public#{period}", {"sent": True}, ttl, if_absent=True
         ):
             self.alert(
-                f"Milewise: public daily limit reached ({day})",
-                "The public endpoint stopped answering for today (JST): "
+                f"Milewise: public {'monthly' if monthly else 'daily'} limit reached ({period})",
+                f"The public endpoint stopped answering for {'this month' if monthly else 'today'}"
+                " (JST): "
                 + "; ".join(reasons)
-                + ".\nIt reopens at midnight JST. The owner token keeps working.\n"
+                + f".\nIt reopens {'next month' if monthly else 'at midnight JST'}."
+                " The owner token keeps working.\n"
                 "If this looks like abuse: `make public-off` closes the public endpoint.",
             )
