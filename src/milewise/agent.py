@@ -30,7 +30,14 @@ from milewise.ground import answer_model, build_tools, conversation_evidence, gr
 from milewise.prompt import detect_language, system_prompt
 from milewise.rag.index import RulesIndex, get_rules_index
 from milewise.rag.notes import notes_block, strip_notes_block
-from milewise.verify import POSTCHECK_WARNING, UNCHECKED_NOTE, Issue, revise_note, verify
+from milewise.verify import (
+    POSTCHECK_WARNING,
+    UNCHECKED_NOTE,
+    Issue,
+    drop_unknown_marks,
+    revise_note,
+    verify,
+)
 
 
 @dataclass
@@ -98,7 +105,8 @@ def ask(
         messages = turn.run(start=[*messages, HumanMessage(revise_note(issues))])
         remaining = verify(answer_text(messages), evidence)
     # rule notes are shown by the system, after the checks (they are not checked themselves)
-    answer = answer_text(messages)
+    # an id that still points nowhere after the rewrite is dropped; the warning stays
+    answer = drop_unknown_marks(answer_text(messages), evidence)
     answer += notes_block(answer, evidence.items, lang)
     if remaining:
         answer += POSTCHECK_WARNING[lang]
@@ -279,7 +287,7 @@ HISTORY_CHARS = 4000
 # up to this many characters in all. A count limit (6 chunks) used to cut off half of a page
 # once search_rules returned whole pages (design.md §4.13).
 HISTORY_EXCERPT_CHARS = 6000
-_CITE_MARK = re.compile(r"\s*\[[CD]\d+\]")
+_CITE_MARK = re.compile(r"\s*\[[A-Z]\d+\]")
 EXCERPTS_HEADER = (
     "[Rule excerpts this answer was based on. Context only: call search_rules again to cite them.]"
 )

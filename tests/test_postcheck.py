@@ -40,6 +40,21 @@ def test_unknown_citation_is_flagged() -> None:
     assert values("40,000マイル [C2]", evidence(), "citation") == ["[C2]"]
 
 
+def test_invented_id_letter_is_flagged() -> None:
+    # seen live with GLM-5: "必要マイル数は以下の通りです[U1]"
+    assert values("40,000マイル [C1]、シーズン[U1]", evidence(), "citation") == ["[U1]"]
+    from milewise.evidence import normalize_marks
+
+    assert values(normalize_marks("シーズン【U2】"), evidence(), "citation") == ["[U2]"]
+
+
+def test_marks_that_point_nowhere_are_dropped() -> None:
+    from milewise.verify import drop_unknown_marks
+
+    text = "40,000マイル [C1]、シーズン[U1]。往復 [C2]"
+    assert drop_unknown_marks(text, evidence()) == "40,000マイル [C1]、シーズン。往復"
+
+
 def test_invented_url_is_flagged() -> None:
     answer = "詳しくは https://www.ana.co.jp/ja/jp/guide/amc/award/ticket/ を参照"
     assert values(answer, evidence(), "url") == [

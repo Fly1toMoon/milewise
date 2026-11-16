@@ -204,7 +204,8 @@ def test_a_rewrite_that_still_fails_is_flagged(monkeypatch: pytest.MonkeyPatch, 
     assert len(calls) == 3  # still one rewrite
     assert not res.postcheck_ok
     assert [i["quote"] for i in res.check["remaining"]] == ["99,999 里程", "[D7]"]
-    assert res.answer == "需要 99,999 里程 [D7]。" + verify.POSTCHECK_WARNING["zh"]
+    # the id that points nowhere is not shown; the figure stays, under the warning
+    assert res.answer == "需要 99,999 里程。" + verify.POSTCHECK_WARNING["zh"]
 
 
 def test_revise_note_lists_each_issue() -> None:

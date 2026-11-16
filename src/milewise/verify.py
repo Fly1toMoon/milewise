@@ -17,7 +17,8 @@ from milewise.evidence import URL_RE, Evidence, as_int
 _MILES_NUMBER = re.compile(
     r"(\d{1,3}(?:[,，]\d{3})+|\d{4,})\s*(?:マイル|miles?|英里|里程|哩)", re.IGNORECASE
 )
-_EVIDENCE_MARK = re.compile(r"\[([CD]\d+)\]")
+# any one-letter id, so an invented one ([U1]) is caught too; real ids are C (charts) and D
+_EVIDENCE_MARK = re.compile(r"\[([A-Z]\d+)\]")
 
 POSTCHECK_WARNING = {
     "ja": "\n\n⚠️ 自動チェック: 根拠データにない数値・引用・リンクが含まれています。公式サイトで必ずご確認ください。",
@@ -37,6 +38,15 @@ class Issue:
     kind: str  # number | citation | url
     quote: str  # the value in the answer it is about
     problem: str
+
+
+def drop_unknown_marks(answer: str, evidence: Evidence) -> str:
+    """Remove evidence marks that point nowhere; they mean nothing to the reader."""
+    return re.sub(
+        r"\s*\[([A-Z]\d+)\]",
+        lambda m: m.group(0) if m.group(1) in evidence.items else "",
+        answer,
+    )
 
 
 def verify(answer: str, evidence: Evidence) -> list[Issue]:
