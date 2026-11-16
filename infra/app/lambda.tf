@@ -24,11 +24,8 @@ locals {
     "arn:aws:bedrock:${var.region}:${local.account_id}:inference-profile/${var.judge_model}",
     "arn:aws:bedrock:*::foundation-model/${replace(var.judge_model, "/^(jp|apac|global)\\./", "")}",
   ]
-  # The previous embedding model stays allowed until `live` serves an index built with the
-  # new one: queries are embedded with the model recorded in the shipped index (§9.18).
   bedrock_embedding = [
     "arn:aws:bedrock:${var.region}::foundation-model/${var.embedding_model}",
-    "arn:aws:bedrock:${var.region}::foundation-model/amazon.titan-embed-text-v2:0",
   ]
 }
 

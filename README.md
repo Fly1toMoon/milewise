@@ -21,7 +21,6 @@ build/index/           rules index built from raw pages (gitignored, shipped in 
 eval/                  evaluation cases and results
 infra/bootstrap/       persistent Terraform stack: state bucket, budgets, ECR, buckets, GitHub OIDC
 infra/app/             destroyable stack: Lambda + Function URLs, DynamoDB usage table, secrets, alarms
-infra/spikes/          throwaway experiments that validate design assumptions
 scripts/               crawlers, parsers, preflight checks
 ```
 

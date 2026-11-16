@@ -12,9 +12,6 @@
 # when_itinerary (optional) limits a note to conversations whose itinerary has that flag in
 # its itinerary_facts (milewise.tools.miles.ITINERARY_FLAGS), e.g. cn_with_hk_mo_tw: mainland
 # China together with Hong Kong, Macau or Taiwan. Without it the note is always attached.
-#
-# Notes are human conclusions: each one is checked by a person (checked_at / checked_by)
-# before it is merged.
 
 notes:
   - id: ow-japan-hatsuchaku
@@ -36,8 +33,6 @@ notes:
         Known example: an itinerary from Manila to Tokyo with a stopover in Osaka on the way
         has been ticketed (an online post, 2026-10). Each itinerary needs to be confirmed
         with JAL.
-    checked_at: null  # waiting for the user's confirmation
-    checked_by: null
 
   - id: ow-origin-country-cn
     url: https://www.jal.co.jp/jp/ja/jalmile/use/partner_air/oneworld/conditions.html
@@ -58,5 +53,3 @@ notes:
         same country of departure (出発国) as mainland China. Whether, for example, an
         itinerary from Hong Kong via Shanghai to a third country falls under this condition
         needs to be confirmed with JAL.
-    checked_at: null  # waiting for the user's confirmation
-    checked_by: null

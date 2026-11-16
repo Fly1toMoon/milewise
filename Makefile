@@ -5,7 +5,6 @@ export AWS_REGION  ?= ap-northeast-1
 TF            := terraform
 BOOTSTRAP_DIR := infra/bootstrap
 APP_DIR       := infra/app
-SPIKE_DIR     := infra/spikes/aurora-data-api
 BACKEND_HCL   := infra/backend.hcl
 
 .PHONY: help
@@ -79,27 +78,6 @@ bootstrap-backend:  ## After first apply: move bootstrap state into the S3 bucke
 	  -backend-config=../backend.hcl -backend-config="key=bootstrap/terraform.tfstate" && \
 	rm -f $(BOOTSTRAP_DIR)/terraform.tfstate $(BOOTSTRAP_DIR)/terraform.tfstate.backup && \
 	echo "Bootstrap state now in s3://$$bucket/bootstrap/terraform.tfstate"
-
-# ---------- Spike: Aurora Serverless v2 (min 0 ACU) + Data API + pgvector ----------
-.PHONY: spike-up spike-run spike-resume spike-down
-spike-up:  ## Create throwaway Aurora cluster (~10-15 min)
-	$(TF) -chdir=$(SPIKE_DIR) init -backend-config=../../backend.hcl -backend-config="key=spikes/aurora-data-api.tfstate"
-	$(TF) -chdir=$(SPIKE_DIR) apply
-
-spike-run:  ## Run Data API + pgvector checks against the spike cluster
-	uv run python scripts/spike_data_api.py \
-	  --cluster-arn $$($(TF) -chdir=$(SPIKE_DIR) output -raw cluster_arn) \
-	  --secret-arn  $$($(TF) -chdir=$(SPIKE_DIR) output -raw master_secret_arn) \
-	  --database    $$($(TF) -chdir=$(SPIKE_DIR) output -raw database_name)
-
-spike-resume:  ## Wait until the cluster auto-pauses (0 ACU), then time the first query
-	uv run python scripts/spike_data_api.py --measure-resume \
-	  --cluster-arn $$($(TF) -chdir=$(SPIKE_DIR) output -raw cluster_arn) \
-	  --secret-arn  $$($(TF) -chdir=$(SPIKE_DIR) output -raw master_secret_arn) \
-	  --database    $$($(TF) -chdir=$(SPIKE_DIR) output -raw database_name)
-
-spike-down:  ## Destroy the spike cluster
-	$(TF) -chdir=$(SPIKE_DIR) destroy
 
 # ---------- App stack (destroyable): make up / make down ----------
 IMAGE_TAG ?= $(shell git rev-parse --short HEAD 2>/dev/null || date +dev-%Y%m%d%H%M%S)
