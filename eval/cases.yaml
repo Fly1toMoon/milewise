@@ -53,9 +53,9 @@ cases:
       miles: [110000, 115000, 180000]
     gold_urls: [*ana_chart]
     source_note: "往復チャート 日本（Zone 1）発着 欧州・ロシア2（Zone 7）、C: L 110,000 / R 115,000 / H 改定後 180,000"
-    verified_at: null
+    verified_at: 2026-11-16
     crosschecked_at: 2026-10-18
-    verified_by: null
+    verified_by: Fly1toMoon
 
   - id: miles-02
     category: miles
@@ -65,9 +65,9 @@ cases:
       miles: [40000, 42500, 47500]
     gold_urls: [*ana_chart]
     source_note: "片道チャート 日本（Zone 1）発着 アジア2（Zone 4）、C: 40,000 / 42,500 / 47,500"
-    verified_at: null
+    verified_at: 2026-11-16
     crosschecked_at: 2026-10-18
-    verified_by: null
+    verified_by: Fly1toMoon
 
   - id: miles-03
     category: miles
@@ -77,9 +77,9 @@ cases:
       miles: [35000, 40000, 65000]
     gold_urls: [*ana_chart]
     source_note: "往復チャート 日本（Zone 1）発着 ハワイ（Zone 5）、Y: 35,000 / 40,000 / 改定後 65,000"
-    verified_at: null
+    verified_at: 2026-11-16
     crosschecked_at: 2026-10-18
-    verified_by: null
+    verified_by: Fly1toMoon
 
   - id: miles-04
     category: miles
@@ -89,9 +89,9 @@ cases:
       miles: [45000]
     gold_urls: [*ana_chart]
     source_note: "ANA公式の確認例（往路L・復路R）: 40,000÷2 + 50,000÷2 = 45,000。2/20は日本・北米/欧州カレンダーでL、3/5はR"
-    verified_at: null
+    verified_at: 2026-11-16
     crosschecked_at: 2026-10-18
-    verified_by: null
+    verified_by: Fly1toMoon
 
   - id: miles-05
     category: miles
@@ -101,9 +101,9 @@ cases:
       miles: [150000, 170000, 300000]
     gold_urls: [*ana_chart]
     source_note: "往復チャート 日本（Zone 1）発着 北米（Zone 6）、F: 150,000 / 170,000 / 改定後 300,000"
-    verified_at: null
+    verified_at: 2026-11-16
     crosschecked_at: 2026-10-18
-    verified_by: null
+    verified_by: Fly1toMoon
 
   - id: miles-06
     category: miles
@@ -113,9 +113,9 @@ cases:
       miles: [44000]
     gold_urls: [*ana_chart]
     source_note: "片道チャート 日本（Zone 1）発着 オセアニア（Zone 10）、PY H 44,000。8/10 は日本・ハワイ/オセアニアカレンダーで H（7/16～8/23）"
-    verified_at: null
+    verified_at: 2026-11-16
     crosschecked_at: 2026-10-18
-    verified_by: null
+    verified_by: Fly1toMoon
 
   - id: miles-07
     category: miles
@@ -125,9 +125,9 @@ cases:
       miles: [95000]
     gold_urls: [*ana_chart]
     source_note: "往復チャート 日本（Zone 1）発着 アジア2（Zone 4）、C H 改定後 95,000（札幌は日本 Zone 1）"
-    verified_at: null
+    verified_at: 2026-11-16
     crosschecked_at: 2026-10-18
-    verified_by: null
+    verified_by: Fly1toMoon
 
   - id: miles-08
     category: miles
@@ -137,9 +137,9 @@ cases:
       not_offered: true    # チャート上「設定なし」: must say it is not offered, give no F figure
     gold_urls: [*ana_chart]
     source_note: "往復・片道チャート 日本（Zone 1）発着 韓国・ロシア1（Zone 2）、F: 設定なし"
-    verified_at: null
+    verified_at: 2026-11-16
     crosschecked_at: 2026-10-18
-    verified_by: null
+    verified_by: Fly1toMoon
 
   - id: miles-09
     category: miles
@@ -152,9 +152,9 @@ cases:
       must_not_say: ["57,000マイルで必ず予約できる"]
     gold_urls: [*jal_chart]
     source_note: "日本発着（片道）基本マイル数 ヨーロッパ ロンドン C 57,000；PLUS利用時 ロンドン C 441,000"
-    verified_at: null
+    verified_at: 2026-11-16
     crosschecked_at: 2026-10-18
-    verified_by: null
+    verified_by: Fly1toMoon
 
   - id: miles-10
     category: miles
@@ -167,9 +167,9 @@ cases:
       must_not_say: []
     gold_urls: [*jal_chart]
     source_note: "基本マイル数 東アジア 台北－東京（羽田）便 Y 11,000 / 台北－東京（成田）、大阪（関西）、名古屋（中部）便 Y 9,000"
-    verified_at: null
+    verified_at: 2026-11-16
     crosschecked_at: 2026-10-18
-    verified_by: null
+    verified_by: Fly1toMoon
 
   - id: miles-11
     category: miles
@@ -179,9 +179,9 @@ cases:
       miles: [265000]
     gold_urls: [*jal_chart]
     source_note: "ファーストクラス ロンドン H 140,000（8/1 は H: 7/9～8/25）+ R 125,000（10/1 は R: 8/26～12/12）= 265,000（往復は片道の合算）"
-    verified_at: null
+    verified_at: 2026-11-16
     crosschecked_at: 2026-10-18
-    verified_by: null
+    verified_by: Fly1toMoon
 
   # ---------------------------------------------------------------- miles: periods (2026-10-18)
   # Composite questions: a travel period spanning several seasons, several cabins at once.
@@ -207,9 +207,9 @@ cases:
     gold_urls: [*ana_chart]
     source_note: "台北は Zone 3、カレンダー Zone2-3-4: 2027/7/1～7/15 R, 7/16～8/23 H, 8/24～9/30 R。片道チャート Zone1-Zone3: Y 10,000/15,000, PY 16,500/23,500, C 26,500/32,500（R/H）"
     revision_note: "2026-10-18: 往復/片道の指定がないときの既定を片道に変更（ユーザー決定）。期待値を片道に"
-    verified_at: null
+    verified_at: 2026-11-16
     crosschecked_at: 2026-10-18
-    verified_by: null
+    verified_by: Fly1toMoon
 
   - id: miles-13
     category: miles
@@ -227,9 +227,9 @@ cases:
     gold_urls: [*ana_chart]
     source_note: "往復チャート Zone1-Zone3: Y 20,000/30,000, PY 33,000/47,000, C 53,000/65,000（R/H）。カレンダーは miles-12 と同じ"
     revision_note: "2026-10-18: miles-12 が片道既定になったため、こちらを往復の明示ケースに変更"
-    verified_at: null
+    verified_at: 2026-11-16
     crosschecked_at: 2026-10-18
-    verified_by: null
+    verified_by: Fly1toMoon
 
   - id: miles-14
     category: miles
@@ -244,9 +244,9 @@ cases:
       must_not_say: ["特典航空券PLUSでファーストクラスのマイル数が増える"]
     gold_urls: [*jal_chart]
     source_note: "ファーストクラス シーズンカレンダー 2027/5/10～7/15 R、7/16～8/29 H。ロンドン F: L 110,000 / R 125,000 / H 140,000"
-    verified_at: null
+    verified_at: 2026-11-16
     crosschecked_at: 2026-10-18
-    verified_by: null
+    verified_by: Fly1toMoon
 
   - id: miles-15
     category: miles
@@ -264,9 +264,9 @@ cases:
       must_not_say: ["JAL 商务舱固定 57,000"]
     gold_urls: [*ana_chart, *jal_chart]
     source_note: "ANA 片道 Zone1-Zone7 C: 55,000/57,500/90,000。JAL ロンドン C 基本 57,000、PLUS 最大 441,000"
-    verified_at: null
+    verified_at: 2026-11-16
     crosschecked_at: 2026-10-18
-    verified_by: null
+    verified_by: Fly1toMoon
 
   # ---------------------------------------------------------------- miles: partner awards (2026-10-18)
   - id: miles-16
@@ -286,7 +286,8 @@ cases:
     gold_urls: [*ana_partner_chart]
     source_note: "提携航空会社特典航空券 必要マイルチャート アジア1（Zone 3）⇔欧州・ロシア2（Zone 7）: 往復 C 改定後 118,000、片道 C 59,000（2025年6月24日以降の予約・発券分）"
     revision_note: "2026-10-18: 提携チャート収録により abstain-04 から miles に移行"
-    verified_at: null
+    verified_at: 2026-11-16
+    verified_by: Fly1toMoon
     crosschecked_at: 2026-10-18
 
   - id: miles-17
@@ -303,7 +304,8 @@ cases:
       must_not_say: ["シーズンによって必要マイル数が変わる", "JAL 国際線特典航空券と同じチャート"]
     gold_urls: [*jal_ow_chart]
     source_note: "ワンワールド特典航空券 マイル早見表（日本にお住まいの方）: 総旅程距離の帯ごと。ご利用条件「本特典は距離制です」"
-    verified_at: null
+    verified_at: 2026-11-16
+    verified_by: Fly1toMoon
     crosschecked_at: 2026-10-18
 
   - id: miles-18
@@ -322,7 +324,8 @@ cases:
       must_not_say: ["シーズンによって必要マイル数が変わる"]
     gold_urls: [*jal_ow_chart]
     source_note: "ワンワールド特典航空券 マイル早見表: 1-4,000 マイル ビジネス 48,000。HND–HKG 大圏距離 約1,800マイル（OurAirports 座標）"
-    verified_at: null
+    verified_at: 2026-11-16
+    verified_by: Fly1toMoon
     crosschecked_at: 2026-10-18
 
   # ---------------------------------------------------------------- rules (7)
@@ -339,9 +342,9 @@ cases:
       must_not_say: ["一部使用済みでも払い戻せる", "手数料は無料"]
     gold_urls: [*ana_refund, *ana_revision]
     source_note: "変更・払い戻し > 未使用特典の払い戻し / ご注意、改定のお知らせ（3,000マイル）"
-    verified_at: null
+    verified_at: 2026-11-16
     crosschecked_at: 2026-10-18
-    verified_by: null
+    verified_by: Fly1toMoon
 
   - id: rules-02
     category: rules
@@ -358,9 +361,9 @@ cases:
     gold_urls: [*ana_refund]
     source_note: "変更・払い戻し > 変更；例外は 変更手続き の電話対応リスト（下位クラスへの変更）"
     revision_note: "2026-10-17: 公式に記載のある例外2件（下位クラスへの変更／上位クラスのマイルで発券済み区間の上位クラスへの変更）を許容。要人工確認"
-    verified_at: null
+    verified_at: 2026-11-16
     crosschecked_at: 2026-10-18
-    verified_by: null
+    verified_by: Fly1toMoon
 
   - id: rules-03
     category: rules
@@ -376,9 +379,9 @@ cases:
       must_not_say: ["同じチャート", "距離で決まる"]
     gold_urls: [*ana_partner]
     source_note: "提携航空会社特典航空券 ご利用条件 > 必要マイル数"
-    verified_at: null
+    verified_at: 2026-11-16
     crosschecked_at: 2026-10-18
-    verified_by: null
+    verified_by: Fly1toMoon
 
   - id: rules-04
     category: rules
@@ -393,9 +396,9 @@ cases:
       must_not_say: ["no refund for weather"]
     gold_urls: [*ana_refund]
     source_note: "変更・払い戻し > 悪天候や機材故障などが理由の変更・払い戻し"
-    verified_at: null
+    verified_at: 2026-11-16
     crosschecked_at: 2026-10-18
-    verified_by: null
+    verified_by: Fly1toMoon
 
   - id: rules-05
     category: rules
@@ -411,9 +414,9 @@ cases:
     gold_urls: [*ana_refund]
     source_note: "変更・払い戻し > 未使用特典の払い戻し > 口座に戻るマイルの有効期間；例外は 悪天候… > 日付変更に伴い…差額マイル"
     revision_note: "2026-10-17: must_not_say を通常の払い戻しに限定（悪天候時の36カ月は公式に記載あり）"
-    verified_at: null
+    verified_at: 2026-11-16
     crosschecked_at: 2026-10-18
-    verified_by: null
+    verified_by: Fly1toMoon
 
   - id: rules-06
     category: rules
@@ -427,9 +430,9 @@ cases:
       must_not_say: ["可以同时候补多个航班"]
     gold_urls: [*ana_application]
     source_note: "お申し込み方法 > 空席待ち"
-    verified_at: null
+    verified_at: 2026-11-16
     crosschecked_at: 2026-10-18
-    verified_by: null
+    verified_by: Fly1toMoon
 
   - id: rules-07
     category: rules
@@ -443,9 +446,9 @@ cases:
       must_not_say: ["クレジットカードで支払える"]
     gold_urls: [*ana_refund, *ana_revision]
     source_note: "変更・払い戻し > 未使用特典の払い戻し、改定のお知らせ"
-    verified_at: null
+    verified_at: 2026-11-16
     crosschecked_at: 2026-10-18
-    verified_by: null
+    verified_by: Fly1toMoon
 
   - id: rules-08
     category: rules
@@ -460,9 +463,9 @@ cases:
       must_not_say: ["発券後も日付変更できる", "ANAと同じく変更可能"]
     gold_urls: [*jal_refund]
     source_note: "JAL 変更・払い戻し > 予約の変更 > マイル引き落とし（発券）後の変更（ANAとは逆のルール）"
-    verified_at: null
+    verified_at: 2026-11-16
     crosschecked_at: 2026-10-18
-    verified_by: null
+    verified_by: Fly1toMoon
 
   - id: rules-09
     category: rules
@@ -476,9 +479,9 @@ cases:
       must_not_say: ["儿童半价", "婴儿免费"]
     gold_urls: [*jal_notes]
     source_note: "JAL 特典交換における注意事項 > マイルを特典に換える際の注意事項"
-    verified_at: null
+    verified_at: 2026-11-16
     crosschecked_at: 2026-10-18
-    verified_by: null
+    verified_by: Fly1toMoon
 
   - id: rules-10
     category: rules
@@ -493,7 +496,8 @@ cases:
       must_not_say: ["発券後は変更できない（取り消して取り直す必要がある）"]
     gold_urls: [*jal_ow_refund]
     source_note: "ワンワールド特典航空券 変更・払い戻し > マイル引き落とし（発券）後の変更 > 変更いただけるもの / 変更いただけないもの。rules-08（自社便は変更不可）と対になるケース"
-    verified_at: null
+    verified_at: 2026-11-16
+    verified_by: Fly1toMoon
     crosschecked_at: 2026-10-19
 
   # ---------------------------------------------------------------- both (2)
@@ -508,9 +512,9 @@ cases:
       must_not_say: ["一部使用済みでも払い戻せる"]
     gold_urls: [*ana_chart, *ana_refund]
     source_note: "パリは欧州・ロシア2（Zone 7）で東京→ロンドンと同じ欄"
-    verified_at: null
+    verified_at: 2026-11-16
     crosschecked_at: 2026-10-18
-    verified_by: null
+    verified_by: Fly1toMoon
 
   - id: both-02
     category: both
@@ -523,9 +527,9 @@ cases:
       must_not_say: ["class change allowed"]
     gold_urls: [*ana_chart, *ana_refund]
     source_note: "片道チャート Zone1-Zone4 C、変更・払い戻し > 変更"
-    verified_at: null
+    verified_at: 2026-11-16
     crosschecked_at: 2026-10-18
-    verified_by: null
+    verified_by: Fly1toMoon
 
   # ---------------------------------------------------------------- abstain (3)
   - id: abstain-01
@@ -536,9 +540,9 @@ cases:
       reason: "対象外の航空会社。ANA/JALのチャートの数字を流用してはいけない"
     gold_urls: []
     source_note: "対象はANA/JALのみ"
-    verified_at: null
+    verified_at: 2026-11-16
     crosschecked_at: 2026-10-18
-    verified_by: null
+    verified_by: Fly1toMoon
 
   - id: abstain-02
     category: abstain
@@ -550,9 +554,9 @@ cases:
     gold_urls: []
     source_note: "Milewise は空席を照会しない"
     revision_note: "2026-10-17: 必要マイルの提示は許可（根拠付きなら有益）。禁止は空席の有無の断定のみ"
-    verified_at: null
+    verified_at: 2026-11-16
     crosschecked_at: 2026-10-18
-    verified_by: null
+    verified_by: Fly1toMoon
 
   - id: abstain-03
     category: abstain
@@ -562,9 +566,9 @@ cases:
       reason: "国内線は第一版の対象外。国際線チャートの数字を答えてはいけない"
     gold_urls: []
     source_note: "国内線チャートは未収録（design.md R5）"
-    verified_at: null
+    verified_at: 2026-11-16
     crosschecked_at: 2026-10-18
-    verified_by: null
+    verified_by: Fly1toMoon
 
   # ---------------------------------------------------------------- follow-ups (2026-10-19)
   # history holds the earlier turns as the page sends them; the answer is graded for the
@@ -586,9 +590,9 @@ cases:
       must_not_say: ["JAL 也是 55,000 / 57,500 / 90,000", "JAL 商务舱固定 57,000"]
     gold_urls: [*jal_chart]
     source_note: "miles-09 / miles-15 と同じ: JAL ロンドン C 基本 57,000、PLUS 最大 441,000"
-    verified_at: null
+    verified_at: 2026-11-16
     crosschecked_at: 2026-10-19
-    verified_by: null
+    verified_by: Fly1toMoon
 
   - id: multi-02
     category: miles
@@ -604,9 +608,9 @@ cases:
       must_not_say: ["往復の 110,000 / 115,000 / 180,000 を片道として示す"]
     gold_urls: [*ana_chart]
     source_note: "片道 Zone1-Zone7 C: 55,000/57,500/90,000（miles-15 と同じ）"
-    verified_at: null
+    verified_at: 2026-11-16
     crosschecked_at: 2026-10-19
-    verified_by: null
+    verified_by: Fly1toMoon
 
   - id: multi-03
     category: rules
@@ -625,9 +629,9 @@ cases:
       must_not_say: ["the refund is free", "partially used tickets can be refunded"]
     gold_urls: [*ana_refund, *ana_revision]
     source_note: "rules-01 と同じ（変更・払い戻し > 未使用特典の払い戻し、改定のお知らせ）"
-    verified_at: null
+    verified_at: 2026-11-16
     crosschecked_at: 2026-10-19
-    verified_by: null
+    verified_by: Fly1toMoon
 
   # ---------------------------------------------------------------- itineraries (2026-10-20)
   # JAL partner awards are priced by the sum of every flown segment. Bands and prices are from
@@ -654,9 +658,9 @@ cases:
     gold_urls: [*jal_ow_chart, *jal_jmbp_chart]
     source_note: "ワンワールド 14,001–20,000 C 120,000 / JMB提携 14,001–20,000 C 130,000。距離は HND–HKG 1,804、HKG–LHR 5,984（大圏、Milewise 推定）"
     revision_note: "2026-10-20: ユーザーの実際の会話（経由地が無視されて東京–ロンドン直行で計算された）から作成"
-    verified_at: null
+    verified_at: 2026-11-16
     crosschecked_at: 2026-10-20
-    verified_by: null
+    verified_by: Fly1toMoon
 
   - id: miles-19
     category: miles
@@ -669,9 +673,9 @@ cases:
       must_not_say: ["東京→ロンドン直行の距離で計算"]
     gold_urls: [*jal_ow_chart]
     source_note: "ワンワールド 8,001–10,000 C 85,000。距離は HND→HKG→DOH→AMM→LHR の大圏合計 9,047（Milewise 推定、帯の境界から 3% 以上離れている）"
-    verified_at: null
+    verified_at: 2026-11-16
     crosschecked_at: 2026-10-20
-    verified_by: null
+    verified_by: Fly1toMoon
 
   - id: miles-20
     category: miles
@@ -686,9 +690,9 @@ cases:
       must_not_say: ["the train segment is added to the distance"]
     gold_urls: [*jal_ow_chart]
     source_note: "ワンワールド 12,001–14,000 Y 70,000。距離は HND–HEL 4,862 ほか 4区間の大圏合計 13,188（Milewise 推定）。地上移動区間は区間数・距離に含めない（利用区間・途中降機について）"
-    verified_at: null
+    verified_at: 2026-11-16
     crosschecked_at: 2026-10-20
-    verified_by: null
+    verified_by: Fly1toMoon
 
   - id: miles-21
     category: miles
@@ -711,9 +715,9 @@ cases:
       ワンワールド 14,001–20,000 C 120,000。距離は MNL–KUL 1,547 + SIN–KUL 185 + KUL–PVG 2,359 + PVG–KIX 812
       + KIX–HEL 4,805 + HEL–ICN 4,370 + ICN–HND 752 = 14,830（大圏、Milewise 推定、帯の境界から 3% 以上離れている）。
       利用区間は地上移動区間を除き8区間まで（利用区間・途中降機について）
-    verified_at: null
+    verified_at: 2026-11-16
     crosschecked_at: 2026-10-21
-    verified_by: null
+    verified_by: Fly1toMoon
 
   # ---------------------------------------------------------------- rule follow-ups (2026-11-11)
   # From a real conversation (docs/findings/2026-10-22-multiturn-rules.md): follow-ups were
@@ -745,9 +749,9 @@ cases:
     gold_urls: [*jal_ow_conditions]
     source_note: "ワンワールド特典航空券 > 利用区間・途中降機について（7回、1都市1回、日本国内2区間、日本発着）"
     revision_note: "2026-11-11: 実際の会話の第2問から作成。草案、ユーザー確認待ち"
-    verified_at: null
+    verified_at: 2026-11-16
     crosschecked_at: 2026-11-11
-    verified_by: null
+    verified_by: Fly1toMoon
 
   - id: multi-06
     category: rules
@@ -772,9 +776,9 @@ cases:
     gold_urls: [*jal_ow_conditions]
     source_note: "ワンワールド特典航空券 > 旅程について（片道可、出発地と最終帰着地が異なる国でも可）"
     revision_note: "2026-11-11: 実際の会話の第4問（「同じ出発地と目的地が必要」と誤答）から作成。草案、ユーザー確認待ち"
-    verified_at: null
+    verified_at: 2026-11-16
     crosschecked_at: 2026-11-11
-    verified_by: null
+    verified_by: Fly1toMoon
 
   - id: multi-07
     category: rules
@@ -800,9 +804,9 @@ cases:
     gold_urls: [*jal_ow_conditions]
     source_note: "ワンワールド特典航空券 > 旅程について / 利用区間・途中降機について"
     revision_note: "2026-11-11: 実際の会話の第6–7問（「港澳台は別計算」と創作）から作成。草案、ユーザー確認待ち"
-    verified_at: null
+    verified_at: 2026-11-16
     crosschecked_at: 2026-11-11
-    verified_by: null
+    verified_by: Fly1toMoon
 
   - id: multi-08
     category: rules
@@ -829,6 +833,6 @@ cases:
     gold_urls: [*jal_ow_conditions]
     source_note: "ワンワールド特典航空券 > 利用区間・途中降機について（日本発着の旅程の場合…）。実例: 網上の投稿（2026-10）"
     revision_note: "2026-11-11: 実際の会話の第8問（ユーザーの反論に同意して誤った結論へ）から作成。草案、ユーザー確認待ち"
-    verified_at: null
+    verified_at: 2026-11-16
     crosschecked_at: 2026-11-11
-    verified_by: null
+    verified_by: Fly1toMoon
