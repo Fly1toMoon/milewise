@@ -762,6 +762,13 @@ function renderTurnstile() {
       } catch {}
       turnstile.reset(turnstileWidget);
     },
+    // the check cannot run (e.g. 110200: this hostname is not on the widget): stop waiting,
+    // so the question goes out and /ask's bot_check notice tells the visitor
+    "error-callback": () => {
+      const done = humanDone; human = humanDone = null;
+      if (done) done();
+      return true;
+    },
   });
 }
 fetch("/config").then((r) => r.json()).then((cfg) => {
