@@ -6,6 +6,8 @@ Routes
   GET  /         single-page UI
   GET  /healthz  readiness check for the adapter
   GET  /config   public settings for the page (Turnstile site key)
+  POST /verify   check one Turnstile token and set a signed pass cookie (HUMAN_TTL), so
+                 the page verifies once per visit rather than once per question
   POST /ask      open to everyone behind milewise.guard (per-IP limits, answer cache,
                  site budget, kill switch); an owner Bearer token skips them.
                  Server-Sent Events: status → (progress | delta)* → answer → done
@@ -38,7 +40,16 @@ from pydantic import BaseModel, Field
 from milewise import llm
 from milewise.charts.store import get_fare_store
 from milewise.config import get_settings
-from milewise.guard import Denied, DynamoStore, Guard, Limits, MemoryStore, Store, question_key
+from milewise.guard import (
+    Denied,
+    DynamoStore,
+    Guard,
+    Limits,
+    MemoryStore,
+    Store,
+    client_key,
+    question_key,
+)
 from milewise.obs import emit
 from milewise.rag.index import get_rules_index
 from milewise.tools.miles import today_jst
@@ -78,7 +89,7 @@ def load_secrets() -> bool:
     would also take down /healthz. Callers retry on the next request. The OpenAI key is
     fetched only when some model is configured as openai:* (default: all on Bedrock).
     """
-    pairs = {"APP_TOKEN": "APP_TOKEN_SECRET_ARN"}
+    pairs = {"APP_TOKEN": "APP_TOKEN_SECRET_ARN", "EDGE_SECRET": "EDGE_SECRET_ARN"}
     if get_settings().turnstile_site_key:
         pairs["TURNSTILE_SECRET"] = "TURNSTILE_SECRET_ARN"
     if needs_openai():
@@ -185,11 +196,19 @@ def _is_owner(authorization: str | None) -> bool:
 
 
 def client_ip(request: Request) -> str:
-    """The caller's address as Lambda saw it, never a client-supplied X-Forwarded-For.
+    """The caller's address, never a client-supplied X-Forwarded-For.
 
-    Lambda Web Adapter passes the Function URL request context as a header it sets itself
+    Through the Cloudflare Pages proxy (milewise-ai.pages.dev) Lambda sees a Cloudflare
+    address, so the proxy sends the visitor's address in X-Viewer-IP together with the
+    shared edge secret; the header is trusted only with that secret. Otherwise Lambda Web
+    Adapter passes the Function URL request context as a header it sets itself
     (x-amzn-request-context); locally the socket peer is used.
     """
+    secret = get_settings().edge_secret
+    edge = request.headers.get("x-edge-secret")
+    viewer = request.headers.get("x-viewer-ip")
+    if secret and edge and viewer and hmac.compare_digest(edge.encode(), secret.encode()):
+        return viewer.strip()
     ctx = request.headers.get("x-amzn-request-context")
     if ctx:
         try:
@@ -216,6 +235,30 @@ def _verify_turnstile(token: str | None, ip: str) -> bool:
         return bool(r.json().get("success"))
     except (httpx.HTTPError, ValueError):
         return False
+
+
+HUMAN_COOKIE = "mw_human"
+HUMAN_TTL = 6 * 3600  # one Turnstile check covers this long, for one IP (/64 for IPv6)
+
+
+def _human_sig(exp: int, ip: str) -> str:
+    key = get_settings().turnstile_secret.encode()
+    return hmac.new(key, f"{exp}|{client_key(ip)}".encode(), hashlib.sha256).hexdigest()[:32]
+
+
+def _human_pass(ip: str, now: float | None = None) -> str:
+    exp = int(now if now is not None else time.time()) + HUMAN_TTL
+    return f"{exp}.{_human_sig(exp, ip)}"
+
+
+def _human_ok(cookie: str | None, ip: str) -> bool:
+    """A pass from /verify that is unexpired and was issued to this IP."""
+    if not cookie or not get_settings().turnstile_secret:
+        return False
+    exp_s, _, sig = cookie.partition(".")
+    if not exp_s.isdigit() or int(exp_s) < time.time():
+        return False
+    return hmac.compare_digest(sig, _human_sig(int(exp_s), ip))
 
 
 def _cache_key(question: str) -> str:
@@ -281,6 +324,32 @@ def config() -> dict[str, Any]:
     return {"turnstile_site_key": get_settings().turnstile_site_key or None}
 
 
+class VerifyBody(BaseModel):
+    token: str = Field(min_length=1, max_length=4096)
+
+
+@app.post("/verify")
+async def verify(body: VerifyBody, request: Request) -> JSONResponse:
+    await run_in_threadpool(require_secrets)
+    if not get_settings().turnstile_site_key:
+        return JSONResponse({"ok": True})
+    ip = client_ip(request)
+    if not await run_in_threadpool(_verify_turnstile, body.token, ip):
+        emit("verify_denied")
+        return _denied(Denied(403, "bot_check", "please complete the check and try again"))
+    r = JSONResponse({"ok": True, "ttl": HUMAN_TTL})
+    secure = request.headers.get("x-forwarded-proto", request.url.scheme) == "https"
+    r.set_cookie(
+        HUMAN_COOKIE,
+        _human_pass(ip),
+        max_age=HUMAN_TTL,
+        httponly=True,
+        secure=secure,
+        samesite="strict",
+    )
+    return r
+
+
 @app.post("/ask", response_model=None)
 async def ask_endpoint(
     body: AskBody,
@@ -299,7 +368,9 @@ async def ask_endpoint(
         if not owner:
             if not await run_in_threadpool(g.public_enabled):
                 raise Denied(503, "public_off", "the public demo is paused; please try later")
-            if not await run_in_threadpool(_verify_turnstile, x_turnstile_token, ip):
+            # the pass cookie from /verify; a per-question token is still accepted
+            human = _human_ok(request.cookies.get(HUMAN_COOKIE), ip)
+            if not human and not await run_in_threadpool(_verify_turnstile, x_turnstile_token, ip):
                 raise Denied(403, "bot_check", "please complete the check and try again")
             await run_in_threadpool(g.check_ip, ip, day)
             # a follow-up depends on its conversation, so only standalone questions are cached

@@ -32,3 +32,22 @@ resource "aws_secretsmanager_secret" "turnstile" {
   description             = "Cloudflare Turnstile secret key for the public page"
   recovery_window_in_days = 0
 }
+
+# Shared with the Cloudflare Pages proxy (edge/, milewise-ai.pages.dev): proves a request came
+# through it, so the API can trust the visitor IP it forwards. Generated here like the app
+# token; `make edge-deploy` copies it into the Pages project.
+resource "random_password" "edge_secret" {
+  length  = 40
+  special = false
+}
+
+resource "aws_secretsmanager_secret" "edge" {
+  name                    = "${local.name}/edge-secret"
+  description             = "Shared secret between the Cloudflare Pages proxy and the API"
+  recovery_window_in_days = 0
+}
+
+resource "aws_secretsmanager_secret_version" "edge" {
+  secret_id     = aws_secretsmanager_secret.edge.id
+  secret_string = random_password.edge_secret.result
+}

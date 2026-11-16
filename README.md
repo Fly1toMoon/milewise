@@ -7,6 +7,8 @@ Award-ticket (mileage) assistant for **ANA Mileage Club** and **JAL Mileage Bank
 - Every answer states its evidence (chart version / source URL), and says "not sure" when evidence is missing.
 - Each question goes through three steps (`ask()` in `src/milewise/agent.py`): **ground** (pick the model, look things up with tools), **write**, **verify** (every miles figure, citation and link must come from this turn's tool results; one rewrite if not). Whether an itinerary is allowed is never decided in code.
 
+**Try it: <https://milewise-ai.pages.dev>** (Chinese / Japanese / English; per-IP limits and a daily site budget apply).
+
 > Work in progress. Design: [docs/design.md](docs/design.md) (Chinese). Setup: [docs/prerequisites.md](docs/prerequisites.md).
 
 ## Repository layout
@@ -21,6 +23,7 @@ build/index/           rules index built from raw pages (gitignored, shipped in 
 eval/                  evaluation cases and results
 infra/bootstrap/       persistent Terraform stack: state bucket, budgets, ECR, buckets, GitHub OIDC
 infra/app/             destroyable stack: Lambda + Function URLs, DynamoDB usage table, secrets, alarms
+edge/                  Cloudflare Pages proxy: milewise-ai.pages.dev -> the Lambda Function URL
 scripts/               crawlers, parsers, preflight checks
 ```
 

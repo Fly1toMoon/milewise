@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from collections.abc import Iterator
 from typing import Any
 
@@ -248,6 +249,24 @@ def test_ip_comes_from_the_lambda_request_context_not_x_forwarded_for(
     assert ask(client, "q3", other).status_code == 200
 
 
+def test_visitor_ip_from_the_pages_proxy_needs_the_edge_secret(
+    client: TestClient, store: MemoryStore, calls: Calls, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("EDGE_SECRET", "edge-s3cret")
+    get_settings.cache_clear()
+    use_guard(monkeypatch, store, calls, ip_window=1)
+    cf = {"x-amzn-request-context": json.dumps({"http": {"sourceIp": "172.64.0.1"}})}
+    edge = {**cf, "x-edge-secret": "edge-s3cret"}
+    # two visitors behind the same Cloudflare address each get their own allowance
+    assert ask(client, "q1", {**edge, "x-viewer-ip": "203.0.113.7"}).status_code == 200
+    assert ask(client, "q2", {**edge, "x-viewer-ip": "203.0.113.8"}).status_code == 200
+    assert ask(client, "q3", {**edge, "x-viewer-ip": "203.0.113.7"}).status_code == 429
+    # without the right secret X-Viewer-IP is ignored: the caller is the Cloudflare address
+    forged = {**cf, "x-edge-secret": "guess", "x-viewer-ip": "198.51.100.1"}
+    assert ask(client, "q4", forged).status_code == 200
+    assert ask(client, "q5", {**cf, "x-viewer-ip": "198.51.100.2"}).status_code == 429
+
+
 def test_site_budget_closes_the_day_and_emails_once(
     client: TestClient, store: MemoryStore, calls: Calls, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -295,6 +314,30 @@ def test_turnstile_is_required_when_configured(
     assert r.status_code == 403 and r.json()["code"] == "bot_check"
     assert ask(client, "質問a", {"x-turnstile-token": "good"}).status_code == 200
     assert ask(client, "質問b", OWNER).status_code == 200  # owner skips the bot check
+
+
+def test_one_check_per_visit(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TURNSTILE_SITE_KEY", "0x4AAAAsite")
+    monkeypatch.setenv("TURNSTILE_SECRET", "0x4AAAAsecret")
+    get_settings.cache_clear()
+    checks: list[str] = []
+    monkeypatch.setattr(api, "_verify_turnstile", lambda t, ip: checks.append(t) or t == "good")
+    assert client.post("/verify", json={"token": "bad"}).status_code == 403
+    assert api.HUMAN_COOKIE not in client.cookies
+    r = client.post("/verify", json={"token": "good"})
+    assert r.status_code == 200 and "httponly" in r.headers["set-cookie"].lower()
+    # the pass covers every following question, with no further siteverify call
+    assert ask(client, "質問a").status_code == 200
+    assert ask(client, "質問b").status_code == 200
+    assert checks == ["bad", "good"]
+    # a pass issued to another IP, an expired one, or a forged one is refused
+    elsewhere = {"x-amzn-request-context": json.dumps({"http": {"sourceIp": "198.51.100.9"}})}
+    assert ask(client, "質問c", elsewhere).json()["code"] == "bot_check"
+    ip = "testclient"
+    old = api._human_pass(ip, now=time.time() - api.HUMAN_TTL - 1)
+    assert not api._human_ok(old, ip)
+    assert not api._human_ok("9999999999.forged", ip)
+    assert api._human_ok(api._human_pass(ip), ip)
 
 
 def test_ipv6_is_grouped_by_64() -> None:

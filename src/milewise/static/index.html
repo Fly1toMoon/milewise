@@ -262,7 +262,7 @@
         <button class="send" id="send" type="submit" data-i18n="send"></button>
       </form>
       <div class="under"><span class="hint" data-i18n="enterHint"></span><span class="count" id="count">0 / 500</span></div>
-      <div id="turnstile"></div>
+      <div id="turnstile" hidden></div>
     </div>
 
     <dialog class="info" id="info" aria-labelledby="info-title">
@@ -738,15 +738,41 @@ $("form").addEventListener("submit", (e) => { e.preventDefault(); submit(); });
 $("token").value = store.get("milewise-token");
 $("token").addEventListener("change", (e) => store.set("milewise-token", e.target.value.trim()));
 
-// Cloudflare Turnstile, only when the server has a site key configured.
-let turnstileWidget = null;
+// Cloudflare Turnstile, only when the server has a site key configured. The page checks
+// once per visit: the token goes to /verify, which sets a pass cookie that /ask accepts
+// for HUMAN_TTL. The widget stays invisible unless Cloudflare needs a click, and comes
+// back only when /ask refuses the pass (expired, or the IP changed).
+let turnstileWidget = null, turnstileLoaded = false, siteKey = null, human = null, humanDone = null;
+function checkHuman() {
+  if (!siteKey) return Promise.resolve();
+  if (human) return human;
+  human = new Promise((res) => { humanDone = res; });
+  if (turnstileLoaded) renderTurnstile();  // not window.turnstile: that is also the #turnstile div
+  return human;
+}
+function renderTurnstile() {
+  $("turnstile").hidden = false;
+  if (turnstileWidget !== null) { turnstile.reset(turnstileWidget); return; }
+  turnstileWidget = turnstile.render("#turnstile", {
+    sitekey: siteKey, size: "flexible", appearance: "interaction-only",
+    callback: async (token) => {
+      try {
+        const r = await fetch("/verify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }) });
+        if (r.ok) { $("turnstile").hidden = true; const done = humanDone; human = humanDone = null; done(); return; }
+      } catch {}
+      turnstile.reset(turnstileWidget);
+    },
+  });
+}
 fetch("/config").then((r) => r.json()).then((cfg) => {
   if (!cfg.turnstile_site_key) return;
-  window.onTurnstileLoad = () => {
-    turnstileWidget = turnstile.render("#turnstile", { sitekey: cfg.turnstile_site_key, size: "flexible" });
-  };
+  siteKey = cfg.turnstile_site_key;
+  checkHuman();
+  window.onTurnstileLoad = () => { turnstileLoaded = true; if (human) renderTurnstile(); };
   const sc = document.createElement("script");
   sc.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoad&render=explicit";
+  // script blocked: let questions go through, so /ask's bot_check notice explains it
+  sc.onerror = () => { const done = humanDone; siteKey = human = humanDone = null; if (done) done(); };
   sc.async = true; document.head.append(sc);
 }).catch(() => {});
 
@@ -793,13 +819,15 @@ async function submit() {
     const headers = { "Content-Type": "application/json" };
     const token = $("token").value.trim();
     if (token) headers["Authorization"] = "Bearer " + token;
-    if (window.turnstile && turnstileWidget !== null) {
-      headers["X-Turnstile-Token"] = turnstile.getResponse(turnstileWidget) || "";
-      turnstile.reset(turnstileWidget);  // one token per question
+    const post = () => fetch("/ask", { method: "POST", headers, body: JSON.stringify({ question, history }) });
+    if (!token && human) await human;  // the first question waits for the page's one check
+    const codeOf = async (r) => { try { return (await r.json()).code || ""; } catch { return ""; } };
+    let res = await post(), code = res.ok ? "" : await codeOf(res);
+    if (code === "bot_check" && siteKey) {  // pass expired or the IP changed: check again, retry once
+      await checkHuman();
+      res = await post(); code = res.ok ? "" : await codeOf(res);
     }
-    const res = await fetch("/ask", { method: "POST", headers, body: JSON.stringify({ question, history }) });
     if (!res.ok) {
-      let code = ""; try { code = (await res.json()).code || ""; } catch {}
       fail(L.denied[code] || fmt(L.httpError, { s: res.status }), /^(ip_|public_budget|public_month_budget|owner_budget)/.test(code)); return;
     }
     const reader = res.body.getReader(), dec = new TextDecoder(); let buf = "";

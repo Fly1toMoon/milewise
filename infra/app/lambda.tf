@@ -62,6 +62,7 @@ data "aws_iam_policy_document" "app_common" {
       aws_secretsmanager_secret.openai.arn,
       aws_secretsmanager_secret.app_token.arn,
       aws_secretsmanager_secret.turnstile.arn,
+      aws_secretsmanager_secret.edge.arn,
     ]
   }
   statement {
@@ -124,6 +125,7 @@ resource "aws_lambda_function" "api" {
       ALERT_TOPIC_ARN               = aws_sns_topic.alerts.arn
       TURNSTILE_SITE_KEY            = var.turnstile_site_key
       TURNSTILE_SECRET_ARN          = aws_secretsmanager_secret.turnstile.arn
+      EDGE_SECRET_ARN               = aws_secretsmanager_secret.edge.arn
     })
   }
 
