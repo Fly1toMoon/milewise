@@ -638,7 +638,7 @@ Data API 的代价（会如实写进 README 的已知局限）：
 | 顺序 | 措施 | 设定 | 说明 |
 |---|---|---|---|
 | 1 | 开关 | `make public-off` / `public-on` | 存在 DynamoDB 里，30 秒内生效，不用重新部署 |
-| 2 | 人机验证 | Cloudflare Turnstile（配置了 site key 才启用） | 每个问题一个 token，服务端调用 siteverify 校验 |
+| 2 | 人机验证 | Cloudflare Turnstile（配置了 site key 才启用） | **每次访问验证一次**（2026-11-16 起；原为每个问题一次）：打开页面时在后台验证，`POST /verify` 调 siteverify 通过后发一个 6 小时有效、绑定 IP（IPv6 按 /64）的签名 cookie（HttpOnly、SameSite=Strict，用 Turnstile secret 做 HMAC），之后的提问只检查 cookie。小组件用 `interaction-only`，只有 Cloudflare 要求点击时才出现；cookie 过期或 IP 变了，`/ask` 返回 `bot_check`，页面自动重新验证并重发一次 |
 | 3 | 按 IP 限流 | 每 10 分钟 5 次、每天 20 次 | IPv6 按 /64 合并；IP 取自 Lambda Web Adapter 传来的 Function URL 请求上下文（`x-amzn-request-context`），不信任客户端自带的 `X-Forwarded-For` |
 | 4 | 回答缓存 | 同一天、同一问题（规范化后）、同一数据版本、同一模型和 prompt | 命中缓存不花钱，也不计入全站预算；只缓存通过后置校验的回答 |
 | 5 | 全站每日预算 | 1000 次或 $2（日本时间按天），先到先停 | 当天第一次触发时通过 SNS 发一封邮件（用 DynamoDB 条件写入去重） |
@@ -647,6 +647,8 @@ Data API 的代价（会如实写进 README 的已知局限）：
 - **最坏情况**：公开额度每天 $2 → 每月 $60，加上运营者额度（每天最多 $3，只有持有 token 才能用）。正常使用远低于此；告警阈值是两者之和（每天 $5）。
 - **状态存储**：新表 `milewise-quota`，以 `pk` 为键（`ip#…#w#…`、`ip#…#d#…`、`public#日期`、`owner#日期`、`cache#…`、`config#public`、`alert#public#日期`），全部带 TTL。旧表 `milewise-usage` 保留一个版本，让上线过程中仍在服务的旧版本继续可用。
 - **不做的事**：缩短回答长度、缩短问题长度（会影响回答质量，用户决定不做）。
+- **为什么不再每问一验**（2026-11-16）：每次提问都重置小组件，页面会闪一下，有时还要点一次，影响使用。改成每次访问一次后，拿到 cookie 的脚本在 6 小时内不会再被验证，但 3–5 的限流和全站预算不变，最坏费用和原来一样。
+- **网址 `milewise-ai.pages.dev`**（2026-11-16）：Function URL 不能绑自定义域名，原地址 `….lambda-url.ap-northeast-1.on.aws` 看着像临时地址。前面加一个 Cloudflare Pages 项目 `milewise-ai`（`edge/`；`milewise.pages.dev` 已被别人占用），唯一的 Pages Function 把所有请求原样转给 live Function URL，回答照样流式返回；不用买域名，以后想换自己的域名在 Pages 上绑定即可。**限流不受影响**：Lambda 看到的来源变成 Cloudflare 的地址，所以代理把访客 IP（`CF-Connecting-IP`）放进 `X-Viewer-IP`，并带上共享密钥 `X-Edge-Secret`（Terraform 生成，存在 Secrets Manager，`make edge-deploy` 写进 Pages）；API 只在密钥正确时采用 `X-Viewer-IP`，两个头都由代理覆盖，访客伪造不了。原 Function URL 仍可直接访问，此时按 Lambda 请求上下文取 IP，和以前一样。
 
 ### 4.11 回答模型改为 GLM-5（2026-10-21）
 
@@ -1157,6 +1159,7 @@ ADR 列表（M1 起逐步补齐，放在 `docs/adr/`）：
 - **配额**：DynamoDB `milewise-usage`（on-demand，`ADD` 原子计数，TTL 35 天）；本地没有表名时用进程内计数。
 - **评测记录**：JSONL + 报告上传到 `s3://milewise-artifacts-<account>/eval/`（`runs/`、`reports/`），每次运行记录所用索引的 `content_sha256`。
 - **发布**：`release.sh index`（从 raw 桶同步原文，以 `artifacts/index/live/` 为 embedding 缓存构建索引）→ `candidate`（镜像 = 代码 + 索引，版本描述里带索引哈希）→ 评测 → `promote`（同时把这份索引写回 `index/live/` 作为下次的缓存）。
+- **评测按改动跳过**（2026-11-16）：只改 `docs/` 或根目录 `*.md` 的推送不发布；其余推送由 `release.sh needs-eval` 决定是否评测——拿**当前 live 版本对应的提交**做基准（不是上一次推送，避免评测失败的改动搭着后面的推送上线），只有改动的文件全部属于网页 / 人机验证 / 日志 / infra / 测试 / 脚本 / 文档，**且**新建的规则索引和 live 的一样时才跳过评测直接 promote。白名单之外、或查不到 live 提交时一律评测：漏列一个路径的代价是多评一次，而不是没评就上线。手动触发（workflow_dispatch）始终评测。
 - **删除**：Aurora 集群、VPC / 子网、Data API 权限、SQS + DLQ、导入 Lambda、DLQ 告警、`db/migrations`、本地 docker compose 的 Postgres。CI 不再需要 pgvector service。
 
 ### 9.14 Bedrock 切换的 A/B（2026-10-18，设计见 §4.7）

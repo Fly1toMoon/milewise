@@ -83,7 +83,7 @@ bootstrap-backend:  ## After first apply: move bootstrap state into the S3 bucke
 IMAGE_TAG ?= $(shell git rev-parse --short HEAD 2>/dev/null || date +dev-%Y%m%d%H%M%S)
 TFOUT      = $(TF) -chdir=$(APP_DIR) output -raw
 
-.PHONY: image index-cloud candidate eval-candidate promote release deploy app-init app-plan app-apply put-openai-key upload-raw smoke up down public-off public-on public-status put-turnstile-secret
+.PHONY: image index-cloud candidate eval-candidate promote release deploy app-init app-plan app-apply put-openai-key upload-raw smoke up down public-off public-on public-status put-turnstile-secret edge-deploy
 # Lambda rejects OCI indexes with attestation manifests, so attestations are disabled.
 image:  ## Build the arm64 image (code + build/index) and push it to ECR as $(IMAGE_TAG)
 	@test -f build/index/manifest.json || { echo "build/index missing: make index" >&2; exit 1; }
@@ -146,6 +146,16 @@ public-status:  ## Kill switch, today's public / owner usage, this month's publi
 put-turnstile-secret:  ## Store TURNSTILE_SECRET (from .env) in Secrets Manager; set turnstile_site_key in tfvars
 	@set -a; [ -f .env ] && . ./.env; set +a; test -n "$$TURNSTILE_SECRET" || { echo "TURNSTILE_SECRET is not set" >&2; exit 1; }; \
 	aws secretsmanager put-secret-value --secret-id milewise/turnstile-secret --secret-string "$$TURNSTILE_SECRET" --query Name --output text
+
+WRANGLER = npx --yes wrangler@4.156.0
+edge-deploy:  ## Deploy the milewise-ai.pages.dev proxy (edge/); needs `npx wrangler login` once
+	@url=$$($(TFOUT) live_url) && \
+	secret=$$(aws secretsmanager get-secret-value --secret-id $$($(TFOUT) edge_secret_arn) --query SecretString --output text) && \
+	cd edge && \
+	{ $(WRANGLER) pages project list | grep -q ' milewise-ai ' || $(WRANGLER) pages project create milewise-ai --production-branch main; } && \
+	printf '%s' "$$url" | $(WRANGLER) pages secret put ORIGIN_URL --project-name milewise-ai && \
+	printf '%s' "$$secret" | $(WRANGLER) pages secret put EDGE_SECRET --project-name milewise-ai && \
+	$(WRANGLER) pages deploy public --project-name milewise-ai --branch main --commit-dirty=true
 
 smoke:  ## Health, auth and one real question against the live URL
 	uv run python scripts/smoke.py $$($(TFOUT) live_url) $$($(TFOUT) app_token_secret_arn)

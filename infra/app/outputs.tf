@@ -25,3 +25,7 @@ output "usage_table" {
 output "quota_table" {
   value = aws_dynamodb_table.quota.name
 }
+
+output "edge_secret_arn" {
+  value = aws_secretsmanager_secret.edge.arn
+}

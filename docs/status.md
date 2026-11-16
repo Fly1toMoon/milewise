@@ -13,7 +13,7 @@
 | Agent / 后置校验 | ✅ | 取证 / 写 / 校验三段（design.md §4.13）：数字、引用、URL 都只允许来自本轮工具结果，不通过重写一次，仍不通过则在回答末尾提示。模型全部在 Bedrock |
 | 评测 | 🟡 | 44 题。本地 2026-11-15：43/44（唯一失败的 miles-21 是裁判引用原句对不上的疑似误判，见 `eval/results/latest.md`）；云端发布闸门 2026-11-15：44/44（miles-16 重试后通过），$1.07。裁判 DeepSeek V3.2，逐条判定。**标准答案已由出题者复核，但还没有人工核对** |
 | 云端 | ✅ | live v32（`aab447c`，2026-11-15 由 GitHub deploy 发布：索引 → 镜像 → candidate → 评测闸门 → promote）。Lambda + DynamoDB，无数据库；模型全部在 Bedrock |
-| 公开访问 | ✅ | 网页不需要 token：按 IP 限流（10 分钟 5 次 / 每天 20 次）、回答缓存、全站每日 1000 次或 $5（先到先停，触发时发邮件）、每月 $50（到了就停到下月）、`make public-off` 开关；Turnstile 已支持，**等你在 Cloudflare 创建 site key 后启用**（design.md §4.8） |
+| 公开访问 | ✅ | 网页不需要 token：按 IP 限流（10 分钟 5 次 / 每天 20 次）、回答缓存、全站每日 1000 次或 $5（先到先停，触发时发邮件）、每月 $50（到了就停到下月）、`make public-off` 开关；Cloudflare Turnstile 人机验证已启用，每次访问在后台验证一次、6 小时内有效；网址 `milewise-ai.pages.dev`（Cloudflare Pages 转发，design.md §4.8） |
 | 回答模型 | ✅ | GLM-5（design.md §4.11）；上一条回答引用过规则条文的追问由 Kimi K3.1 回答（`follow_up_model`，§4.13）。GLM-5 约 $0.015/问、7 秒；Kimi 约 $0.1/问、20 秒 |
 | 网页 | ✅ | 2026-10-19 支持多轮对话（design.md §4.10）：对话式布局、可追问、对话列表；之前同日重做（design.md §4.9）：航图风格、逐字流式回答（显示"正在查里程表/检索规则"）、可点击的引用与来源详情、本地历史记录、中/日/英界面、手机布局、深色模式 |
 | Dashboard | ✅ | CloudWatch `milewise`：提问数/错误、延迟 p50/p95/冷启动、每日费用（对照上限）、token 与后置校验失败、最近 50 次提问 |
@@ -42,10 +42,11 @@
 - [x] ~~决定默认往返还是单程~~：默认单程（2026-10-18）
 - [x] ~~确认 SNS 订阅邮件~~（2026-10-18 已确认）
 - [x] ~~是否下载 OurAirports 机场坐标~~：已下载，只提交用到的 77 个机场
+- [ ] Turnstile 小组件的 Hostnames 加上 `milewise-ai.pages.dev`（之前加的 `milewise.pages.dev` 可以删掉）
 - [ ] 确认第一张出现 Cohere（"AWS Marketplace software usage"）的账单是否被 credit 抵扣
 - [x] ~~apply `infra/app` 和 `infra/bootstrap`、启用 deploy 工作流~~（2026-11-15 完成，live v32）
 - [ ] 核对 Kimi K3.1 的实际账单：`config.PRICES` 里 `global.moonshotai.kimi-k3.1` 用的是 Kimi K3 global 的报价（$3.00 / $0.30 / $15.00 每百万 token），评测和每日预算里的费用都按它算
-- [ ] （可选）在 Cloudflare 创建 Turnstile 小组件，把 site key 告诉我、secret 放进 `.env` 的 `TURNSTILE_SECRET`，然后 `make put-turnstile-secret`
+- [x] ~~在 Cloudflare 创建 Turnstile 小组件~~：已创建并启用
 - [x] ~~给云端单独建一个 OpenAI key~~：不再需要（模型都在 Bedrock；OpenAI 只用于本地 A/B）
 - [x] push 到 GitHub 并设置 CI 用的 repo 变量
 

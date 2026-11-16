@@ -5,11 +5,18 @@
 # After uploading new raw pages (make upload-raw), run this workflow by hand (workflow_dispatch).
 # AWS access is through GitHub OIDC (role created in infra/bootstrap; no stored keys).
 # When the app stack has been destroyed (`make down`), the job skips instead of failing.
+# Pushes that only touch Markdown or docs/ do not release (nothing in the image changes).
+# A push whose changes since the live commit cannot affect answers (page, bot check, infra,
+# tests; `release.sh needs-eval` has the list) releases without the eval. A manual run
+# always evals.
 name: deploy
 
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "*.md"
+      - "docs/**"
   workflow_dispatch:
 
 permissions:
@@ -29,6 +36,8 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # needs-eval diffs against the commit live serves
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
@@ -57,8 +66,18 @@ jobs:
         if: steps.stack.outputs.up == 'true'
         run: scripts/release.sh candidate "${GITHUB_SHA::7}"
 
-      - name: Evaluate the candidate
+      - name: Does this change need the eval?
+        id: gate
         if: steps.stack.outputs.up == 'true'
+        run: |
+          if [ "${{ github.event_name }}" = workflow_dispatch ]; then
+            echo "eval=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "eval=$(scripts/release.sh needs-eval)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Evaluate the candidate
+        if: steps.stack.outputs.up == 'true' && steps.gate.outputs.eval == 'true'
         run: |
           eval "$(scripts/release.sh eval-env)"
           uv run milewise eval \
@@ -68,14 +87,19 @@ jobs:
 
       - name: Eval report
         if: always() && steps.stack.outputs.up == 'true'
-        run: cat eval/results/latest.md >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          if [ "${{ steps.gate.outputs.eval }}" = false ]; then
+            echo "Eval skipped: nothing that affects answers changed since the live commit." >> "$GITHUB_STEP_SUMMARY"
+          else
+            cat eval/results/latest.md >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Promote to live
         if: steps.stack.outputs.up == 'true'
         run: scripts/release.sh promote
 
       - uses: actions/upload-artifact@v7
-        if: always() && steps.stack.outputs.up == 'true'
+        if: always() && steps.stack.outputs.up == 'true' && steps.gate.outputs.eval != 'false'
         with:
           name: eval-results
           path: eval/results/

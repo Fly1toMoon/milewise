@@ -52,6 +52,10 @@ class Settings(BaseSettings):
     turnstile_site_key: str = ""  # Cloudflare Turnstile; empty = bot check off
     turnstile_secret: str = ""
     turnstile_secret_arn: str = ""
+    # Shared with the Cloudflare Pages proxy (edge/): a request carrying it came through
+    # milewise-ai.pages.dev, so its X-Viewer-IP header (Cloudflare's CF-Connecting-IP) is trusted.
+    edge_secret: str = ""
+    edge_secret_arn: str = ""
 
     # Public endpoint guards (design.md R7). In Lambda the secrets come from Secrets
     # Manager ARNs and are resolved once at start-up (milewise.api.load_secrets).

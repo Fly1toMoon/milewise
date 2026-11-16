@@ -7,6 +7,8 @@ Award-ticket (mileage) assistant for **ANA Mileage Club** and **JAL Mileage Bank
 - Every answer states its evidence (chart version / source URL), and says "not sure" when evidence is missing.
 - Each question goes through three steps (`ask()` in `src/milewise/agent.py`): **ground** (pick the model, look things up with tools), **write**, **verify** (every miles figure, citation and link must come from this turn's tool results; one rewrite if not). Whether an itinerary is allowed is never decided in code.
 
+**Try it: <https://milewise-ai.pages.dev>** (Chinese / Japanese / English; per-IP limits and a daily site budget apply).
+
 > Work in progress. Design: [docs/design.md](docs/design.md) (Chinese). Setup: [docs/prerequisites.md](docs/prerequisites.md).
 
 ## Repository layout
@@ -21,6 +23,7 @@ build/index/           rules index built from raw pages (gitignored, shipped in 
 eval/                  evaluation cases and results
 infra/bootstrap/       persistent Terraform stack: state bucket, budgets, ECR, buckets, GitHub OIDC
 infra/app/             destroyable stack: Lambda + Function URLs, DynamoDB usage table, secrets, alarms
+edge/                  Cloudflare Pages proxy: milewise-ai.pages.dev -> the Lambda Function URL
 scripts/               crawlers, parsers, preflight checks
 ```
 
@@ -33,6 +36,27 @@ make test                  # unit tests: parsers, miles golden values, index, po
 make import-raw index      # saved pages -> raw/ -> build/index (chunks + embeddings)
 make ask Q="東京→ロンドンのビジネスクラス特典航空券は何マイル必要？"
 ```
+
+## In the cloud
+
+```
+browser ─▶ milewise-ai.pages.dev (Cloudflare Pages Function, edge/)
+              │  forwards everything; adds the visitor IP + a shared secret
+              ▼
+           Lambda Function URL ─▶ FastAPI (page + /ask, streamed) ─▶ Bedrock
+                                     │
+                                     └─ DynamoDB: per-IP limits, answer cache, site budget
+```
+
+- **Open to anyone, with a hard cost ceiling** (design.md §4.8): per-IP limits (5 per 10 min,
+  20 per day), cached answers, a site budget ($5 a day, $50 a month), and a kill switch
+  (`make public-off`). Cloudflare Turnstile runs once per visit, in the background; the pass
+  is a 6-hour cookie bound to the visitor's IP.
+- **Eval-gated releases** (`.github/workflows/deploy.yml`): a push to `main` builds the image
+  (code + rules index), deploys it to a `candidate` alias, runs the eval set against it, and
+  moves `live` only if it passes. Docs-only pushes don't release; a change that cannot affect
+  answers (page, bot check, infra, tests) releases without the eval, judged against the
+  commit `live` serves.
 
 ## How it evolved
 
