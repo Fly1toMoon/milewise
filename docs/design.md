@@ -1161,6 +1161,7 @@ ADR 列表（M1 起逐步补齐，放在 `docs/adr/`）：
 - **评测记录**：JSONL + 报告上传到 `s3://milewise-artifacts-<account>/eval/`（`runs/`、`reports/`），每次运行记录所用索引的 `content_sha256`。
 - **发布**：`release.sh index`（从 raw 桶同步原文，以 `artifacts/index/live/` 为 embedding 缓存构建索引）→ `candidate`（镜像 = 代码 + 索引，版本描述里带索引哈希）→ 评测 → `promote`（同时把这份索引写回 `index/live/` 作为下次的缓存）。
 - **评测按改动跳过**（2026-11-16）：只改 `docs/` 或根目录 `*.md` 的推送不发布；其余推送由 `release.sh needs-eval` 决定是否评测——拿**当前 live 版本对应的提交**做基准（不是上一次推送，避免评测失败的改动搭着后面的推送上线），只有改动的文件全部属于网页 / 人机验证 / 日志 / infra / 测试 / 脚本 / 文档，**且**新建的规则索引和 live 的一样时才跳过评测直接 promote。白名单之外、或查不到 live 提交时一律评测：漏列一个路径的代价是多评一次，而不是没评就上线。手动触发（workflow_dispatch）始终评测。
+- **发布评测改为冒烟测试**（2026-11-16）：完整 44 题每次约 $1，又和运营者额度（$3/天）共用，开发阶段一天发布几次就会把额度用光（当天 #6 的发布评测全部 429）。发布时只跑 `SMOKE_CASES`（`both-01`：查里程表 + 查规则 + 引用 + 裁判；`multi-01`：中文追问，带对话历史），约 $0.05，能证明 candidate 能正常回答即可。完整评测改为本地 `make eval`，或手动运行 deploy 时勾选 `full_eval`；评测记录里用 `trigger` 区分（`ci-deploy-smoke` / `ci-deploy`）。
 - **删除**：Aurora 集群、VPC / 子网、Data API 权限、SQS + DLQ、导入 Lambda、DLQ 告警、`db/migrations`、本地 docker compose 的 Postgres。CI 不再需要 pgvector service。
 
 ### 9.14 Bedrock 切换的 A/B（2026-10-18，设计见 §4.7）
